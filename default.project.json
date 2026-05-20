@@ -1,0 +1,62 @@
+{
+  "name": "SHURA",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/ReplicatedStorage"
+      }
+    },
+
+    "ReplicatedFirst": {
+      "First": {
+        "$path": "src/ReplicatedFirst"
+      }
+    },
+
+
+    "ServerScriptService": {
+      "Initializer": {
+        "$path": "src/ServerScriptService"
+      }
+    },
+
+    "ServerStorage": {
+      "Services": {
+        "$path": "src/ServerStorage"
+      }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts"
+        }
+      },
+      "StarterCharacterScripts": {
+        "Client": {
+          "$path": "src/StarterPlayer/StarterCharacterScripts"
+        }
+      }
+    },
+
+    "Workspace": {
+      "$properties": {
+        "FilteringEnabled": true
+      }
+    },
+
+    "Players": {
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    },
+
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}

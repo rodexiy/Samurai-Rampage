@@ -1,0 +1,2 @@
+# NÃO reintroduzir esses diretórios e arquivos quando fizer merge da main:
+.gitattributes merge=ours
