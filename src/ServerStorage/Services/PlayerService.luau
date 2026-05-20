@@ -18,7 +18,10 @@ local SettingsService
 local PartyService
 local RaceService
 local PlaceService
+local SkillTreeService
 local MissionBoardService
+local PrisonService
+local RealmService
 
 function PlayerService:PlayerAdded(Player: Player)
 	if Player:HasTag("Player") then
@@ -41,6 +44,7 @@ function PlayerService:PlayerAdded(Player: Player)
 	SettingsService:LoadSettings(Player)
 
 	GamepassService:LoadAttributes(Player)
+	SkillTreeService:LoadAttributes(Player)
 	self:CheckFirstJoin(Player)
 
 	CharacterService:LoadCharacter(Player)
@@ -130,7 +134,9 @@ function PlayerService:CheckFirstJoin(Player: Player)
 end
 
 function PlayerService:SaveData(Player: Player)
-
+	pcall(function()
+		PrisonService:HandlePlayerLeave(Player)
+	end)
 	DataService:SaveData(Player)
 	pcall(function()
 		PartyService:LeaveParty(Player)
@@ -159,7 +165,9 @@ function PlayerService.KnitInit()
 	PartyService = Knit.GetService("PartyService")
 	RaceService = Knit.GetService("RaceService")
 	PlaceService = Knit.GetService("PlaceService")
+	SkillTreeService = Knit.GetService("SkillTreeService")
 	MissionBoardService = Knit.GetService("MissionBoardService")
+	PrisonService = Knit.GetService("PrisonService")
 end
 
 function PlayerService.KnitStart()

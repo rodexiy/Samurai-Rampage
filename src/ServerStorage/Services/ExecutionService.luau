@@ -8,6 +8,7 @@ local ExecutionService = Knit.CreateService({
 local HitboxService
 local RenderService
 local QuestService
+local SkillTreeService
 
 function ExecutionService:ExecuteInRange(Attacker: Model)
 	local Characters = HitboxService:GetCharactersInBoxArea(
@@ -29,25 +30,25 @@ function ExecutionService:ExecuteInRange(Attacker: Model)
 		RenderService:RenderForAllPlayers("Combat", "Blood", { Character = Character, Attacker = Attacker })
 		Character:SetAttribute("Died", true)
 
-		-- if SkillTreeService:IsSkillUnlocked(Character, "Health Recovery") then
-		-- 	Attacker:SetAttribute(
-		-- 		"Health",
-		-- 		math.clamp(
-		-- 			Attacker:GetAttribute("Health") + (Attacker:GetAttribute("MaxHealth") * 0.25),
-		-- 			0,
-		-- 			Attacker:GetAttribute("MaxHealth")
-		-- 		)
-		-- 	)
-		-- elseif SkillTreeService:IsSkillUnlocked(Character, "Oni Health Recovery") then
-		-- 	Attacker:SetAttribute(
-		-- 		"Health",
-		-- 		math.clamp(
-		-- 			Attacker:GetAttribute("Health") + (Attacker:GetAttribute("MaxHealth") * 0.55),
-		-- 			0,
-		-- 			Attacker:GetAttribute("MaxHealth")
-		-- 		)
-		-- 	)
-		-- end
+		if SkillTreeService:IsSkillUnlocked(Character, "Health Recovery") then
+			Attacker:SetAttribute(
+				"Health",
+				math.clamp(
+					Attacker:GetAttribute("Health") + (Attacker:GetAttribute("MaxHealth") * 0.25),
+					0,
+					Attacker:GetAttribute("MaxHealth")
+				)
+			)
+		elseif SkillTreeService:IsSkillUnlocked(Character, "Oni Health Recovery") then
+			Attacker:SetAttribute(
+				"Health",
+				math.clamp(
+					Attacker:GetAttribute("Health") + (Attacker:GetAttribute("MaxHealth") * 0.55),
+					0,
+					Attacker:GetAttribute("MaxHealth")
+				)
+			)
+		end
 
 		if not Character:GetAttribute("IsAI") then
 			Attacker:SetAttribute("Stamina", Attacker:GetAttribute("MaxStamina"))
@@ -64,6 +65,7 @@ function ExecutionService.KnitInit()
 	HitboxService = Knit.GetService("HitboxService")
 	RenderService = Knit.GetService("RenderService")
 	QuestService = Knit.GetService("QuestService")
+	SkillTreeService = Knit.GetService("SkillTreeService")
 end
 
 function ExecutionService.KnitStart() end

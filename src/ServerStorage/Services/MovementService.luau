@@ -12,6 +12,7 @@ local RenderService
 local AnimationService
 local SoundEffectService
 local BuffService
+local SkillTreeService
 
 local Validate = require(game.ReplicatedStorage.Shared.Validate)
 function MovementService:Run(Character: Model, State: boolean)
@@ -43,7 +44,7 @@ function MovementService:Roll(Character: Model, Direction: string, StartCFrame: 
 	Character:SetAttribute("RollDirection", Direction)
 	StaminaService:RemoveStamina(Character, 5)
 	local RollingDuration = 0.5
-	if Character:GetAttribute("Race") == "Raijin" then
+	if Character:GetAttribute("Race") == "Raijin" and SkillTreeService:IsSkillUnlocked(Character, "Lightning Dash") then
 		RollingDuration = 0.3
 	end
 	DebounceService:AddDebounce(Character, "Rolling", RollingDuration)
@@ -88,6 +89,7 @@ function MovementService.KnitInit()
 	AnimationService = Knit.GetService("AnimationService")
 	SoundEffectService = Knit.GetService("SoundEffectService")
 	BuffService = Knit.GetService("BuffService")
+	SkillTreeService = Knit.GetService("SkillTreeService")
 end
 
 function MovementService.KnitStart() end

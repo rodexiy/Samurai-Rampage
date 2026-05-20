@@ -51,6 +51,12 @@ function FlagService:LoadFlag(Character: Model)
 		return
 	end
 
+	local Equipables = Character:FindFirstChild("Assets") and Character.Assets:FindFirstChild("Equipables")
+	local Back = Equipables and Equipables:FindFirstChild("Back")
+	if not Back then
+		return
+	end
+
 	local Color = Character:GetAttribute("FlagColor")
 
 	if not Color then
@@ -63,7 +69,7 @@ function FlagService:LoadFlag(Character: Model)
 		end
 	end
 
-	for _, Part in Character.Assets.Equipables.Back:GetDescendants() do
+	for _, Part in Back:GetDescendants() do
 		if Part:IsA("BasePart") and Part.Name == "Flag" then
 			Part.Color = Color3.fromHex(Color or "ffffff")
 		end
@@ -80,7 +86,7 @@ function FlagService:LoadFlag(Character: Model)
 		end
 	end
 
-	local ImagePart = Character.Assets.Equipables.Back:FindFirstChild("ImagePart", true)
+	local ImagePart = Back:FindFirstChild("ImagePart", true)
 
 	if not ImagePart then
 		return

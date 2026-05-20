@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local TetsuService = Knit.GetService("TetsuService")
 local RenderService = Knit.GetService("RenderService")
 local AlertService = Knit.GetService("AlertService")
+local SkillTreeService = Knit.GetService("SkillTreeService")
 
 local LearningThreads = {}
 
@@ -27,6 +28,7 @@ local WallRunTrainer = {
 
 						local function Learned()
 							if TetsuService:RemoveTetsu(player, 5000) then
+								SkillTreeService:LearnOtherSkill(player, "WallRun")
 								AlertService:AlertPlayer(player, "You learned the skill of wallrunning!", "Success")
 								RenderService:RenderForPlayer(player, "WallRunTrainer", "ExitQuest")
 								player:SetAttribute("LearningWallRun", false)
@@ -123,7 +125,7 @@ local WallRunTrainer = {
 		},
 
 		validation = function(Player)
-			return false
+			return SkillTreeService:IsSkillUnlocked(Player, "WallRun")
 		end,
 
 		priority = 2,

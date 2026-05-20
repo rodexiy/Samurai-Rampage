@@ -12,6 +12,7 @@ local InteractionController = Knit.CreateController({
 local MissionBoardController
 local InteractionService
 
+local PrisonService
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
 
@@ -21,6 +22,7 @@ local callbacks = {
 	end,
 
 	Cuff = function(Player: Player, Prompt: ProximityPrompt)
+		PrisonService:Arrested(Prompt.Parent)
 	end,
 }
 
@@ -44,6 +46,7 @@ function InteractionController.KnitInit()
 	MissionBoardController = Knit.GetController("MissionBoardController")
 	InteractionService = Knit.GetService("InteractionService")
 
+	PrisonService = Knit.GetService("PrisonService")
 end
 
 function InteractionController.KnitStart()

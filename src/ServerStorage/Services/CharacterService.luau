@@ -26,9 +26,11 @@ local QuestService
 local PlayerService
 local RaceService
 local DamageService
+local SkillTreeService
 local InteractionService
 local HitboxService
 local InCombatService
+local PrisonService
 
 local CachedParts = {}
 local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
@@ -277,16 +279,6 @@ function CharacterService:BindEvents(Character: Model, Player: Player)
 		end
 	end)
 
-	-- Atualiza pupila de acordo com a cor dos olhos para head de raças
-	Character:GetAttributeChangedSignal("EyesColor"):Connect(function()
-		local CharacterAssets = Character.Assets
-		local Race = CharacterAssets.Race
-		local Pupil = Race:FindFirstChild("Pupil", true)
-
-		if Pupil then
-			Pupil.Color = Character:GetAttribute("EyesColor")
-		end
-	end)
 end
 
 function CharacterService:SetStates(Character: Model)
@@ -395,6 +387,7 @@ function CharacterService:LoadCharacter(Player: Player)
 	WeaponService:LoadWeapon(Character)
 	ToolService:LoadPlayerTools(Player)
 
+	PrisonService:CheckJoin(Player)
 
 	if not Character or not Character.Parent or not Character:FindFirstChild("HumanoidRootPart") then
 		return
@@ -515,7 +508,8 @@ function CharacterService:BindRegeneration(Character: Model)
 				DamageService:DealDamage(Character, BurnDamage)
 			end
 
-			local DontDrain = false
+			-- Stamina regen
+			local DontDrain = SkillTreeService:IsSkillUnlocked(Character, "No Run Stamina Drain")
 			if
 				Stamina < MaxStamina
 				and not Attacking
@@ -574,9 +568,11 @@ function CharacterService.KnitInit()
 	PlayerService = Knit.GetService("PlayerService")
 	RaceService = Knit.GetService("RaceService")
 	DamageService = Knit.GetService("DamageService")
+	SkillTreeService = Knit.GetService("SkillTreeService")
 	InteractionService = Knit.GetService("InteractionService")
 	HitboxService = Knit.GetService("HitboxService")
 	InCombatService = Knit.GetService("InCombatService")
+	PrisonService = Knit.GetService("PrisonService")
 	local Entity = Instance.new("Folder")
 	Entity.Name = "Entity"
 	Entity.Parent = game.Workspace

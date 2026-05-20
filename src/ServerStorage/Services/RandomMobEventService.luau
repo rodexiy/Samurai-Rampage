@@ -62,35 +62,35 @@ function RandomMobEventService.KnitInit()
 end
 
 function RandomMobEventService.KnitStart()
-	-- if not BanditSpawns then
-	-- 	return
-	-- end
+	if not BanditSpawns then
+		return
+	end
 
-	-- for _ = 1, MaxEvents do
-	-- 	RandomMobEventService:Spawn()
-	-- end
+	for _ = 1, MaxEvents do
+		RandomMobEventService:Spawn()
+	end
 
-	-- while true do
-	-- 	for _, Event in Events do
-	-- 		if tick() - Event.LastActive > 300 then
-	-- 			for _, Mob in Event.Mobs do
-	-- 				Mob:Destroy()
-	-- 				table.remove(Event.Mobs, _)
-	-- 			end
-	-- 			table.remove(Events, _)
-	-- 		end
+	while true do
+		for _, Event in Events do
+			if tick() - Event.LastActive > 300 then
+				for _, Mob in Event.Mobs do
+					Mob:Destroy()
+					table.remove(Event.Mobs, _)
+				end
+				table.remove(Events, _)
+			end
 
-	-- 		if #Event.Mobs == 0 then
-	-- 			table.remove(Events, _)
+			if #Event.Mobs == 0 then
+				table.remove(Events, _)
 
-	-- 			task.delay(math.random(10, 20), function()
-	-- 				RandomMobEventService:Spawn()
-	-- 			end)
-	-- 		end
-	-- 	end
+				task.delay(math.random(10, 20), function()
+					RandomMobEventService:Spawn()
+				end)
+			end
+		end
 
-	-- 	task.wait(1)
-	-- end
+		task.wait(1)
+	end
 end
 
 return RandomMobEventService

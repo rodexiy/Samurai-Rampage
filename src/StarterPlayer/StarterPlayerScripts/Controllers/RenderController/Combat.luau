@@ -305,7 +305,7 @@ function Combat.Roll(Data)
 	local HasLightningDash = false
 
 	if PlayerToRender then
-		HasLightningDash = false --PlayerToRender.UnlockedNodes:FindFirstChild("Lightning Dash") ~= nil
+		HasLightningDash = PlayerToRender.UnlockedNodes:FindFirstChild("Lightning Dash") ~= nil
 	end
 	if CharacterToRender:GetAttribute("Race") == "Raijin" and HasLightningDash then
 		local A1 = Instance.new("Attachment")

@@ -10,6 +10,7 @@ local AnimationService = Knit.GetService("AnimationService")
 local RenderService = Knit.GetService("RenderService")
 local HitboxService = Knit.GetService("HitboxService")
 local HitService = Knit.GetService("HitService")
+local SkillTreeService = Knit.GetService("SkillTreeService")
 local DamageService = Knit.GetService("DamageService")
 
 local Validate = require(game.ReplicatedStorage.Shared.Validate)
@@ -68,7 +69,7 @@ function UpSlash.Release(Attacker: Model, Data: { any })
 
 	DebounceService:AddDebounce(Attacker, "HitboxStart", 0.05)
 
-	local DoesBlockBreak = false
+	local DoesBlockBreak = SkillTreeService:IsSkillUnlocked(Attacker, "Up Slash Block Break")
 
 	task.delay(0.15, function()
 		HitboxService:CreatePartHitbox(Attacker, {

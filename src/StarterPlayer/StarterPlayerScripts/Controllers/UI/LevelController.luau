@@ -147,30 +147,30 @@ function LevelController.KnitInit()
 end
 
 function LevelController.KnitStart()
-	-- PlayerGui = Player:WaitForChild("PlayerGui")
-	-- Hud = PlayerGui:WaitForChild("Hud")
-	-- LevelUI = Hud:WaitForChild("Level")
-	-- Content = LevelUI:WaitForChild("content")
-	-- Exp = Content:WaitForChild("Exp")
-	-- Level = Content:WaitForChild("Level")
-	-- LevelDark = Content:WaitForChild("LevelDark")
-	-- ExpBar = Content:WaitForChild("ExpBar")
-	-- Bar = ExpBar:WaitForChild("Bar")
-	-- SpecTemplate = Content:WaitForChild("SpecTemplate")
+	PlayerGui = Player:WaitForChild("PlayerGui")
+	Hud = PlayerGui:WaitForChild("Hud")
+	LevelUI = Hud:WaitForChild("Level")
+	Content = LevelUI:WaitForChild("content")
+	Exp = Content:WaitForChild("Exp")
+	Level = Content:WaitForChild("Level")
+	LevelDark = Content:WaitForChild("LevelDark")
+	ExpBar = Content:WaitForChild("ExpBar")
+	Bar = ExpBar:WaitForChild("Bar")
+	SpecTemplate = Content:WaitForChild("SpecTemplate")
 
-	-- for i = 1, MAX_SPECS do
-	-- 	local Spec = SpecTemplate:Clone()
-	-- 	Spec.Name = "Spec" .. i
-	-- 	Spec.Visible = false
-	-- 	Spec.Parent = LevelUI
-	-- 	table.insert(SpecsCache, Spec)
-	-- end
+	for i = 1, MAX_SPECS do
+		local Spec = SpecTemplate:Clone()
+		Spec.Name = "Spec" .. i
+		Spec.Visible = false
+		Spec.Parent = LevelUI
+		table.insert(SpecsCache, Spec)
+	end
 
-	-- LevelService.ExpUpdated:Connect(function(Exp, Level)
-	-- 	LevelController:UpdateUI(Exp, Level)
-	-- end)
+	LevelService.ExpUpdated:Connect(function(Exp, Level)
+		LevelController:UpdateUI(Exp, Level)
+	end)
 
-	-- LevelController:UpdateUI()
+	LevelController:UpdateUI()
 end
 
 return LevelController

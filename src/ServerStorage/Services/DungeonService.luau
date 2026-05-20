@@ -365,20 +365,20 @@ function DungeonService:KnitInit()
 end
 
 function DungeonService:KnitStart()
-	-- DungeonService:GenerateDungeon({
-	-- 	Name = "Test",
-	-- 	Type = "Linear",
-	-- 	Progress = "Enemy",
-	-- 	Backtrack = true,
-	-- 	RoomAmount = 10,
-	-- 	MaxSafeRooms = 1,
-	-- 	Boss = {
-	-- 		Model = "Yamarashi",
-	-- 		Runner = "Yamarashi",
-	-- 		Config = "Yamarashi",
-	-- 	},
-	-- 	CFrame = CFrame.new(-8000, 221.901, 430.346) * CFrame.Angles(0, math.rad(90), 0),
-	-- })
+	DungeonService:GenerateDungeon({
+		Name = "Test",
+		Type = "Linear",
+		Progress = "Enemy",
+		Backtrack = true,
+		RoomAmount = 10,
+		MaxSafeRooms = 1,
+		Boss = {
+			Model = "Yamarashi",
+			Runner = "Yamarashi",
+			Config = "Yamarashi",
+		},
+		CFrame = CFrame.new(-8000, 221.901, 430.346) * CFrame.Angles(0, math.rad(90), 0),
+	})
 end
 
 return DungeonService

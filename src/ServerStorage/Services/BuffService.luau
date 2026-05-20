@@ -34,7 +34,11 @@ end
 function BuffService:UpdateCharacterBuff(Character: Model, BuffType: string)
 	local BuffTypes = {
 		Burn = function()
-
+			if SkillTreeService:IsSkillUnlocked(Character, "Debuff Resistance") then
+				Character:SetAttribute("BurnDamage", 0)
+				Character:RemoveTag("Burn")
+				return
+			end
 			local Buffs = BuffService:GetBuffsByType(Character, "Burn")
 			local Damage = BuffService:GetBuffsFromType(Character, "Burn", 0)
 			Character:SetAttribute("BurnDamage", Damage)

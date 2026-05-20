@@ -121,6 +121,9 @@ local Climb = {
 			return
 		end
 
+		if not SkillTreeController:IsSkillUnlocked("Climb") then
+			return
+		end
 
 		if not Validate:CanClimb(Character) then
 			StopClimb(true)
@@ -142,7 +145,11 @@ local Climb = {
 		end)
 		Character:SetAttribute("Climbing", true)
 
-		ClimbSpeed = 10
+		if SkillTreeController:IsSkillUnlocked("Climb Speed") then
+			ClimbSpeed = 15
+		else
+			ClimbSpeed = 10
+		end
 
 		Humanoid.PlatformStand = true
 		SetAutoRotate(Character, false)
@@ -162,7 +169,7 @@ local Climb = {
 		AlignOrientation.Parent = Character
 
 		task.spawn(function()
-			local Drain = true
+			local Drain = SkillTreeController:IsSkillUnlocked("No Climb Stamina Drain")
 			while Character:GetAttribute("Climbing") do
 				if not Drain or Character:GetAttribute("InCombat") then
 					StaminaService:RemoveStamina(2.5)

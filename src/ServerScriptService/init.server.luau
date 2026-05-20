@@ -85,8 +85,10 @@ Cmdr:RegisterCommandsIn(PathCmdr.Commands)
 Cmdr:RegisterHooksIn(PathCmdr.Hooks)
 Cmdr:RegisterTypesIn(PathCmdr.Types)
 
+local SharedCmdr = ReplicatedStorage.Shared:FindFirstChild("Cmdr")
+if SharedCmdr and SharedCmdr:FindFirstChild("Commands") then
+	Cmdr:RegisterCommandsIn(SharedCmdr.Commands)
+end
+
 local MobService = Knit.GetService("MobService")
 local AIService = Knit.GetService("AIService")
-
--- local Mob = MobService:SpawnMob("Gashadokuro", CFrame.new(-75.514, 15.605, 113.05))
--- AIService:AddAI(Mob, "Gashadokuro", "Gashadokuro", nil)

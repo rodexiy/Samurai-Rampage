@@ -223,12 +223,12 @@ function DuelService.KnitInit()
 end
 
 function DuelService.KnitStart()
-	-- local DuelSpawns = game.ServerStorage:FindFirstChild("DuelSpawns")
-	-- if DuelSpawns then
-	-- 	for i = 1, MAX_DUEL_MODS do
-	-- 		DuelService:CreateDuelMob()
-	-- 	end
-	-- end
+	local DuelSpawns = game.ServerStorage:FindFirstChild("DuelSpawns")
+	if DuelSpawns then
+		for i = 1, MAX_DUEL_MODS do
+			DuelService:CreateDuelMob()
+		end
+	end
 
 end
 

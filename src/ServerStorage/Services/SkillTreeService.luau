@@ -256,7 +256,7 @@ function SkillTreeService:UnlockNode(Player: Player, NodeName: string)
 	return true
 end
 function SkillTreeService.Client:UnlockNode(Player: Player, NodeName: string)
-	return false --self.Server:UnlockNode(Player, NodeName)
+	return self.Server:UnlockNode(Player, NodeName)
 end
 
 function SkillTreeService:IsSkillUnlocked(Character: Player | Model, SkillName: string)

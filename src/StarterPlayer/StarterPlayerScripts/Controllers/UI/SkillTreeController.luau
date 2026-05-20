@@ -55,13 +55,12 @@ function MultUdim2(Vector: UDim2, Scale: number)
 end
 
 function SkillTreeController:IsSkillUnlocked(SkillName: string)
-	return false
-	-- local UnlockedNodes = Player:FindFirstChild("UnlockedNodes")
-	-- if not UnlockedNodes then
-	-- 	warn("Unlocked nodes missing!")
-	-- 	return false
-	-- end
-	-- return UnlockedNodes:FindFirstChild(SkillName) ~= nil
+	local UnlockedNodes = Player:FindFirstChild("UnlockedNodes")
+	if not UnlockedNodes then
+		warn("Unlocked nodes missing!")
+		return false
+	end
+	return UnlockedNodes:FindFirstChild(SkillName) ~= nil
 end
 
 function SkillTreeController:CheckUnlockButton()
@@ -493,7 +492,102 @@ function SkillTreeController.KnitInit()
 end
 
 function SkillTreeController.KnitStart()
-	
+	PlayerGui = Player:WaitForChild("PlayerGui")
+	Hud = PlayerGui:WaitForChild("Hud")
+	Menu = PlayerGui:WaitForChild("Menu")
+
+	SkillTree = Menu:WaitForChild("SkillTree")
+	Background = SkillTree:WaitForChild("Background")
+	Content = SkillTree:WaitForChild("Content")
+	Description = SkillTree:WaitForChild("Description")
+
+	InterligationTemplate = SkillTree:WaitForChild("InterligationTemplate")
+	NodeTemplate = SkillTree:WaitForChild("NodeTemplate")
+
+	LastScale = Content.UIScale.Scale
+	Content.Position = UDim2.fromOffset(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+	SkillTreeController:GetTrees()
+
+	local function BindCharacter()
+		if not Player.Character then
+			return
+		end
+		Player.Character:GetAttributeChangedSignal("Race"):Connect(function()
+			SkillTreeController:GetTrees()
+
+			if SkillTree.Enabled then
+				SkillTreeController:UpdateTree()
+			end
+		end)
+
+		Player.Character:GetAttributeChangedSignal("Artifact"):Connect(function()
+			SkillTreeController:GetTrees()
+
+			if SkillTree.Enabled then
+				SkillTreeController:UpdateTree()
+			end
+		end)
+	end
+
+	BindCharacter()
+
+	Player.CharacterAdded:Connect(function(character)
+		BindCharacter()
+	end)
+
+	SkillTreeController:BindControls()
+
+	SkillTree:GetPropertyChangedSignal("Enabled"):Connect(function()
+		LastScale = 1
+		if not SkillTree.Enabled then
+			HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
+			for _, thread in threads do
+				task.cancel(thread)
+			end
+
+			table.clear(threads)
+		end
+
+		SelectedNodeName = nil
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+
+		Background.BackgroundColor3 = Color3.fromRGB(51, 51, 51)
+		Content.UIScale.Scale = 1
+		Content.Position = UDim2.fromOffset(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+		Description.Visible = false
+
+		if BackgroundTween then
+			BackgroundTween:Cancel()
+			BackgroundTween = nil
+		end
+	end)
+
+	Player:GetAttributeChangedSignal("FreePoints"):Connect(function()
+		SkillTree.SkillPointsLeft.Text = Player:GetAttribute("FreePoints") .. " SKILL POINTS"
+	end)
+	SkillTree.SkillPointsLeft.Text = Player:GetAttribute("FreePoints") .. " SKILL POINTS"
+
+	local function AddNode(Node, PreviousName)
+		local Clone = table.clone(Node)
+		Clone.Previous = PreviousName
+		Clone.Branches = nil
+		NodesInfo[Node.Name] = Clone
+
+		if Node.Branches then
+			for _, Branch in Node.Branches do
+				AddNode(Branch, Node.Name)
+			end
+		end
+	end
+
+	for _, Tree in SkillTreesIndex do
+		if not Tree.Branches then
+			continue
+		end
+		for _, Node in Tree.Branches do
+			AddNode(Node, Tree.Name)
+		end
+	end
 end
 
 return SkillTreeController

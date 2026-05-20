@@ -141,6 +141,11 @@ local wallrun = {
 			return
 		end
 		
+		if not RunService:IsStudio() then
+			if not SkillTreeController:IsSkillUnlocked("WallRun") and not Player:GetAttribute("LearningWallRun") then
+				return
+			end
+		end
 
 		local side, ray = checkWall()
 		if not side or not ray then

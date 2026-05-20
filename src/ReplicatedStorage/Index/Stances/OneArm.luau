@@ -8,7 +8,12 @@ return {
 	BaseStaminaCost = 13,
 
 	M1 = {
-		[3] = { HitboxType = "Box", HitboxSize = Vector3.new(5, 5, 5) },
+		[5] = {
+			HitboxType = "Box",
+			HitboxSize = Vector3.new(5, 5, 7),
+			PlaySwingSound = false,
+			EnableSwordTrail = false,
+		},
 	},
 
 	M2 = {

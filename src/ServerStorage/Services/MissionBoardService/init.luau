@@ -23,6 +23,7 @@ type MissionType = {
 }
 
 local MissionTypes = {
+	"Kill",
 	"ObtainLostItem",
 	-- "Find",
 	-- "Rescue",

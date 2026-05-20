@@ -13,6 +13,7 @@ local ItemService
 local InventoryService
 local RenderService
 local QuestService
+local RealmService
 
 local ResourceTypes = {
 	NormalTree = {
@@ -92,6 +93,10 @@ function ResourceService:BreakAnimation(Resource: Model)
 			Resource:Destroy()
 		end)
 
+		if OldParent:IsAncestorOf(workspace.Realms) then
+			Clone:Destroy()
+			return
+		end
 	end)
 end
 
@@ -142,13 +147,18 @@ function ResourceService:BreakResource(Player: Player, Resource: Model)
 	end
 
 	QuestService:CallQuestFunction(Player, "BreakResource", ResourceType.Name)
+	RealmService:BreakResource(Player, Resource)
 	ResourceService:BreakAnimation(Resource)
 
-	ResourceService:Respawn(Clone, OldParent, ResourceType)
-
+	if not OldParent:IsDescendantOf(workspace.Realms) then
+		ResourceService:Respawn(Clone, OldParent, ResourceType)
+	else
+		Clone:Destroy()
+	end
 end
 
 function ResourceService.KnitInit()
+	RealmService = Knit.GetService("RealmService")
 	RewardService = Knit.GetService("RewardService")
 	PickableService = Knit.GetService("PickableService")
 	ItemService = Knit.GetService("ItemService")

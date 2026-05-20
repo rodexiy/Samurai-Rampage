@@ -20,6 +20,7 @@ local AlertService
 local MissionBoardService
 local CarryService
 local DuelService
+local PrisonService
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local TweenService = game:GetService("TweenService")
@@ -189,6 +190,7 @@ function InteractionService.KnitInit()
 	MissionBoardService = Knit.GetService("MissionBoardService")
 	CarryService = Knit.GetService("CarryService")
 	DuelService = Knit.GetService("DuelService")
+	PrisonService = Knit.GetService("PrisonService")
 end
 
 function InteractionService.KnitStart()

@@ -18,6 +18,7 @@ local RenderService
 local WeaponService
 local SoundEffectService
 local StaminaService
+local SkillTreeService
 local LagCompensationService
 
 local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
@@ -101,13 +102,13 @@ function PostureService:Deflected(Character: Model, Attacker: Model, Damage: num
 	end
 
 	if not Character:GetAttribute("IsAI") then
-		-- if SkillTreeService:IsSkillUnlocked(Character, "Deflect Stamina Recovery II") then
-		-- 	StaminaService:AddStamina(Character, Damage / 1.15)
-		-- elseif SkillTreeService:IsSkillUnlocked(Character, "Deflect Stamina Recovery I") then
-		-- 	StaminaService:AddStamina(Character, Damage / 1.45)
-		-- else
+		if SkillTreeService:IsSkillUnlocked(Character, "Deflect Stamina Recovery II") then
+			StaminaService:AddStamina(Character, Damage / 1.15)
+		elseif SkillTreeService:IsSkillUnlocked(Character, "Deflect Stamina Recovery I") then
+			StaminaService:AddStamina(Character, Damage / 1.45)
+		else
 			StaminaService:AddStamina(Character, Damage / 2)
-		-- end
+		end
 	end
 
 	local DeflectedPostureDamage = if Character:GetAttribute("IsAI") then Damage else Damage / 2
@@ -292,6 +293,7 @@ function PostureService.KnitInit()
 	WeaponService = Knit.GetService("WeaponService")
 	SoundEffectService = Knit.GetService("SoundEffectService")
 	StaminaService = Knit.GetService("StaminaService")
+	SkillTreeService = Knit.GetService("SkillTreeService")
 end
 
 function PostureService.KnitStart()

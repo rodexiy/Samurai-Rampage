@@ -20,7 +20,9 @@ local function landed()
 	if Velocity > 130 then
 		CameraController:ShakeOnce(Velocity / 170, 10, 0.1, 0.1)
 
-		DamageService:FallDamage(Velocity)
+		if not SkillTreeController:IsSkillUnlocked("No Fall Damage") then
+			DamageService:FallDamage(Velocity)
+		end
 	end
 end
 

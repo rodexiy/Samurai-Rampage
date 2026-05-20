@@ -37,6 +37,9 @@ function Meditate.callback(inputState)
 	end
 
 	if Character:GetAttribute("Meditating") then
+		if Character:GetAttribute("RealmTeleporting") then
+			return
+		end
 		Meditate.Stop()
 		return
 	end

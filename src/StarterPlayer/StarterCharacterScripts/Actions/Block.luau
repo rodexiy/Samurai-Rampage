@@ -172,7 +172,7 @@ function Block.Start()
 	Character:GetAttributeChangedSignal("Rolling"):Connect(function()
 		if
 			Character:GetAttribute("Rolling")
-			and (Character:GetAttribute("Race") ~= "Raijin")
+			and (Character:GetAttribute("Race") ~= "Raijin" or SkillTreeController:IsSkillUnlocked("Lightning Dash"))
 		then
 			StopBlock()
 		end

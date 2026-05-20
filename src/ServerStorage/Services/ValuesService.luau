@@ -10,6 +10,7 @@ local DataService
 local ItemService
 local StanceService
 local RaceService
+local SkillTreeService
 
 local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
 
@@ -46,7 +47,7 @@ function ValuesService:UpdateRegeneration(Character: Model)
 	local NodeIncrease = 0
 	local Player = Players:GetPlayerFromCharacter(Character)
 	if Player then
-		NodeIncrease = 1 * 0.01
+		NodeIncrease = self:GetAmountUnlockedNodesMatch(Player, "Regeneration") * 0.01
 	end
 
 	Character:SetAttribute("Regeneration", 0.01 + NodeIncrease)
@@ -61,7 +62,11 @@ function ValuesService:UpdateDamage(Character: Model)
 	local Kendo = 1
 	local Player = Players:GetPlayerFromCharacter(Character)
 	if Player then
-		Kendo = 0 * 2
+		if SkillTreeService:IsSkillUnlocked(Player, "Energy Conservation") then
+			EnergyConservation = 0.7
+		end
+
+		Kendo = self:GetAmountUnlockedNodesMatch(Player, "Kendo") * 2
 	end
 
 	local SwordBaseDamage = StanceData.BaseDamage or 0
@@ -84,6 +89,9 @@ function ValuesService:UpdateMaxHealth(Character: Model, SetToMax: boolean)
 
 	local NodeIncrease = 0
 	local Player = Players:GetPlayerFromCharacter(Character)
+	if Player then
+		NodeIncrease = self:GetAmountUnlockedNodesMatch(Player, "Resistance") * 10
+	end
 
 	local ArmorIncrease = self:GetEquipmentAttributeValue(Character, "MaxHealthIncrease")
 
@@ -179,6 +187,7 @@ function ValuesService.KnitInit()
 	ItemService = Knit.GetService("ItemService")
 	StanceService = Knit.GetService("StanceService")
 	RaceService = Knit.GetService("RaceService")
+	SkillTreeService = Knit.GetService("SkillTreeService")
 end
 
 function ValuesService.KnitStart() end

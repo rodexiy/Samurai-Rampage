@@ -72,7 +72,7 @@ local Run = {
 					StopRun()
 				end)
 
-				local HasSkill = false
+				local HasSkill = SkillTreeController:IsSkillUnlocked("No Run Stamina Drain")
 				while Character:GetAttribute("Running") do
 					local dt = task.wait(0.5)
 

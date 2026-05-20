@@ -22,6 +22,8 @@ function ObjectiveController:RenderObjective(
 )
 	ObjectiveHUD.Enabled = true
 
+	AbandonQuest.Visible = ObjectiveName ~= "PrisonLabor"
+
 	for _, child in ipairs(Content:GetChildren()) do
 		if child.Name ~= "Template" and child:IsA("Frame") then
 			child:Destroy()

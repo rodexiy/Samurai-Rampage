@@ -11,6 +11,7 @@ local RenderService = Knit.GetService("RenderService")
 local HitboxService = Knit.GetService("HitboxService")
 local HitService = Knit.GetService("HitService")
 local LagCompensationService = Knit.GetService("LagCompensationService")
+local SkillTreeService = Knit.GetService("SkillTreeService")
 local DamageService = Knit.GetService("DamageService")
 
 local Validate = require(game.ReplicatedStorage.Shared.Validate)
@@ -43,6 +44,9 @@ function Barrage.Release(Attacker: Model, Data: { any })
 
 	local BarrageDuration = 2
 
+	if SkillTreeService:IsSkillUnlocked(Attacker, "Longer Barrage") then
+		BarrageDuration = 3
+	end
 	for _ = 1, BarrageDuration do
 		for _, Animation in Animations do
 			AnimationService:StopAnimationFind(Attacker, "Deflected")

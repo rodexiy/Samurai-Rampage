@@ -138,7 +138,7 @@ local Roll = {
 		ForwardRayParams.FilterDescendantsInstances = { CollectionService:GetTagged("Entity") }
 		ForwardRayParams.FilterType = Enum.RaycastFilterType.Exclude
 
-		if Character:GetAttribute("Race") == "Raijin"  then
+		if Character:GetAttribute("Race") == "Raijin" and SkillTreeController:IsSkillUnlocked("Lightning Dash") then
 			local LookDirection =
 				CFrame.new(RootPart.CFrame.Position, (RootPart.CFrame * CFrame.new(reversed)).Position).LookVector.Unit
 

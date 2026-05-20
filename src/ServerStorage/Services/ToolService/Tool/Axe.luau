@@ -7,6 +7,7 @@ local DebounceService = Knit.GetService("DebounceService")
 local Players = game:GetService("Players")
 local StaminaService = Knit.GetService("StaminaService")
 local ResourceService = Knit.GetService("ResourceService")
+local RealmService = Knit.GetService("RealmService")
 
 local ShakeObject = require(game.ReplicatedStorage.Shared.ShakeObject)
 
@@ -58,7 +59,9 @@ function Axe.Activated(Character: Model, Data: { any })
 	local Player = Players:GetPlayerFromCharacter(Character)
 
 	for _, Tree in Trees do
-	
+		if not RealmService:HasOwnership(Player, Tree) then
+			continue
+		end
 
 		if Tree:GetAttribute("Broken") then
 			continue

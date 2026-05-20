@@ -48,13 +48,13 @@ function BossSpawnService:SpawnBoss(Data: { any })
 end
 
 function BossSpawnService:BindBossSpawn()
-	-- for _, Boss in Bosses do
-	-- 	task.spawn(function()
-	-- 		local SpawnTime = math.random(Boss.SpawnTime[1], Boss.SpawnTime[2] or Boss.SpawnTime[1])
-	-- 		task.wait(SpawnTime)
-	-- 		BossSpawnService:SpawnBoss(Boss)
-	-- 	end)
-	-- end
+	for _, Boss in Bosses do
+		task.spawn(function()
+			local SpawnTime = math.random(Boss.SpawnTime[1], Boss.SpawnTime[2] or Boss.SpawnTime[1])
+			task.wait(SpawnTime)
+			BossSpawnService:SpawnBoss(Boss)
+		end)
+	end
 end
 
 function BossSpawnService.KnitInit()

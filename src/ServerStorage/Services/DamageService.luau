@@ -10,6 +10,7 @@ local DamageService = Knit.CreateService({
 local PartyService
 local EquipmentService
 local ItemService
+local SkillTreeService
 local ArtifactService
 local ValuesService
 local StanceService
@@ -40,7 +41,8 @@ function DamageService:CalculateDamage(Attacker: Model, Enemy: Model, BaseDamage
 	for _, Multiplier in Multipliers do
 		local NodeIncrease = 0
 		if Multiplier == "Artifact" then
-			NodeIncrease = 0
+			NodeIncrease = BaseDamage
+				* ((ValuesService:GetAmountUnlockedNodesMatch(Attacker, Attacker:GetAttribute("Artifact")) or 0) * 0.15)
 		elseif Multiplier == "Weapon" then
 			local StanceData = StanceService:GetStance(Attacker:GetAttribute("Stance"))
 			local WeaponData = ItemService:GetItemData(Attacker:GetAttribute("Weapon"))
@@ -52,7 +54,7 @@ function DamageService:CalculateDamage(Attacker: Model, Enemy: Model, BaseDamage
 			end
 
 			BaseDamage += SwordBaseDamage
-			NodeIncrease = 0
+			NodeIncrease = ValuesService:GetAmountUnlockedNodesMatch(Attacker, "Kendo Proficiency")
 		end
 
 		BaseDamage += NodeIncrease
@@ -150,6 +152,7 @@ function DamageService.KnitInit()
 	PartyService = Knit.GetService("PartyService")
 	EquipmentService = Knit.GetService("EquipmentService")
 	ItemService = Knit.GetService("ItemService")
+	SkillTreeService = Knit.GetService("SkillTreeService")
 	ArtifactService = Knit.GetService("ArtifactService")
 	ValuesService = Knit.GetService("ValuesService")
 	StanceService = Knit.GetService("StanceService")

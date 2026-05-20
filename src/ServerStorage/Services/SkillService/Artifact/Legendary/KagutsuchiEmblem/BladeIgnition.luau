@@ -12,6 +12,7 @@ local HitboxService = Knit.GetService("HitboxService")
 local HitService = Knit.GetService("HitService")
 local LagCompensationService = Knit.GetService("LagCompensationService")
 local BloodService = Knit.GetService("BloodService")
+local SkillTreeService = Knit.GetService("SkillTreeService")
 
 local TweenService = game:GetService("TweenService")
 
@@ -28,6 +29,9 @@ function BladeIgnition.Ignite(Attacker: Model, Data: { any })
 	local WasOnFire = Attacker:GetAttribute("SwordOnFire")
 
 	local FireDuration = 25
+	if SkillTreeService:IsSkillUnlocked(Attacker, "Blade Ignition II") then
+		FireDuration = 45
+	end
 
 	DebounceService:AddDebounce(Attacker, "SwordOnFire", FireDuration)
 

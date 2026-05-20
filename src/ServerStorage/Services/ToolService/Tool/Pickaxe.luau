@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local StaminaService = Knit.GetService("StaminaService")
 local ResourceService = Knit.GetService("ResourceService")
 local RenderService = Knit.GetService("RenderService")
+local RealmService = Knit.GetService("RealmService")
 
 local ShakeObject = require(game.ReplicatedStorage.Shared.ShakeObject)
 
@@ -73,6 +74,9 @@ function Pickaxe.Activated(Character: Model, Data: { any })
 			continue
 		end
 
+		if not RealmService:HasOwnership(Player, Ore) then
+			continue
+		end
 
 		RenderService:RenderForAllPlayers(
 			"Resource",

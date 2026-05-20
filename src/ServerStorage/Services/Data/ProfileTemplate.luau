@@ -10,7 +10,14 @@ return {
 
 	Gamepass = {},
 
+	Prison = {
+		Labor = {
+			AmountToCollect = 0,
+			Collected = 0,
+		},
 
+		PrisonTime = 0,
+	},
 
 	Equipped = {
 		Weapon = nil,
@@ -58,4 +65,8 @@ return {
 		Ambience = true,
 	},
 
+	Realm = {
+		Removable = {},
+		PlacedObjects = {},
+	},
 }
