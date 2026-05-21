@@ -6,6 +6,7 @@ return {
 	WeaponType = "Katana",
 	BaseDamage = 20,
 	BaseStaminaCost = 13,
+	LeftArmRagdoll = true,
 
 	M1 = {
 		[5] = {
