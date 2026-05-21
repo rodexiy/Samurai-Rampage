@@ -9,6 +9,7 @@ local HitboxService
 local RenderService
 local QuestService
 local SkillTreeService
+local KillStreakService
 
 function ExecutionService:ExecuteInRange(Attacker: Model)
 	local Characters = HitboxService:GetCharactersInBoxArea(
@@ -56,6 +57,7 @@ function ExecutionService:ExecuteInRange(Attacker: Model)
 
 		local Player = Players:GetPlayerFromCharacter(Attacker)
 		if Player then
+			KillStreakService:HandlePlayerKill(Attacker, Character)
 			QuestService:CallQuestFunction(Player, "Kill", Character)
 		end
 	end
@@ -66,6 +68,7 @@ function ExecutionService.KnitInit()
 	RenderService = Knit.GetService("RenderService")
 	QuestService = Knit.GetService("QuestService")
 	SkillTreeService = Knit.GetService("SkillTreeService")
+	KillStreakService = Knit.GetService("KillStreakService")
 end
 
 function ExecutionService.KnitStart() end

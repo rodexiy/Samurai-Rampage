@@ -22,6 +22,7 @@ local SkillTreeService
 local MissionBoardService
 local PrisonService
 local RealmService
+local KillStreakService
 
 function PlayerService:PlayerAdded(Player: Player)
 	if Player:HasTag("Player") then
@@ -41,6 +42,7 @@ function PlayerService:PlayerAdded(Player: Player)
 
 	local PlayerData = DataService:GetData(Player)
 
+	KillStreakService:LoadPlayer(Player)
 	SettingsService:LoadSettings(Player)
 
 	GamepassService:LoadAttributes(Player)
@@ -134,6 +136,7 @@ function PlayerService:CheckFirstJoin(Player: Player)
 end
 
 function PlayerService:SaveData(Player: Player)
+	KillStreakService:ResetIfLeavingPlayerCombat(Player)
 	pcall(function()
 		PrisonService:HandlePlayerLeave(Player)
 	end)
@@ -168,6 +171,7 @@ function PlayerService.KnitInit()
 	SkillTreeService = Knit.GetService("SkillTreeService")
 	MissionBoardService = Knit.GetService("MissionBoardService")
 	PrisonService = Knit.GetService("PrisonService")
+	KillStreakService = Knit.GetService("KillStreakService")
 end
 
 function PlayerService.KnitStart()

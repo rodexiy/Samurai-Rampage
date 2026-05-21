@@ -7,6 +7,7 @@ return {
 	Level = 1,
 	Exp = 0,
 	Tetsu = 0,
+	KillStreak = 0,
 
 	Gamepass = {},
 

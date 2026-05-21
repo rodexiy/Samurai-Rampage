@@ -31,6 +31,7 @@ local InteractionService
 local HitboxService
 local InCombatService
 local PrisonService
+local KillStreakService
 
 local CachedParts = {}
 local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
@@ -141,6 +142,7 @@ function CharacterService:BindEvents(Character: Model, Player: Player)
 
 			local Player = Players:GetPlayerFromCharacter(Character)
 			if Player then
+				KillStreakService:Reset(Player)
 				CharacterService.Client.Died:Fire(Player)
 				InCombatService:SetInCombat(Character, false)
 			end
@@ -573,6 +575,7 @@ function CharacterService.KnitInit()
 	HitboxService = Knit.GetService("HitboxService")
 	InCombatService = Knit.GetService("InCombatService")
 	PrisonService = Knit.GetService("PrisonService")
+	KillStreakService = Knit.GetService("KillStreakService")
 	local Entity = Instance.new("Folder")
 	Entity.Name = "Entity"
 	Entity.Parent = game.Workspace

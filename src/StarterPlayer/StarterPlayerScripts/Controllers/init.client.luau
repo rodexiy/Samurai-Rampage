@@ -21,9 +21,7 @@ task.spawn(function()
 	repeat
 		local success = pcall(function()
 			StarterGui:SetCore("ResetButtonCallback", false)
-			if game.PlaceId == 104934022920218 then
-				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
-			end
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, true)
 
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)

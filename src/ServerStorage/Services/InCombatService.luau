@@ -99,4 +99,28 @@ function InCombatService:GetInCombatWith(Character: Model)
 	return ActiveAttackers[Players:GetPlayerFromCharacter(Character)]
 end
 
+function InCombatService:IsInCombatWithPlayer(Character: Model)
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if not Player then
+		return false
+	end
+
+	local CombatOpponents = ActiveAttackers[Player]
+	if CombatOpponents then
+		for OpponentCharacter in CombatOpponents do
+			if Players:GetPlayerFromCharacter(OpponentCharacter) then
+				return true
+			end
+		end
+	end
+
+	for OtherPlayer, OtherCombatOpponents in ActiveAttackers do
+		if OtherPlayer ~= Player and OtherCombatOpponents[Character] then
+			return true
+		end
+	end
+
+	return false
+end
+
 return InCombatService
