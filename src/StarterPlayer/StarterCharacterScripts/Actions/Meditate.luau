@@ -45,12 +45,18 @@ function Meditate.callback(inputState)
 	end
 
 	local ray: RaycastResult = workspace:Raycast(Character.PrimaryPart.Position, Vector3.new(0, -3, 0), Params)
+	local IsInWisdomWorld = Character:GetAttribute("InWisdomWorld") or Player:GetAttribute("InWisdomWorld")
 
-	if (not ray or not ray.Instance:FindFirstAncestor("Rugs")) and not Player:GetAttribute("MeditateAnywhere") then
+	if IsInWisdomWorld then
+		return
+	end
+	if (not ray or not ray.Instance:FindFirstAncestor("Rugs"))
+		and not Player:GetAttribute("MeditateAnywhere")
+	then
 		return
 	end
 
-	if Character.Humanoid.FloorMaterial == Enum.Material.Air then
+	if not IsInWisdomWorld and Character.Humanoid.FloorMaterial == Enum.Material.Air then
 		return
 	end
 
@@ -71,5 +77,6 @@ Character:GetAttributeChangedSignal("BeenHitted"):Connect(function()
 		Meditate.Stop()
 	end
 end)
+
 
 return Meditate

@@ -18,6 +18,36 @@ local WeaponsModules = {}
 local Validate = require(game.ReplicatedStorage.Shared.Validate)
 local Weapons = game.ReplicatedStorage.Assets.Weapons
 
+local function GetCharacterModelScale(Character: Model): number
+	local ModelScale = Character:GetAttribute("ModelScale")
+	if typeof(ModelScale) == "number" then
+		return ModelScale
+	end
+
+	return Character:GetScale()
+end
+
+local function ScaleInstanceToCharacter(InstanceToScale: Instance, Character: Model)
+	local ModelScale = GetCharacterModelScale(Character)
+	if math.abs(ModelScale - 1) < 0.001 then
+		return
+	end
+
+	if InstanceToScale:IsA("Model") then
+		InstanceToScale:ScaleTo(InstanceToScale:GetScale() * ModelScale)
+	elseif InstanceToScale:IsA("BasePart") then
+		InstanceToScale.Size *= ModelScale
+
+		for _, Descendant in InstanceToScale:GetDescendants() do
+			if Descendant:IsA("Attachment") then
+				Descendant.Position *= ModelScale
+			elseif Descendant:IsA("SpecialMesh") then
+				Descendant.Scale *= ModelScale
+			end
+		end
+	end
+end
+
 function WeaponService:Equip(Character: Model, State: boolean, _UnequipDelay: number)
 	if State and not Validate:CanEquipWeapon(Character) then
 		return
@@ -115,6 +145,8 @@ function WeaponService:LoadWeapon(Character: Model)
 	end
 
 	local Weapon = WeaponFolder.Weapon:Clone()
+	ScaleInstanceToCharacter(Weapon, Character)
+
 	if Weapon:FindFirstChild("Right Arm") and Weapon:FindFirstChild("Left Arm") then
 		RenderService:WeldConstraint(Character["Right Arm"], Weapon["Right Arm"])
 		Weapon["Right Arm"].CFrame = Character["Right Arm"].CFrame
@@ -134,6 +166,7 @@ function WeaponService:LoadWeapon(Character: Model)
 		local Sheath = WeaponFolder:FindFirstChild("Sheath")
 		if Sheath then
 			local Sheath = Sheath:Clone()
+			ScaleInstanceToCharacter(Sheath, Character)
 			Sheath.SheathWeld.Part1 = Sheath.PrimaryPart
 			Sheath.SheathWeld.Part0 = Character.SheathPart
 			Sheath.SheathWeld.Enabled = true

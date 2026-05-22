@@ -62,6 +62,35 @@ local function SetHairTransparency(Character: Model, Transparency: number)
 	end
 end
 
+local function GetCharacterModelScale(Character: Model): number
+	local ModelScale = Character:GetAttribute("ModelScale")
+	if typeof(ModelScale) == "number" then
+		return ModelScale
+	end
+
+	return Character:GetScale()
+end
+
+local function ScaleEquipmentClone(EquipmentClone: Instance, ModelScale: number)
+	if math.abs(ModelScale - 1) < 0.001 then
+		return
+	end
+
+	if EquipmentClone:IsA("Model") then
+		EquipmentClone:ScaleTo(EquipmentClone:GetScale() * ModelScale)
+	elseif EquipmentClone:IsA("BasePart") then
+		EquipmentClone.Size *= ModelScale
+
+		for _, Descendant in EquipmentClone:GetDescendants() do
+			if Descendant:IsA("Attachment") then
+				Descendant.Position *= ModelScale
+			elseif Descendant:IsA("SpecialMesh") then
+				Descendant.Scale *= ModelScale
+			end
+		end
+	end
+end
+
 function EquipmentController:UnloadEquipment(Character: Model, Type: string)
 	local TypeFolder = GetOrCreateEquipmentFolder(Character, Type)
 	if not TypeFolder then
@@ -152,6 +181,7 @@ function EquipmentController:LoadEquipment(Character: Model, Type: string)
 		end
 
 		local PartClone = Part:Clone()
+		ScaleEquipmentClone(PartClone, GetCharacterModelScale(Character))
 
 		for _, Descendant in PartClone:GetDescendants() do
 			if Descendant:IsA("BasePart") then
@@ -224,6 +254,10 @@ function EquipmentController:BindCharacter(Character: Model)
 			self:LoadEquipment(Character, Type)
 		end))
 	end
+
+	table.insert(Connections, Character:GetAttributeChangedSignal("ModelScale"):Connect(function()
+		self:LoadEquipments(Character)
+	end))
 
 	table.insert(Connections, Character:GetAttributeChangedSignal("FlagColor"):Connect(function()
 		self:ApplyFlag(Character)

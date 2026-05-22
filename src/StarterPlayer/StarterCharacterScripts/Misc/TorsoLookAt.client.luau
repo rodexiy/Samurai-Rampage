@@ -32,7 +32,6 @@ RunService.RenderStepped:Connect(function(Delta)
 	local LerpSpeed = 0.4 ^ (1 / (Delta * 60))
 
 	if Character:FindFirstChild("Torso") and Character:FindFirstChild("Head") then
-		local TorsoLookVector = Torso.CFrame.lookVector
 		local HeadPosition = Head.CFrame.p
 
 		if
@@ -61,7 +60,7 @@ RunService.RenderStepped:Connect(function(Delta)
 				)
 
 				local xAxisWaistRotation = -(math.atan(Difference / Distance) * 0.5)
-				local yAxisWaistRotation = (((HeadPosition - Point).Unit):Cross(Torso.CFrame.LookVector)).Y * 0.5
+				local yAxisWaistRotation = (((HeadPosition - Point).Unit):Cross(RootPart.CFrame.LookVector)).Y * 0.5
 				local rotationWaistCFrame = CFrame.Angles(xAxisWaistRotation, yAxisWaistRotation, 0)
 				local goalWaistCFrame = rotationWaistCFrame * WaistOriginC0
 				Waist.C0 = Waist.C0:lerp(goalWaistCFrame, LerpSpeed).Rotation + WaistOriginC0.Position
@@ -69,7 +68,8 @@ RunService.RenderStepped:Connect(function(Delta)
 				Neck.C0 = Neck.C0:lerp(goalNeckCFrame * NeckOriginC0, LerpSpeed).Rotation + NeckOriginC0.Position
 
 				local currentLegCounterCFrame = Waist.C0 * WaistOriginC0:Inverse()
-				local legsCounterCFrame = currentLegCounterCFrame:Inverse()
+				local currentWaistPitch = currentLegCounterCFrame:ToOrientation()
+				local legsCounterCFrame = CFrame.Angles(-currentWaistPitch, 0, 0)
 				RHip.C0 = legsCounterCFrame * RHipOriginC0
 				LHip.C0 = legsCounterCFrame * LHipOriginC0
 			end

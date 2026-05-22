@@ -10,19 +10,19 @@ return {
 		[1] = {
 			HitboxType = "Raycast",
 			HandHitbox = "Left", 
-			HitboxDelay = 0.3,
+			HitboxDelay = 0.1,
 		},
 
 		[2] = {
 			HitboxType = "Raycast", 
 			HandHitbox = "Right", 
-			HitboxDelay = 0.3,
+			HitboxDelay = 0.1,
 		},
 
 		[3] = {
 			HitboxType = "Raycast", 
 			HandHitbox = "Right", 
-			HitboxDelay = 0.3,
+			HitboxDelay = 0.1,
 		},
 	},
 
@@ -30,7 +30,7 @@ return {
 		Hits = {
 			{	
 				HitboxType = "Raycast", 
-				HitboxDelay = 0.25, 
+				HitboxDelay = 0.15, 
 			},
 		},
 	},

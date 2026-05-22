@@ -12,7 +12,6 @@ return {
 
 	MetalArmor = true,
 	Rarity = "Rare",
-	HideHair = true,
 
 	MaxStack = 1,
 }

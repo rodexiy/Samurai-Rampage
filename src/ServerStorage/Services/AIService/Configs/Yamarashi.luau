@@ -1,4 +1,6 @@
 return {
+	ModelScale = 1.4,
+
 	Lifes = {
 		["2"] = {
 			Health = 1000,

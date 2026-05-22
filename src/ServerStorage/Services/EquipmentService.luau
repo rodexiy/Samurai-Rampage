@@ -36,12 +36,12 @@ function EquipmentService:CheckForMetal(Character: Model)
 	local HasMetal = false
 	for _, Type in EquipmentTypes do
 		local EquipmentName = Character:GetAttribute(Type)
-		if not EquipmentName then
+		if typeof(EquipmentName) ~= "string" then
 			continue
 		end
 
 		local ItemData = ItemService:GetItemData(EquipmentName)
-		if ItemData.MetalArmor then
+		if ItemData and ItemData.MetalArmor then
 			HasMetal = true
 			break
 		end

@@ -13,14 +13,21 @@ function AIService:ManageActivity()
 		for _, Entity in workspace.Entity:GetChildren() do
 			if Entity:GetAttribute("IsAI") and not Entity:GetAttribute("WanderingNpc") then
 				local InRange = false
-				for _, Player in Players:GetPlayers() do
-					local PlayerCharacter = Player.Character
-					if PlayerCharacter then
-						local Distance = (PlayerCharacter:GetPivot().Position - Entity:GetPivot().Position).Magnitude
+				if Entity:GetAttribute("WisdomWorldMob") then
+					local Owner = Players:GetPlayerByUserId(Entity:GetAttribute("WisdomWorldOwnerId") or 0)
+					local OwnerCharacter = Owner and Owner.Character
 
-						if Distance < 100 then
-							InRange = true
-							break
+					InRange = OwnerCharacter ~= nil and OwnerCharacter.Parent ~= nil and not OwnerCharacter:GetAttribute("Died")
+				else
+					for _, Player in Players:GetPlayers() do
+						local PlayerCharacter = Player.Character
+						if PlayerCharacter then
+							local Distance = (PlayerCharacter:GetPivot().Position - Entity:GetPivot().Position).Magnitude
+
+							if Distance < 100 then
+								InRange = true
+								break
+							end
 						end
 					end
 				end

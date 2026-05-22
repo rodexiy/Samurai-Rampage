@@ -83,6 +83,10 @@ function RewardService:GiveTetsuReward(Player: Player, Tetsu)
 end
 
 function RewardService:GiveRewards(Character: Model, Position: Vector3)
+	if Character:GetAttribute("NoRewards") or Character:GetAttribute("WisdomWorldMob") then
+		return
+	end
+
 	local DamageFolder = Character:FindFirstChild("DamageFolder")
 	if not DamageFolder then
 		return

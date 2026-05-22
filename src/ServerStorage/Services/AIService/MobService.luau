@@ -15,6 +15,38 @@ local HitboxService
 local StatusDisplayManager = require(game.ReplicatedStorage.Shared.Utils.StatusDisplayManager)
 
 local MobData = require(game.ReplicatedStorage.Shared.Index.Mobs)
+
+local function ScaleCFramePosition(CFrameValue: CFrame, Scale: number): CFrame
+	return CFrameValue.Rotation + (CFrameValue.Position * Scale)
+end
+
+local function ScaleModel(Model: Model, Scale: number)
+	local Pivot = Model:GetPivot()
+
+	for _, Descendant in Model:GetDescendants() do
+		if Descendant:IsA("BasePart") then
+			local RelativeCFrame = Pivot:ToObjectSpace(Descendant.CFrame)
+			Descendant.Size *= Scale
+			Descendant.CFrame = Pivot * ScaleCFramePosition(RelativeCFrame, Scale)
+		elseif Descendant:IsA("Attachment") then
+			Descendant.Position *= Scale
+		elseif Descendant:IsA("SpecialMesh") then
+			Descendant.Scale *= Scale
+			Descendant.Offset *= Scale
+		elseif Descendant:IsA("Motor6D") or Descendant:IsA("Weld") then
+			Descendant.C0 = ScaleCFramePosition(Descendant.C0, Scale)
+			Descendant.C1 = ScaleCFramePosition(Descendant.C1, Scale)
+		end
+	end
+
+	local Humanoid = Model:FindFirstChildOfClass("Humanoid")
+	if Humanoid then
+		Humanoid.HipHeight *= Scale
+	end
+
+	Model:SetAttribute("AppliedModelScale", Scale)
+end
+
 function MobService:SetNetworkOwner(Mob: Model)
 	local HumanoidRootPart = Mob:FindFirstChild("HumanoidRootPart")
 	if HumanoidRootPart and HumanoidRootPart:CanSetNetworkOwnership() then
@@ -85,6 +117,17 @@ function MobService:CreateMob(MobName: string, Equipment: string)
 	MobClone.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	MobClone:PivotTo(CFrame.new(0, 0, 0))
 
+	local Config
+	if Equipment then
+		local ConfigModule = script.Parent.Configs:WaitForChild(Equipment)
+
+		if not ConfigModule then
+			return
+		end
+
+		Config = require(ConfigModule)
+	end
+
 	local RootPart: BasePart = MobClone:FindFirstChild("HumanoidRootPart")
 	if RootPart then
 		MobClone.PrimaryPart = RootPart
@@ -102,15 +145,13 @@ function MobService:CreateMob(MobName: string, Equipment: string)
 		HitboxService:LoadR6Hitbox(MobClone)
 	end
 
-	if Equipment then
-		local Config = script.Parent.Configs:WaitForChild(Equipment)
+	local ModelScale = Config and Config.ModelScale
+	if typeof(ModelScale) == "number" and ModelScale > 0 and ModelScale ~= 1 then
+		MobClone:SetAttribute("ModelScale", ModelScale)
+		ScaleModel(MobClone, ModelScale)
+	end
 
-		if not Config then
-			return
-		end
-
-		local Config = require(Config)
-
+	if Config then
 		for Attribute, Equipments in Config.Equipment or {} do
 			local Equipment = Equipments[math.random(1, #Equipments)]
 

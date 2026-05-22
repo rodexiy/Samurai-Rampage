@@ -35,7 +35,7 @@ function LevelService.Client:GetExpLevel(Player: Player)
 	return self.Server:GetExpLevel(Player)
 end
 
-local POINTS_PER_LEVEL = 1
+local POINTS_PER_LEVEL = LevelFunctions.POINTS_PER_LEVEL
 function LevelService:GiveExp(Player: Player, Amount: number)
 	local PlayerData = DataService:GetData(Player)
 	local CurrentLevel = PlayerData.Level
@@ -88,6 +88,7 @@ function LevelService:GiveExp(Player: Player, Amount: number)
 	PlayerData.Level = _Level
 	PlayerData.FreePoints += _Points
 	PlayerData.Exp = _Exp
+	Player:SetAttribute("FreePoints", PlayerData.FreePoints)
 
 	LevelService:UpdateUI(Player)
 end

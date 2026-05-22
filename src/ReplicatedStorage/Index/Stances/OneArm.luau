@@ -19,7 +19,6 @@ return {
 
 	M2 = {
 		Hits = {
-			{ Delay = 0.3, Duration = 0.25 },
 			{ Delay = 0.7, Duration = 0.25 },
 		},
 	},

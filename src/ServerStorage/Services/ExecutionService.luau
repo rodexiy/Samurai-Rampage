@@ -57,6 +57,10 @@ function ExecutionService:ExecuteInRange(Attacker: Model)
 
 		local Player = Players:GetPlayerFromCharacter(Attacker)
 		if Player then
+			if Character:GetAttribute("NoRewards") or Character:GetAttribute("WisdomWorldMob") then
+				continue
+			end
+
 			KillStreakService:HandlePlayerKill(Attacker, Character)
 			QuestService:CallQuestFunction(Player, "Kill", Character)
 		end

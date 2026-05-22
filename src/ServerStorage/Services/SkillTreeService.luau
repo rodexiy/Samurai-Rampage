@@ -16,6 +16,7 @@ local ValuesService
 
 local AllNodes = {}
 local SkillTrees = require(game.ReplicatedStorage.Shared.Index.SkillTrees)
+local LevelFunctions = require(game.ReplicatedStorage.Shared.LevelFunctions)
 
 local DataService
 
@@ -78,7 +79,7 @@ end
 function SkillTreeService:ResetSkillTree(Player: Player)
 	local PlayerData = DataService:GetData(Player)
 	PlayerData.UnlockedNodes = {}
-	PlayerData.FreePoints = PlayerData.Level
+	PlayerData.FreePoints = LevelFunctions:GetPlayerFreePointsFromLevel(PlayerData.Level)
 
 	local PlayerSkills = {}
 	for _, Item in PlayerData.Inventory do
@@ -131,7 +132,7 @@ function SkillTreeService:LoadAttributes(Player: Player)
 		end
 	end
 
-	PlayerData.FreePoints = PlayerData.Level - SpentPoints
+	PlayerData.FreePoints = LevelFunctions:GetPlayerFreePointsFromLevel(PlayerData.Level) - SpentPoints
 
 	if PlayerData.FreePoints < 0 then
 		self:ResetSkillTree(Player)

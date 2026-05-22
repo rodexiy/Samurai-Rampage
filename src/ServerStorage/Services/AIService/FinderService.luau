@@ -51,6 +51,7 @@ function FinderService:GetClosestTarget(
 	local DetectionCFrame = DetectionCFrame or Character:GetPivot()
 	local Target
 	local ClosestDistance
+	local WisdomWorldOwnerId = Character:GetAttribute("WisdomWorldOwnerId")
 
 	local function CheckCandidate(Entity: Model)
 		if not Entity then
@@ -62,8 +63,14 @@ function FinderService:GetClosestTarget(
 		if Entity:GetAttribute("Died") then
 			return
 		end
-		if Entity:GetAttribute("ForceField") then
+		if Entity:GetAttribute("ForceField") and not WisdomWorldOwnerId then
 			return
+		end
+		if WisdomWorldOwnerId then
+			local CandidatePlayer = Players:GetPlayerFromCharacter(Entity)
+			if not CandidatePlayer or CandidatePlayer.UserId ~= WisdomWorldOwnerId then
+				return
+			end
 		end
 
 		local Distance = (Entity:GetPivot().Position - DetectionCFrame.Position).Magnitude

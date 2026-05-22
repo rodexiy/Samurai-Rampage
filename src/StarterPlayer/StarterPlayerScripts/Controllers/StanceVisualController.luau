@@ -15,6 +15,11 @@ local LEFT_ARM_FRICTION_TORQUE = 30
 local CharacterConnections = {}
 local CharacterState = {}
 
+local function ClearPartVelocity(Part: BasePart)
+	Part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+	Part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+end
+
 local function GetLeftShoulder(Character: Model): Motor6D?
 	local Torso = Character:FindFirstChild("Torso")
 	if not Torso then
@@ -25,6 +30,45 @@ local function GetLeftShoulder(Character: Model): Motor6D?
 	if LeftShoulder and LeftShoulder:IsA("Motor6D") then
 		return LeftShoulder
 	end
+end
+
+local function SnapLeftArmToShoulder(LeftShoulder: Motor6D)
+	if not LeftShoulder.Part0 or not LeftShoulder.Part1 then
+		return
+	end
+
+	local LeftArm = LeftShoulder.Part1
+	LeftArm.CFrame = LeftShoulder.Part0.CFrame * LeftShoulder.C0 * LeftShoulder.C1:Inverse()
+	ClearPartVelocity(LeftArm)
+end
+
+local function SnapLeftArmRagdoll(Character: Model)
+	if not CharacterState[Character] then
+		return
+	end
+
+	local LeftShoulder = GetLeftShoulder(Character)
+	if not LeftShoulder then
+		return
+	end
+
+	SnapLeftArmToShoulder(LeftShoulder)
+end
+
+local function ScheduleLeftArmSnap(Character: Model)
+	task.defer(SnapLeftArmRagdoll, Character)
+
+	task.delay(0.2, function()
+		if Character.Parent then
+			SnapLeftArmRagdoll(Character)
+		end
+	end)
+
+	task.delay(0.5, function()
+		if Character.Parent then
+			SnapLeftArmRagdoll(Character)
+		end
+	end)
 end
 
 local function GetOrCreateAttachment(Parent: BasePart, Name: string, CFrameValue: CFrame)
@@ -119,6 +163,7 @@ function StanceVisualController:EnableLeftArmRagdoll(Character: Model)
 
 	LeftShoulder.Part1.Massless = true
 	LeftShoulder.Enabled = false
+	SnapLeftArmToShoulder(LeftShoulder)
 end
 
 function StanceVisualController:UpdateCharacter(Character: Model)
@@ -142,7 +187,17 @@ function StanceVisualController:BindCharacter(Character: Model)
 		self:UpdateCharacter(Character)
 	end
 
+	local function SnapAfterTeleport()
+		if Character:GetAttribute("RealmTeleporting") then
+			return
+		end
+
+		ScheduleLeftArmSnap(Character)
+	end
+
 	table.insert(Connections, Character:GetAttributeChangedSignal("Stance"):Connect(Update))
+	table.insert(Connections, Character:GetAttributeChangedSignal("RealmTeleporting"):Connect(SnapAfterTeleport))
+	table.insert(Connections, Character:GetAttributeChangedSignal("InWisdomWorld"):Connect(SnapAfterTeleport))
 	table.insert(Connections, Character.DescendantAdded:Connect(function(Descendant)
 		if Descendant.Name == "Left Shoulder" and Descendant:IsA("Motor6D") then
 			task.defer(Update)

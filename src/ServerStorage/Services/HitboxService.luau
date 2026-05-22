@@ -350,7 +350,9 @@ function HitboxService:CharacterRaycastHitbox(Character: Model, Duration: number
 
 		Connections:Destroy()
 
-		Hitbox:HitStop()
+		if Hitbox.HitStop then
+			Hitbox:HitStop()
+		end
 
 		if shouldfire and onDisconnect then
 			onDisconnect()
