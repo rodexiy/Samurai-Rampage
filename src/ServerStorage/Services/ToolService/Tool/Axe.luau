@@ -7,9 +7,8 @@ local DebounceService = Knit.GetService("DebounceService")
 local Players = game:GetService("Players")
 local StaminaService = Knit.GetService("StaminaService")
 local ResourceService = Knit.GetService("ResourceService")
+local RenderService = Knit.GetService("RenderService")
 local RealmService = Knit.GetService("RealmService")
-
-local ShakeObject = require(game.ReplicatedStorage.Shared.ShakeObject)
 
 local TreeParams = OverlapParams.new()
 TreeParams.FilterType = Enum.RaycastFilterType.Whitelist
@@ -33,7 +32,6 @@ function Axe.Activated(Character: Model, Data: { any })
 		return
 	end
 
-	StaminaService:RemoveStamina(Character, 15)
 
 	DebounceService:AddDebounce(Character, "AxePick", 2)
 	local Track = AnimationService:PlayAnimation(Character, AxeAnimation)
@@ -70,17 +68,17 @@ function Axe.Activated(Character: Model, Data: { any })
 		if not Tree:GetAttribute("Health") then
 			local _, Size = Tree:GetBoundingBox()
 			if not Tree:GetAttribute("MaxHealth") then
-				ShakeObject(Tree)
 				Tree:SetAttribute("MaxHealth", math.min(1, math.floor(Size.Y / 4)))
 				Tree:SetAttribute("Health", Tree:GetAttribute("MaxHealth") - 1)
 			end
 		end
 
+		RenderService:RenderForAllPlayers("Resource", "Shake", { Character = Character, Resource = Tree })
+
 		if Tree:GetAttribute("Health") <= 0 then
 			Tree:SetAttribute("Broken", true)
 			ResourceService:BreakResource(Player, Tree)
 		else
-			ShakeObject(Tree)
 			Tree:SetAttribute("Health", Tree:GetAttribute("Health") - 1)
 		end
 	end

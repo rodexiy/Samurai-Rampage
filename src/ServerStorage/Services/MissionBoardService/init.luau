@@ -25,6 +25,7 @@ type MissionType = {
 local MissionTypes = {
 	"Kill",
 	"ObtainLostItem",
+	"ResourceContract",
 	-- "Find",
 	-- "Rescue",
 	-- "Obtain",
@@ -170,6 +171,20 @@ end
 
 function MissionBoardService:GetPlayerSelectedMission(Player: Player)
 	return PlayerSelectedMission[Player]
+end
+
+function MissionBoardService:CallMissionFunction(Player: Player, FunctionName: string, ...: any)
+	local Mission = PlayerSelectedMission[Player]
+	if not Mission then
+		return false
+	end
+
+	local MissionModule = Missions[Mission.Name]
+	if not MissionModule or not MissionModule[FunctionName] then
+		return false
+	end
+
+	return MissionModule[FunctionName](MissionModule, Player, Mission, ...)
 end
 
 function MissionBoardService:ClearMissions(Player: Player)

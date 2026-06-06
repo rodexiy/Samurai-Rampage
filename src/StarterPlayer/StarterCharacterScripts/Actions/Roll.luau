@@ -43,6 +43,7 @@ local Roll = {
 		task.delay(0.5, function()
 			Character:SetAttribute("RollClientDebounce", false)
 		end)
+		local WasRunning = Character:GetAttribute("Running")
 		Character:SetAttribute("Rolling", true)
 
 		local function MapKeys()
@@ -80,6 +81,10 @@ local Roll = {
 		end
 
 		local function GetDirectionFromMap(map: Vector3)
+			if WasRunning then
+				return "Forward"
+			end
+
 			local dir = "Backward"
 
 			if map.X == 1 then

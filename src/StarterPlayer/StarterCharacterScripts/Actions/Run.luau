@@ -38,10 +38,6 @@ local Run = {
 			end
 
 			if Validate:CanRun(Character) then
-				if (RootPart.CFrame.LookVector:Dot(Humanoid.MoveDirection)) <= -0.65 then
-					return
-				end
-
 				if Character:GetAttribute("Blocking") then
 					return
 				end
@@ -56,11 +52,6 @@ local Run = {
 				task.spawn(function()
 					while Character:GetAttribute("Running") do
 						if not Validate:CanRun(Character) then
-							Character:SetAttribute("Running", false)
-							break
-						end
-
-						if (RootPart.CFrame.LookVector:Dot(Humanoid.MoveDirection)) <= -0.65 then
 							Character:SetAttribute("Running", false)
 							break
 						end
@@ -99,14 +90,6 @@ function Run.Start(srvs)
 	MovementService = Knit.GetService("MovementService")
 	DeviceController = Knit.GetController("DeviceController")
 	SkillTreeController = Knit.GetController("SkillTreeController")
-
-	Character.Humanoid:GetPropertyChangedSignal("MoveDirection"):Connect(function()
-		if (RootPart.CFrame.LookVector:Dot(Humanoid.MoveDirection)) <= -0.65 then
-			if Character:GetAttribute("Running") then
-				StopRun()
-			end
-		end
-	end)
 
 	local StopAttributes = {
 		"Attack",

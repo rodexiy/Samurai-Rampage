@@ -72,11 +72,13 @@ function InventoryService:GiveItemToPlayer(Player: Player, Item: { any })
 	end
 
 	if AmountToAdd <= 0 then
-		return
+		return 0
 	end
 
 	InventoryService.Client.ItemAdded:Fire(Player, Item.DisplayName or Item.Name, AmountToAdd)
 	InventoryService:UpdateUI(Player, ToolInPlayer ~= nil)
+
+	return AmountToAdd
 end
 
 function InventoryService:RemoveItemFromHotbarByName(Player: Player, ItemName: string)

@@ -15,7 +15,7 @@ end)
 
 UpdateTargetWalkSpeed()
 
-local SpeedIncreaseRate = 1.5
+local SpeedIncreaseRate = 1.65
 local SpeedDecreaseRate = 5
 RunService.RenderStepped:Connect(function(deltaTime)
     local deltaSpeed = TargetWalkspeed * deltaTime

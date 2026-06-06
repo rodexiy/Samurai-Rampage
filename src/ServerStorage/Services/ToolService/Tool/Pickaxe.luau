@@ -10,8 +10,6 @@ local ResourceService = Knit.GetService("ResourceService")
 local RenderService = Knit.GetService("RenderService")
 local RealmService = Knit.GetService("RealmService")
 
-local ShakeObject = require(game.ReplicatedStorage.Shared.ShakeObject)
-
 local OresParams = OverlapParams.new()
 OresParams.FilterType = Enum.RaycastFilterType.Include
 
@@ -31,8 +29,6 @@ function Pickaxe.Activated(Character: Model, Data: { any })
 	if not PickAnimation then
 		return
 	end
-
-	StaminaService:RemoveStamina(Character, 15)
 
 	DebounceService:AddDebounce(Character, "PickaxePick", 1)
 	local Track = AnimationService:PlayAnimation(Character, PickAnimation)
@@ -83,12 +79,12 @@ function Pickaxe.Activated(Character: Model, Data: { any })
 			"Pick",
 			{ Character = Player.Character, ResourceCFrame = Ore:GetPivot() }
 		)
+		RenderService:RenderForAllPlayers("Resource", "Shake", { Character = Character, Resource = Ore })
 
 		if Ore:GetAttribute("Health") <= 0 then
 			Ore:SetAttribute("Broken", true)
 			ResourceService:BreakResource(Player, Ore)
 		else
-			ShakeObject(Ore)
 			Ore:SetAttribute("Health", Ore:GetAttribute("Health") - 1)
 		end
 	end

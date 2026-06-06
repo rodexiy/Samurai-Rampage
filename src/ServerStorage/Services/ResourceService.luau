@@ -14,6 +14,7 @@ local InventoryService
 local RenderService
 local QuestService
 local RealmService
+local MissionBoardService
 
 local ResourceTypes = {
 	NormalTree = {
@@ -143,7 +144,10 @@ function ResourceService:BreakResource(Player: Player, Resource: Model)
 	for _ in ResourceType.Rewards do
 		local ItemName, Amount = RewardService:GetRandomRewardFromWeight(ResourceType.Rewards)
 		local Item = ItemService:CreateItem(ItemName, Amount)
-		InventoryService:GiveItemToPlayer(Player, Item)
+		local AmountAdded = InventoryService:GiveItemToPlayer(Player, Item)
+		if AmountAdded > 0 then
+			MissionBoardService:CallMissionFunction(Player, "CollectResource", ItemName, AmountAdded)
+		end
 	end
 
 	QuestService:CallQuestFunction(Player, "BreakResource", ResourceType.Name)
@@ -165,6 +169,7 @@ function ResourceService.KnitInit()
 	InventoryService = Knit.GetService("InventoryService")
 	RenderService = Knit.GetService("RenderService")
 	QuestService = Knit.GetService("QuestService")
+	MissionBoardService = Knit.GetService("MissionBoardService")
 end
 
 function ResourceService.KnitStart() end
