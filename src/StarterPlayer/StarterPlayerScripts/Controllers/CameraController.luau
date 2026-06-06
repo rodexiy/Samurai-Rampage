@@ -77,12 +77,18 @@ function CameraController:BindShiftLock()
 			and not Character:GetAttribute("HeavyDeflect")
 			and Humanoid:GetState() ~= Enum.HumanoidStateType.Seated
 		then
+			local LookDirection = Vector3.new(Camera.CFrame.LookVector.X, 0, Camera.CFrame.LookVector.Z)
+			if
+				Character:GetAttribute("Running")
+				and not Character:GetAttribute("LockedOnEnemy")
+				and Humanoid.MoveDirection.Magnitude > 0
+			then
+				LookDirection = Humanoid.MoveDirection
+			end
+
 			Character:PivotTo(
 				Character:GetPivot():Lerp(
-					CFrame.lookAt(
-						RootPart.Position,
-						RootPart.Position + Vector3.new(Camera.CFrame.LookVector.X, 0, Camera.CFrame.LookVector.Z)
-					),
+					CFrame.lookAt(RootPart.Position, RootPart.Position + LookDirection),
 					Alpha * dt * 35
 				)
 			)
