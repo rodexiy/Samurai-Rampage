@@ -38,6 +38,7 @@ return {
 	Reputation = 0,
 
 	UnlockedRugs = {},
+	SpawnRug = "",
 
 	NPCs = {},
 

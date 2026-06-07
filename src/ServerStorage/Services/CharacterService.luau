@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local TeleportCharacter = require(game.ReplicatedStorage.Shared.Utils.TeleportCharacter)
 
 local CharacterService = Knit.CreateService({
 	Name = "CharacterService",
@@ -32,6 +33,7 @@ local HitboxService
 local InCombatService
 local PrisonService
 local KillStreakService
+local RugService
 
 local CachedParts = {}
 local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
@@ -389,6 +391,11 @@ function CharacterService:LoadCharacter(Player: Player)
 	WeaponService:LoadWeapon(Character)
 	ToolService:LoadPlayerTools(Player)
 
+	local RugSpawn = RugService:GetSpawnCFrame(Player)
+	if RugSpawn then
+		TeleportCharacter(Character, RugSpawn)
+	end
+
 	PrisonService:CheckJoin(Player)
 
 	if not Character or not Character.Parent or not Character:FindFirstChild("HumanoidRootPart") then
@@ -576,6 +583,7 @@ function CharacterService.KnitInit()
 	InCombatService = Knit.GetService("InCombatService")
 	PrisonService = Knit.GetService("PrisonService")
 	KillStreakService = Knit.GetService("KillStreakService")
+	RugService = Knit.GetService("RugService")
 	local Entity = Instance.new("Folder")
 	Entity.Name = "Entity"
 	Entity.Parent = game.Workspace

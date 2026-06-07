@@ -41,10 +41,17 @@ function InventoryService:UpdateUI(Player: Player, HotbarToo: boolean)
 end
 
 function InventoryService:GetPlayerItemByName(Player: Player, ItemName: string): { any }
+	local Item = self:GetRawPlayerItemByName(Player, ItemName)
+	if Item then
+		return ItemService:ImplementData(Item)
+	end
+end
+
+function InventoryService:GetRawPlayerItemByName(Player: Player, ItemName: string): { any }
 	local PlayerData = DataService:GetData(Player)
 	for _, Item in PlayerData.Inventory do
 		if Item.Name == ItemName then
-			return ItemService:ImplementData(Item)
+			return Item
 		end
 	end
 end
@@ -54,7 +61,7 @@ function InventoryService:GiveItemToPlayer(Player: Player, Item: { any })
 
 	local ItemData = ItemService:GetItemData(Item.Name)
 	local AmountToAdd = Item.Stack
-	local ItemInInventory = self:GetPlayerItemByName(Player, Item.Name)
+	local ItemInInventory = self:GetRawPlayerItemByName(Player, Item.Name)
 	if ItemInInventory then
 		local OldStack = ItemInInventory.Stack
 
@@ -68,7 +75,7 @@ function InventoryService:GiveItemToPlayer(Player: Player, Item: { any })
 
 	local ToolInPlayer = ToolService:GetToolFromPlayer(Player, Item.Name)
 	if ToolInPlayer and ItemInInventory then
-		ToolService:CopyAttributesToTool(ToolInPlayer, ItemInInventory)
+		ToolService:CopyAttributesToTool(ToolInPlayer, ItemService:ImplementData(ItemInInventory))
 	end
 
 	if AmountToAdd <= 0 then
@@ -227,7 +234,7 @@ function InventoryService:RemoveItemFromPlayer(
 )
 	local Amount = _Amount or 1
 
-	local Item = self:GetPlayerItemByName(Player, ItemName)
+	local Item = self:GetRawPlayerItemByName(Player, ItemName)
 
 	if not Item then
 		return
@@ -255,7 +262,7 @@ function InventoryService:RemoveItemFromPlayer(
 	if Item.Stack > 0 then
 		local Tool = ToolService:GetToolFromPlayer(Player, ItemName)
 		if Tool then
-			ToolService:CopyAttributesToTool(Tool, Item)
+			ToolService:CopyAttributesToTool(Tool, ItemService:ImplementData(Item))
 		end
 	end
 

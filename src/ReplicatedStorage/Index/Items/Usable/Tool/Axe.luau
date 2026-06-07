@@ -7,4 +7,8 @@ return {
 	Description = "Axe.",
 
 	MaxStack = 1,
+	CraftingRequirements = {
+		Stone = 3,
+		WoodLog = 4,
+	},
 }

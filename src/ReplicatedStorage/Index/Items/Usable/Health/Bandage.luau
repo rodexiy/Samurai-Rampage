@@ -7,4 +7,9 @@ return {
 	Description = "A bandage that can be used to heal yourself, restore <font color='rgb(82,255,0)'>15 Health</font>.",
 
 	MaxStack = 5,
+	AmountPerCraft = 1,
+
+	CraftingRequirements = {
+		HealingHerbs = 2,
+	},
 }

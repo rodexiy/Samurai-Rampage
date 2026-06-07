@@ -13,6 +13,10 @@ function ItemService:GetItemData(ItemName: string)
 	return Items[ItemName]
 end
 
+function ItemService:GetAllItems()
+	return Items
+end
+
 function ItemService:ImplementData(Item: {})
 	local ItemData = self:GetItemData(Item.Name)
 	local NewItem = DeepCopy(Item)

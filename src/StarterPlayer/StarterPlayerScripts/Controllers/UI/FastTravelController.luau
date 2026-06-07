@@ -95,6 +95,7 @@ function FastTravelController:LoadLocations(Locations: { any })
 			TileTransition.In()
 
 			TeleportCharacter(Character, Rug:GetPivot() * CFrame.new(math.random(-3, 3), 2.5, math.random(-3, 3)))
+			RugService:SetSpawnRug(Location)
 			UpdateClosest()
 
 			TileTransition.Out()

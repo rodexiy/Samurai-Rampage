@@ -18,6 +18,11 @@ local Pickables = {
 		Amount = 1,
 		RespawnTime = { 30, 60 },
 	},
+
+	HealingHerbs = {
+		Amount = {1, 2},
+		RespawnTime = { 30, 60 },
+	},
 }
 
 function PickableService:Pick(Player: Player, Pickable: Model)

@@ -143,6 +143,16 @@ function TopBarController:BindTopbar()
 		MenuController:OpenMenu("Settings")
 	end)
 
+	-- local Journal = TopbarPlus.new():setLabel("Journal"):oneClick()
+	-- Journal.selected:Connect(function()
+	-- 	MenuController:OpenMenu("Journal")
+	-- end)
+
+	local Crafting = TopbarPlus.new():setLabel("Crafting"):oneClick()
+	Crafting.selected:Connect(function()
+		MenuController:OpenMenu("Crafting")
+	end)
+
 	self:LoadHub()
 
 	if not PlaceController:IsArena() then

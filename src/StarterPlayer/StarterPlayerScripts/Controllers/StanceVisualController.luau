@@ -99,6 +99,12 @@ function StanceVisualController:DisableLeftArmRagdoll(Character: Model)
 		return
 	end
 
+	CharacterState[Character] = nil
+
+	for _, Connection in State.Connections do
+		Connection:Disconnect()
+	end
+
 	if State.LeftShoulder and State.LeftShoulder.Parent then
 		State.LeftShoulder.Enabled = State.LeftShoulderEnabled
 	end
@@ -112,11 +118,17 @@ function StanceVisualController:DisableLeftArmRagdoll(Character: Model)
 		end
 	end
 
-	CharacterState[Character] = nil
 end
 
 function StanceVisualController:EnableLeftArmRagdoll(Character: Model)
-	if CharacterState[Character] then
+	local State = CharacterState[Character]
+	if State then
+		if State.LeftShoulder and State.LeftShoulder.Parent then
+			State.LeftShoulder.Enabled = false
+		end
+		if State.LeftArm and State.LeftArm.Parent then
+			State.LeftArm.Massless = true
+		end
 		return
 	end
 
@@ -159,11 +171,20 @@ function StanceVisualController:EnableLeftArmRagdoll(Character: Model)
 		LeftArm = LeftShoulder.Part1,
 		LeftArmMassless = LeftShoulder.Part1.Massless,
 		Instances = Instances,
+		Connections = {},
 	}
 
 	LeftShoulder.Part1.Massless = true
 	LeftShoulder.Enabled = false
 	SnapLeftArmToShoulder(LeftShoulder)
+
+	local NewState = CharacterState[Character]
+	table.insert(NewState.Connections, LeftShoulder:GetPropertyChangedSignal("Enabled"):Connect(function()
+		if CharacterState[Character] == NewState and LeftShoulder.Enabled then
+			LeftShoulder.Enabled = false
+			ScheduleLeftArmSnap(Character)
+		end
+	end))
 end
 
 function StanceVisualController:UpdateCharacter(Character: Model)
@@ -196,6 +217,12 @@ function StanceVisualController:BindCharacter(Character: Model)
 	end
 
 	table.insert(Connections, Character:GetAttributeChangedSignal("Stance"):Connect(Update))
+	table.insert(Connections, Character:GetAttributeChangedSignal("Ragdoll"):Connect(function()
+		if not Character:GetAttribute("Ragdoll") then
+			task.defer(Update)
+			ScheduleLeftArmSnap(Character)
+		end
+	end))
 	table.insert(Connections, Character:GetAttributeChangedSignal("RealmTeleporting"):Connect(SnapAfterTeleport))
 	table.insert(Connections, Character:GetAttributeChangedSignal("InWisdomWorld"):Connect(SnapAfterTeleport))
 	table.insert(Connections, Character.DescendantAdded:Connect(function(Descendant)

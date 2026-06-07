@@ -21,6 +21,7 @@ local MissionBoardService
 local CarryService
 local DuelService
 local PrisonService
+local PickableService
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local TweenService = game:GetService("TweenService")
@@ -39,6 +40,10 @@ local callbacks = {
 		CarryService:Carry(Character, CharacterBeingCarried)
 		ProximityPrompt:Destroy()
 	end,
+	Pick = function(Player: Player, ProximityPrompt: ProximityPrompt)
+		PickableService:Pick(Player, ProximityPrompt.Parent)
+	end,
+
 	OpenDoor = function(Player: Player, ProximityPrompt: ProximityPrompt)
 		local DoorParent = ProximityPrompt.Parent
 		local tInfo = TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
@@ -191,6 +196,7 @@ function InteractionService.KnitInit()
 	CarryService = Knit.GetService("CarryService")
 	DuelService = Knit.GetService("DuelService")
 	PrisonService = Knit.GetService("PrisonService")
+	PickableService = Knit.GetService("PickableService")
 end
 
 function InteractionService.KnitStart()
