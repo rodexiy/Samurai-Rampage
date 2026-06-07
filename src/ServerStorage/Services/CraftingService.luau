@@ -10,8 +10,22 @@ local AlertService
 local ItemService
 local InventoryService
 
+local DEFAULT_RECIPE_TYPE = "Crafting"
+
 local function IsRecipeUnlocked(PlayerData, ItemData)
+	if not PlayerData then
+		return false
+	end
+
 	return not ItemData.BlueprintRequired or table.find(PlayerData.UnlockedBlueprints, ItemData.Name) ~= nil
+end
+
+local function GetRecipeType(ItemData)
+	return ItemData.RecipeType or DEFAULT_RECIPE_TYPE
+end
+
+local function MatchesRecipeType(ItemData, RecipeType: string?)
+	return not RecipeType or GetRecipeType(ItemData) == RecipeType
 end
 
 function CraftingService:UnlockBlueprint(Player: Player, BlueprintName: string)
@@ -27,10 +41,15 @@ end
 
 function CraftingService:UnlockAllBlueprints() end
 
-function CraftingService:GetMaxCraftable(Player: Player, ItemToCraft: string): number
+function CraftingService:GetMaxCraftable(Player: Player, ItemToCraft: string, RecipeType: string?): number
 	local ItemData = ItemService:GetItemData(ItemToCraft)
 	local PlayerData = DataService:GetData(Player)
-	if not ItemData or not ItemData.CraftingRequirements or not IsRecipeUnlocked(PlayerData, ItemData) then
+	if
+		not ItemData
+		or not ItemData.CraftingRequirements
+		or not MatchesRecipeType(ItemData, RecipeType)
+		or not IsRecipeUnlocked(PlayerData, ItemData)
+	then
 		return 0
 	end
 
@@ -50,8 +69,13 @@ function CraftingService:GetMaxCraftable(Player: Player, ItemToCraft: string): n
 	return math.max(0, MaxCraftable)
 end
 
-function CraftingService:Craft(Player: Player, ItemToCraft: string, RequestedAmount: number | string?): number
-	local MaxCraftable = self:GetMaxCraftable(Player, ItemToCraft)
+function CraftingService:Craft(
+	Player: Player,
+	ItemToCraft: string,
+	RequestedAmount: number | string?,
+	RecipeType: string?
+): number
+	local MaxCraftable = self:GetMaxCraftable(Player, ItemToCraft, RecipeType)
 	if MaxCraftable <= 0 then
 		AlertService:AlertPlayer(Player, "You do not have the required items to craft this item.", "Error")
 		return 0
@@ -87,12 +111,16 @@ function CraftingService:HaveCraftingItems(Player: Player, ItemToCraft: string, 
 	return self:GetMaxCraftable(Player, ItemToCraft) >= (Amount or 1)
 end
 
-function CraftingService:GetAvailableRecipes(Player: Player)
+function CraftingService:GetAvailableRecipes(Player: Player, RecipeType: string?)
 	local PlayerData = DataService:GetData(Player)
 	local Recipes = {}
 
 	for _, ItemData in ItemService:GetAllItems() do
-		if not ItemData.CraftingRequirements or not IsRecipeUnlocked(PlayerData, ItemData) then
+		if
+			not ItemData.CraftingRequirements
+			or not MatchesRecipeType(ItemData, RecipeType)
+			or not IsRecipeUnlocked(PlayerData, ItemData)
+		then
 			continue
 		end
 
@@ -105,6 +133,7 @@ function CraftingService:GetAvailableRecipes(Player: Player)
 			MaxStack = ItemData.MaxStack or 1,
 			Name = ItemData.Name,
 			Rarity = ItemData.Rarity,
+			RecipeType = GetRecipeType(ItemData),
 			Type = ItemData.Type,
 		})
 	end
@@ -116,12 +145,17 @@ function CraftingService:GetAvailableRecipes(Player: Player)
 	return Recipes
 end
 
-function CraftingService.Client:GetAvailableRecipes(Player: Player)
-	return self.Server:GetAvailableRecipes(Player)
+function CraftingService.Client:GetAvailableRecipes(Player: Player, RecipeType: string?)
+	return self.Server:GetAvailableRecipes(Player, RecipeType)
 end
 
-function CraftingService.Client:Craft(Player: Player, ItemToCraft: string, RequestedAmount: number | string?)
-	return self.Server:Craft(Player, ItemToCraft, RequestedAmount)
+function CraftingService.Client:Craft(
+	Player: Player,
+	ItemToCraft: string,
+	RequestedAmount: number | string?,
+	RecipeType: string?
+)
+	return self.Server:Craft(Player, ItemToCraft, RequestedAmount, RecipeType)
 end
 
 function CraftingService.KnitInit()

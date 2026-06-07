@@ -59,21 +59,37 @@ function WeaponService:Equip(Character: Model, State: boolean, _UnequipDelay: nu
 
 	local UnequipDelay
 	if _UnequipDelay then
-		UnequipDelay = math.clamp(_UnequipDelay, 0, 1.5)
+		UnequipDelay = math.clamp(_UnequipDelay, 0, 1.4)
+	else
+		UnequipDelay = 1.4
 	end
 
 	local DebounceDelay = UnequipDelay or 0
-	DebounceService:AddDebounce(Character, "EquipDebounce", 1 + DebounceDelay)
 
 	local CombatAnimations = WeaponService:GetCombatAnimationFolder(Character)
 
+	local IsFastUnequip = false
 	if not State then
-		SoundEffectService:PlaySoundEffect("WeaponUnequip", true, Character.PrimaryPart)
-		local UnequipAnimation = AnimationService:PlayAnimation(Character, CombatAnimations.Unequip)
+		local UnequipAnimation
+		if not Character:GetAttribute("InCombat") then
+			UnequipAnimation =  AnimationService:PlayAnimation(Character, CombatAnimations.Unequip)
+			SoundEffectService:PlaySoundEffect("WeaponUnequip", true, Character.PrimaryPart)
+			
+		else
+			UnequipDelay = 1
+			IsFastUnequip = true
+			UnequipAnimation =  AnimationService:PlayAnimation(Character, CombatAnimations.FastUnequip)
+			SoundEffectService:PlaySoundEffect("FastWeaponUnequip", true, Character.PrimaryPart)
+			
+		end
+
 		UnequipAnimation.Priority = Enum.AnimationPriority.Action2
 		Character:SetAttribute("Blocking", false)
-		Character:SetAttribute("Running", false)
+		--Character:SetAttribute("Running", false)
 	end
+
+	DebounceService:AddDebounce(Character, "EquipDebounce", 1 + DebounceDelay)
+	
 
 	local Assets = Character.Assets
 	local WeaponFolder = Assets.Weapon
@@ -88,11 +104,16 @@ function WeaponService:Equip(Character: Model, State: boolean, _UnequipDelay: nu
 
 	if not State and Character:GetAttribute("AttackedBeforeUnequip") then
 		Character:SetAttribute("AttackedBeforeUnequip", false)
-
-		task.delay(0.15, function()
-			BloodService:RemoveBloodFromBlade(Character)
-			RenderService:RenderForAllPlayers("Combat", "UnequipBlood", { Character = Character })
-		end)
+		if not IsFastUnequip then
+			task.delay(0.15, function()
+				BloodService:RemoveBloodFromBlade(Character)
+				RenderService:RenderForAllPlayers("Combat", "UnequipBlood", { Character = Character })
+			end)
+		else
+			task.delay(0.5, function()
+				BloodService:RemoveBloodFromBlade(Character)
+			end)
+		end
 	end
 
 	if State then
@@ -117,8 +138,8 @@ function WeaponService:Equip(Character: Model, State: boolean, _UnequipDelay: nu
 		Character:SetAttribute("AnimationPreset", "Default")
 	end
 end
-function WeaponService.Client:Equip(Player: Player, State: boolean, UnequipDelay: number)
-	self.Server:Equip(Player.Character, State, UnequipDelay)
+function WeaponService.Client:Equip(Player: Player, State: boolean)
+	self.Server:Equip(Player.Character, State)
 end
 
 function WeaponService:UnloadWeapon(Character: Model)

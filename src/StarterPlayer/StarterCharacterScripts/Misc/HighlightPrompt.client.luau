@@ -33,9 +33,114 @@ local Collector = require(game.ReplicatedStorage.Shared.Collector)
 local Connections = Collector.new()
 
 local CurrentPrompt = nil
+local PromptBeams = {}
+
+local BEAM_NAME = "PromptBeam"
+local TARGET_ATTACHMENT_NAME = "PromptBeamTargetAttachment"
+local CHARACTER_ATTACHMENT_NAME = "PromptBeamCharacterAttachment"
+
+local function GetPromptModel(Prompt: ProximityPrompt)
+	local Parent = Prompt.Parent
+	if not Parent then
+		return
+	end
+
+	if Parent:IsA("Attachment") and Parent.Parent then
+		return Parent.Parent:FindFirstAncestorWhichIsA("Model") or Parent.Parent
+	end
+
+	if Parent:IsA("BasePart") then
+		return Parent:FindFirstAncestorWhichIsA("Model") or Parent
+	end
+
+	return Parent:FindFirstAncestorWhichIsA("Model") or Parent
+end
+
+local function GetPromptTargetPart(Prompt: ProximityPrompt): BasePart?
+	local Parent = Prompt.Parent
+	if not Parent then
+		return nil
+	end
+
+	if Parent:IsA("Attachment") and Parent.Parent and Parent.Parent:IsA("BasePart") then
+		return Parent.Parent
+	end
+
+	if Parent:IsA("BasePart") then
+		return Parent
+	end
+
+	if Parent:IsA("Model") then
+		return Parent.PrimaryPart or Parent:FindFirstChildWhichIsA("BasePart", true)
+	end
+
+	return Parent:FindFirstAncestorWhichIsA("BasePart")
+end
+
+local function DestroyPromptBeam(Prompt: ProximityPrompt)
+	local BeamData = PromptBeams[Prompt]
+	if not BeamData then
+		return
+	end
+
+	PromptBeams[Prompt] = nil
+
+	for _, InstanceToDestroy in BeamData do
+		if InstanceToDestroy and InstanceToDestroy.Parent then
+			InstanceToDestroy:Destroy()
+		end
+	end
+end
+
+local function CreatePromptBeam(Prompt: ProximityPrompt)
+	DestroyPromptBeam(Prompt)
+
+	local Character = Player.Character
+	local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+	local TargetPart = GetPromptTargetPart(Prompt)
+	if not RootPart or not TargetPart then
+		return
+	end
+
+	local TargetAttachment = Instance.new("Attachment")
+	TargetAttachment.Name = TARGET_ATTACHMENT_NAME
+	TargetAttachment.Parent = TargetPart
+
+	local CharacterAttachment = Instance.new("Attachment")
+	CharacterAttachment.Name = CHARACTER_ATTACHMENT_NAME
+	CharacterAttachment.Parent = RootPart
+
+	local Beam = Instance.new("Beam")
+	Beam.Name = BEAM_NAME
+	Beam.Attachment0 = TargetAttachment
+	Beam.Attachment1 = CharacterAttachment
+	Beam.Color = ColorSequence.new(Color3.fromRGB(255, 233, 188))
+	Beam.FaceCamera = true
+	Beam.LightEmission = 0.45
+	Beam.LightInfluence = 0
+	Beam.Segments = 12
+	Beam.TextureSpeed = 1
+	Beam.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.25),
+		NumberSequenceKeypoint.new(0.5, 0),
+		NumberSequenceKeypoint.new(1, 0.25),
+	})
+	Beam.Width0 = 0.08
+	Beam.Width1 = 0.02
+	Beam.Parent = TargetPart
+
+	PromptBeams[Prompt] = {
+		Beam,
+		TargetAttachment,
+		CharacterAttachment,
+	}
+end
 
 ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inputType)
-	local Model = prompt.Parent
+	local Model = GetPromptModel(prompt)
+	if not Model then
+		return
+	end
 
 	local Key
 
@@ -52,22 +157,20 @@ ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inp
 	ProximityPromptUI.Enabled = true
 	PromptLabel.Text = `'` .. Key .. `' ` .. prompt.ActionText
 	CurrentPrompt = prompt
+	CreatePromptBeam(prompt)
 	if not Model:FindFirstChild("PromptHighlight") then
 		local PromptHighlight = Instance.new("Highlight")
 		PromptHighlight.Name = "PromptHighlight"
 		PromptHighlight.DepthMode = Enum.HighlightDepthMode.Occluded
-		PromptHighlight.FillTransparency = 0.1
+		PromptHighlight.FillTransparency = 0.85
 		PromptHighlight.OutlineColor = Color3.fromRGB(250, 250, 250)
 		PromptHighlight.FillColor = Color3.fromRGB(250, 250, 250)
-		PromptHighlight.OutlineTransparency = 0.1
+		PromptHighlight.OutlineTransparency = 0
 		PromptHighlight.Parent = Model
-
-		TweenService
-			:Create(PromptHighlight, TweenInfo.new(0.5), { FillTransparency = 0.75, OutlineTransparency = 0.75 })
-			:Play()
 
 		DestroyingCache[PromptHighlight] = prompt.Destroying:Once(function()
 			PromptHighlight:Destroy()
+			DestroyPromptBeam(prompt)
 			ProximityPromptUI.Enabled = false
 		end)
 	end
@@ -112,13 +215,15 @@ PromptLabel.Activated:Connect(function()
 end)
 
 ProximityPromptService.PromptHidden:Connect(function(prompt)
-	local Model = prompt.Parent
+	local Model = GetPromptModel(prompt)
 	if not Model then
+		DestroyPromptBeam(prompt)
 		return
 	end
 
 	ProximityPromptUI.Enabled = false
 	CurrentPrompt = nil
+	DestroyPromptBeam(prompt)
 	local PromptHighlight = Model:FindFirstChild("PromptHighlight")
 
 	if PromptHighlight then

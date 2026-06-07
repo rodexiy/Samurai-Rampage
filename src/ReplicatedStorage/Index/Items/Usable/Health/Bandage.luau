@@ -8,6 +8,7 @@ return {
 
 	MaxStack = 5,
 	AmountPerCraft = 1,
+	RecipeType = "Crafting",
 
 	CraftingRequirements = {
 		HealingHerbs = 2,

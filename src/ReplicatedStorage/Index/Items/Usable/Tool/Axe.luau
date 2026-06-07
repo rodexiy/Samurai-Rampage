@@ -7,6 +7,7 @@ return {
 	Description = "Axe.",
 
 	MaxStack = 1,
+	RecipeType = "Crafting",
 	CraftingRequirements = {
 		Stone = 3,
 		WoodLog = 4,

@@ -4,7 +4,7 @@ return {
 	Class = "Resource",
 	Type = "Ore",
 
-	Description = "Can be used in weapons and armors.",
+	Description = "Can be used to make iron ingots.",
 
 	MaxStack = 99,
 }

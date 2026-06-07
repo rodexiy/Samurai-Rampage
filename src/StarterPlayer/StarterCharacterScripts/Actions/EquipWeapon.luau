@@ -59,22 +59,26 @@ local EquipWeapon = {
 					return
 				end
 
-				Character:SetAttribute("Running", false)
+				--Character:SetAttribute("Running", false)
 				Character:SetAttribute("Unequipping", true)
 
 				CharacterShared:UpdateBoth(Character)
 				Character:SetAttribute("AnimationPreset", "Default")
 
-				local DelayDuration = 1.5
+				local DelayDuration = 1.4
+				
+				if Character:GetAttribute("InCombat") then
+					DelayDuration = 1
+				end
 				task.delay(DelayDuration, function()
 					CharacterShared:UpdateBoth(Character)
 				end)
 
-				task.delay(1.8, function()
+				task.delay(DelayDuration + 0.2, function()
 					Character:SetAttribute("Unequipping", false)
 				end)
 
-				WeaponService:Equip(false, DelayDuration)
+				WeaponService:Equip(false)
 			end
 			return
 		end

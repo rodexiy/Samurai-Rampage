@@ -63,7 +63,7 @@ function Validate:CanRun(Character: Model)
 			"Blocking",
 			"HasBlocked",
 			"Attack",
-			"Unequipping",
+			--"Unequipping",
 			"Climbing",
 		})
 		and Character:GetAttribute("Stamina") > 0

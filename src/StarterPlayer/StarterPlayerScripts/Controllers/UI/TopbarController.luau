@@ -148,7 +148,7 @@ function TopBarController:BindTopbar()
 	-- 	MenuController:OpenMenu("Journal")
 	-- end)
 
-	local Crafting = TopbarPlus.new():setLabel("Crafting"):oneClick()
+	local Crafting = TopbarPlus.new():setImage(127637152352990):oneClick()
 	Crafting.selected:Connect(function()
 		MenuController:OpenMenu("Crafting")
 	end)
