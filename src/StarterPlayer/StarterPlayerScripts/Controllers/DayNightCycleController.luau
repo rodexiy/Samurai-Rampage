@@ -15,6 +15,7 @@ local START_SERVER_TIME_ATTRIBUTE = "DayNightCycleStartServerTime"
 local MINUTES_PER_SECOND_ATTRIBUTE = "DayNightCycleMinutesPerSecond"
 local WAIT_TIME_ATTRIBUTE = "DayNightCycleWaitTime"
 
+
 local WISDOM_WORLD_CLOCK_TIME = 14
 local DEFAULT_WAIT_TIME = 0.25
 local DAY_MINUTES = 24 * 60

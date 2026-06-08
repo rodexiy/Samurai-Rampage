@@ -1,6 +1,9 @@
 local PhysicsService = game:GetService("PhysicsService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(game.ReplicatedStorage.Packages.Knit)
+
+Players.CharacterAutoLoads = false
 
 workspace:SetAttribute("ServerStartTime", game.Workspace:GetServerTimeNow())
 

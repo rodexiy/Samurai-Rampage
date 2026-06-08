@@ -69,7 +69,9 @@ local function ScheduleLeftArmSnap(Character: Model)
 			SnapLeftArmRagdoll(Character)
 		end
 	end)
+	
 end
+
 
 local function GetOrCreateAttachment(Parent: BasePart, Name: string, CFrameValue: CFrame)
 	local Attachment = Parent:FindFirstChild(Name)

@@ -24,7 +24,6 @@ function StanceService:UpdateUI(Player: Player)
 end
 
 function StanceService:GetStance(StanceName: string)
-	print(Stances)
 	return Stances[StanceName]
 end
 
@@ -34,7 +33,6 @@ function StanceService:GetPlayerStances(Player: Player)
 	local Stances = {}
 	
 	for _, Stance in PlayerData.Stances do
-		print(PlayerData.Stances, Stance, self:GetStance(Stance))
 		local StanceData = table.clone(self:GetStance(Stance))
 		StanceData.Equipped = Stance == PlayerData.SelectedStance
 		table.insert(Stances, StanceData)

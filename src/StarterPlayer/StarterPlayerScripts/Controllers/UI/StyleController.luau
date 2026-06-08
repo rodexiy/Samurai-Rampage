@@ -40,7 +40,6 @@ function StyleController:ApplyStyles()
 		task.spawn(function()
 			StyleCreated.Enabled = true
 		end)
-		task.wait()
 	end
 end
 
@@ -51,11 +50,13 @@ function StyleController.KnitInit()
 		Styles[Style.Name] = Style
 	end
 
-	repeat
-		task.wait()
-	until #PlayerGui:GetDescendants() >= #StarterGui:GetDescendants()
+	task.defer(function()
+		repeat
+			task.wait()
+		until #PlayerGui:GetDescendants() >= #StarterGui:GetDescendants()
 
-	StyleController:ApplyStyles()
+		StyleController:ApplyStyles()
+	end)
 end
 
 function StyleController.KnitStart() end

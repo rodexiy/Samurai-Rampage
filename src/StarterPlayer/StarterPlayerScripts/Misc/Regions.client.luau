@@ -45,6 +45,10 @@ local function DebugPrint(...)
 	end
 end
 
+local function IsOSTEnabled()
+	return Player:GetAttribute("OST") ~= false
+end
+
 local function FadeSound(sound, targetVolume, duration, tweenTable)
 	if not sound then
 		return
@@ -86,7 +90,7 @@ local function PauseSound(sound, fade)
 end
 
 local function ResumeSound(sound, fade)
-	if not sound then
+	if not sound or not IsOSTEnabled() then
 		return
 	end
 	DebugPrint("[SOUND] Resuming:", sound.Name)
@@ -95,7 +99,7 @@ local function ResumeSound(sound, fade)
 end
 
 local function PlaySound(sound)
-	if not sound then
+	if not sound or not IsOSTEnabled() then
 		return
 	end
 	DebugPrint("[SOUND] Playing:", sound.Name)
@@ -147,7 +151,7 @@ local function FadeAmbienceIn(regionName)
 end
 
 local function RegionOSTLoop(regionName)
-	if StopOST then
+	if StopOST or not IsOSTEnabled() then
 		return
 	end
 	local RegionFolder = OSTFolder:FindFirstChild(regionName)
@@ -157,6 +161,10 @@ local function RegionOSTLoop(regionName)
 	end
 
 	while CurrentRegion == regionName and not CombatActive do
+		if not IsOSTEnabled() then
+			break
+		end
+
 		local song = RegionFolder:GetChildren()[math.random(1, #RegionFolder:GetChildren())]
 		if not song then
 			break
@@ -195,6 +203,11 @@ local function RegionOSTLoop(regionName)
 end
 
 local function PlayCombatMusic(regionName)
+	if not IsOSTEnabled() then
+		FadeAmbienceIn(regionName)
+		return
+	end
+
 	DebugPrint("[COMBAT] Combat music triggered in:", regionName)
 	FadeAmbienceOut()
 	if CurrentOST then
@@ -221,6 +234,9 @@ end
 
 local function StopCombatMusic()
 	if not CurrentCombatOST then
+		if CurrentRegion then
+			FadeAmbienceIn(CurrentRegion)
+		end
 		return
 	end
 	DebugPrint("[COMBAT] Combat ended, fading out:", CurrentCombatOST.Name)
@@ -229,7 +245,7 @@ local function StopCombatMusic()
 		if not CombatActive and CurrentOST then
 			DebugPrint("[COMBAT] Resuming previous OST:", CurrentOST.Name)
 			ResumeSound(CurrentOST, CombatCrossfade)
-		elseif not CombatActive and not CurrentOST and CurrentRegion then
+		elseif not CombatActive and not CurrentOST and CurrentRegion and IsOSTEnabled() then
 			DebugPrint("[COMBAT] No OST, resuming Region OST loop.")
 			task.defer(RegionOSTLoop, CurrentRegion)
 		else
@@ -371,7 +387,11 @@ if OSTRegions then
 			FadeAmbienceOut()
 			StopOST = false
 			CurrentRegion = Container.Name
-			task.defer(RegionOSTLoop, CurrentRegion)
+			if IsOSTEnabled() then
+				task.defer(RegionOSTLoop, CurrentRegion)
+			else
+				FadeAmbienceIn(CurrentRegion)
+			end
 		end)
 
 		Zone.localPlayerExited:Connect(function()
@@ -400,3 +420,31 @@ local function UpdateAmbienceGroup()
 end
 
 Player:GetAttributeChangedSignal("Ambience"):Connect(UpdateAmbienceGroup)
+
+local function UpdateOST()
+	if IsOSTEnabled() then
+		StopOST = false
+		if CurrentRegion and not CombatActive and not CurrentOST then
+			task.defer(RegionOSTLoop, CurrentRegion)
+		elseif CurrentRegion and not CombatActive then
+			FadeAmbienceIn(CurrentRegion)
+		end
+	else
+		StopOST = true
+		if CurrentOST then
+			StopSound(CurrentOST, 1)
+			CurrentOST = nil
+		end
+		if CurrentCombatOST then
+			StopSound(CurrentCombatOST, 1)
+			CurrentCombatOST = nil
+		end
+		MusicActive = false
+		if CurrentRegion then
+			FadeAmbienceIn(CurrentRegion)
+		end
+	end
+end
+
+Player:GetAttributeChangedSignal("OST"):Connect(UpdateOST)
+UpdateOST()

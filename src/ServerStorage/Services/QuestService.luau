@@ -4,6 +4,7 @@ local QuestService = Knit.CreateService({
 	Name = "QuestService",
 	Client = {
 		CreateTargetBillboard = Knit.CreateSignal(),
+		CreateTargetBillboardAtPosition = Knit.CreateSignal(),
 		RemoveTargetBillboard = Knit.CreateSignal(),
 	},
 })
@@ -23,6 +24,10 @@ function QuestService:CreateTarget(Player: Player, Title: string, Parent: Instan
 	QuestService.Client.CreateTargetBillboard:Fire(Player, Title, Parent)
 end
 
+function QuestService:CreateTargetAtPosition(Player: Player, Title: string, Position: Vector3)
+	QuestService.Client.CreateTargetBillboardAtPosition:Fire(Player, Title, Position)
+end
+
 function QuestService:RemoveTarget(Player: Player, Title: string)
 	QuestService.Client.RemoveTargetBillboard:Fire(Player, Title)
 end
@@ -32,10 +37,6 @@ function QuestService:MeetRequirements(Player: Player, QuestName: string)
 end
 
 function QuestService:GiveQuest(Player: Player, QuestName: string, ...)
-	if MissionBoardService:GetPlayerSelectedMission(Player) ~= nil then
-		AlertService:AlertPlayer(Player, "You already have an objective.", "Error")
-		return false
-	end
 	if not QuestService:MeetRequirements(Player, QuestName) then
 		return false
 	end
@@ -74,7 +75,6 @@ function QuestService:RemoveQuest(Player: Player)
 	end
 
 	PlayerData.Quest = {}
-	MissionBoardService:DestroyMission(Player)
 	Player:SetAttribute("HasQuest", false)
 end
 

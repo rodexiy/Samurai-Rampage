@@ -66,6 +66,7 @@ return {
 		BloodFX = true,
 
 		Ambience = true,
+		OST = true,
 	},
 
 	Realm = {

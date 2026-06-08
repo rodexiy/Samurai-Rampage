@@ -17,8 +17,41 @@ local Toggles = {
 	[false] = Color3.fromRGB(255, 0, 0),
 }
 
+local function SetSettingLabel(Setting: Instance, Text: string)
+	for _, Descendant in Setting:GetDescendants() do
+		if Descendant:IsA("TextLabel") or Descendant:IsA("TextButton") then
+			if Descendant.Name ~= "Toggle" then
+				Descendant.Text = Text
+				return
+			end
+		end
+	end
+end
+
+function SettingsController:EnsureSettingButton(SettingName: string)
+	if SettingName ~= "OST" then
+		return
+	end
+
+	if SettingsUI:FindFirstChild(SettingName, true) then
+		return
+	end
+
+	local Template = SettingsUI:FindFirstChild("Ambience", true) or SettingsUI:FindFirstChild("Shadows", true)
+	if not Template then
+		return
+	end
+
+	local Setting = Template:Clone()
+	Setting.Name = SettingName
+	SetSettingLabel(Setting, SettingName)
+	Setting.Parent = Template.Parent
+end
+
 function SettingsController:LoadSettings()
 	for SettingName, SettingValue in SettingsService:GetSettings() do
+		SettingsController:EnsureSettingButton(SettingName)
+
 		local Setting = SettingsUI:FindFirstChild(SettingName, true)
 		if not Setting then
 			continue

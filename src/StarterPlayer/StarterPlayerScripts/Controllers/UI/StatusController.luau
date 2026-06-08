@@ -61,9 +61,10 @@ function StatusController.KnitStart()
 	Hud = PlayerGui:WaitForChild("Hud")
 	DamageGui = Hud:WaitForChild("Damage")
 
-	Character = Player.Character or Player.CharacterAdded:Wait()
+	Character = Player.Character
 	Player.CharacterAdded:Connect(function(character)
 		Character = character
+		PreviousHealth = nil
 	end)
 end
 

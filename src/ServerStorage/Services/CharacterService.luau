@@ -37,6 +37,16 @@ local RugService
 
 local CachedParts = {}
 local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
+local ZERO_VECTOR = Vector3.new(0, 0, 0)
+
+local function ClearAssemblyVelocity(Character: Model)
+	for _, Descendant in Character:GetDescendants() do
+		if Descendant:IsA("BasePart") then
+			Descendant.AssemblyLinearVelocity = ZERO_VECTOR
+			Descendant.AssemblyAngularVelocity = ZERO_VECTOR
+		end
+	end
+end
 
 function CharacterService:SetAttributes(Character: Model, Player: Player?)
 	Character:SetAttribute("Health", 100)
@@ -359,6 +369,8 @@ function CharacterService:LoadCharacter(Player: Player)
 		return
 	end
 
+	local RugSpawn = RugService:GetSpawnCFrame(Player)
+
 	Player:LoadCharacter()
 
 	local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -366,10 +378,16 @@ function CharacterService:LoadCharacter(Player: Player)
 	local RootPart = Character:WaitForChild("HumanoidRootPart")
 	RootPart.Anchored = true
 	self:SetCollisionGroup(Character)
+
 	repeat
 		Character.Parent = game.Workspace.Entity
 		task.wait()
 	until Character.Parent == game.Workspace.Entity
+
+	if RugSpawn then
+		Character:PivotTo(RugSpawn)
+		ClearAssemblyVelocity(Character)
+	end
 
 	if not Player:GetAttribute("NoForceField") then
 		CharacterService:EnableForceField(Character, true)
@@ -390,11 +408,6 @@ function CharacterService:LoadCharacter(Player: Player)
 
 	WeaponService:LoadWeapon(Character)
 	ToolService:LoadPlayerTools(Player)
-
-	local RugSpawn = RugService:GetSpawnCFrame(Player)
-	if RugSpawn then
-		TeleportCharacter(Character, RugSpawn)
-	end
 
 	PrisonService:CheckJoin(Player)
 

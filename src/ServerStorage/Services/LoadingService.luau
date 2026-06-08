@@ -9,6 +9,18 @@ function LoadingService:KnitClientLoaded(Player: Player)
 	Player:SetAttribute("KnitClientLoaded", true)
 end
 
+function LoadingService:WaitForKnitClientLoaded(Player: Player)
+	if Player:GetAttribute("KnitClientLoaded") then
+		return true
+	end
+
+	repeat
+		task.wait()
+	until Player:GetAttribute("KnitClientLoaded") or not Player.Parent
+
+	return Player:GetAttribute("KnitClientLoaded") == true
+end
+
 function LoadingService.Client:KnitClientLoaded(Player: Player)
 	self.Server:KnitClientLoaded(Player)
 end

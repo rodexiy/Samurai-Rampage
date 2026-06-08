@@ -109,6 +109,10 @@ function HotbarController:LoadHotbar(_Ghosts: boolean, Selected: boolean)
 	Ghosts = _Ghosts
 	HotbarController:ClearHotbar()
 
+	if not Character then
+		return
+	end
+
 	for _, Visual in Visuals do
 		Visual:Destroy()
 		Visuals[_] = nil
@@ -231,7 +235,7 @@ local Validate = require(game.ReplicatedStorage.Shared.Validate)
 local KeepLookingAtMouse = false
 local Released = false
 function HotbarController.OnKeyPress(value: number, state)
-	if not value then
+	if not value or not Character then
 		return
 	end
 
@@ -378,7 +382,8 @@ function HotbarController.OnKeyPress(value: number, state)
 end
 
 function HotbarController:BindCharacter()
-	if not Player.Character then
+	Character = Player.Character
+	if not Character then
 		return
 	end
 
@@ -503,7 +508,7 @@ function HotbarController.KnitStart()
 		HotbarController:BindCharacter()
 	end)
 
-	Character = Player.Character or Player.CharacterAdded:Wait()
+	Character = Player.Character
 
 	UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
 		if gameProcessedEvent then
@@ -531,10 +536,14 @@ function HotbarController.KnitStart()
 		HotbarController.OnKeyPress(value, Enum.UserInputState.End)
 	end)
 
-	HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
+	if Character then
+		HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
+	end
 
 	InventoryService.HotbarUpdated:Connect(function()
-		HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
+		if Character then
+			HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
+		end
 	end)
 
 	HotbarController:BindCharacter()

@@ -25,6 +25,7 @@ local RealmService
 local KillStreakService
 local WisdomService
 local WisdomWorldService
+local LoadingService
 
 function PlayerService:PlayerAdded(Player: Player)
 	if Player:HasTag("Player") then
@@ -52,10 +53,14 @@ function PlayerService:PlayerAdded(Player: Player)
 	WisdomService:LoadAttributes(Player)
 	self:CheckFirstJoin(Player)
 
-	CharacterService:LoadCharacter(Player)
-
 	Player:SetAttribute("Bounty", PlayerData.Bounty)
 	Player:SetAttribute("Loaded", true)
+
+	if not LoadingService:WaitForKnitClientLoaded(Player) then
+		return
+	end
+
+	CharacterService:LoadCharacter(Player)
 end
 
 local CommonKimonos = {
@@ -180,11 +185,14 @@ function PlayerService.KnitInit()
 	KillStreakService = Knit.GetService("KillStreakService")
 	WisdomService = Knit.GetService("WisdomService")
 	WisdomWorldService = Knit.GetService("WisdomWorldService")
+	LoadingService = Knit.GetService("LoadingService")
 end
 
 function PlayerService.KnitStart()
 	game.Players.PlayerAdded:Connect(function(player)
-		PlayerService:PlayerAdded(player)
+		task.spawn(function()
+			PlayerService:PlayerAdded(player)
+		end)
 	end)
 
 	game.Players.PlayerRemoving:Connect(function(player)
@@ -192,7 +200,9 @@ function PlayerService.KnitStart()
 	end)
 
 	for _, player in game.Players:GetPlayers() do
-		PlayerService:PlayerAdded(player)
+		task.spawn(function()
+			PlayerService:PlayerAdded(player)
+		end)
 	end
 end
 

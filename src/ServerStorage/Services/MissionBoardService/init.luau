@@ -8,11 +8,12 @@ local MissionBoardService = Knit.CreateService({
 })
 
 local PlayerBoards = {}
-local PlayerSelectedMission = {}
+local PlayerSelectedMissions = {}
 local AlertService
 local LevelService
 local TetsuService
 local ObjectiveService
+local MAX_ACTIVE_MISSIONS = 3
 
 type MissionType = {
 	Name: string,
@@ -26,12 +27,38 @@ local MissionTypes = {
 	"Kill",
 	"ObtainLostItem",
 	"ResourceContract",
+	"DeliveryTimed",
 	-- "Find",
 	-- "Rescue",
 	-- "Obtain",
 }
 
 local Missions = {}
+
+local function GetActiveMissions(Player: Player): { any }
+	if not PlayerSelectedMissions[Player] then
+		PlayerSelectedMissions[Player] = {}
+	end
+
+	return PlayerSelectedMissions[Player]
+end
+
+local function GetMissionObjectiveName(Mission: { any }): string?
+	return Mission.MissionData and Mission.MissionData.ObjectiveName
+end
+
+local function FindActiveMission(Player: Player, MissionOrId: any): (number?, { any }?)
+	local ActiveMissions = GetActiveMissions(Player)
+	local MissionId = if typeof(MissionOrId) == "table" then MissionOrId.Id else MissionOrId
+
+	for Index, Mission in ActiveMissions do
+		if Mission == MissionOrId or Mission.Id == MissionId then
+			return Index, Mission
+		end
+	end
+
+	return nil, nil
+end
 
 function MissionBoardService:RaycastDown(Position: Vector3)
 	local Params = RaycastParams.new()
@@ -82,31 +109,34 @@ function MissionBoardService:GetRandomPointInSpawn()
 end
 
 function MissionBoardService:SelectMission(Player: Player, Id: string)
-	if Player:GetAttribute("HasQuest") then
-		AlertService:AlertPlayer(Player, "You already have an objective.", "Error")
-		return false
-	end
-	if PlayerSelectedMission[Player] then
-		AlertService:AlertPlayer(Player, "You already have an objective.", "Error")
+	local ActiveMissions = GetActiveMissions(Player)
+	if #ActiveMissions >= MAX_ACTIVE_MISSIONS then
+		AlertService:AlertPlayer(Player, "You can only have " .. MAX_ACTIVE_MISSIONS .. " board missions at once.", "Error")
 		return false
 	end
 
+	local Mission
 	if PlayerBoards[Player] then
-		for _, Mission in PlayerBoards[Player] do
-			if Mission.Id == Id then
-				PlayerSelectedMission[Player] = Mission
+		for _, BoardMission in PlayerBoards[Player] do
+			if BoardMission.Id == Id then
+				Mission = BoardMission
 				break
 			end
 		end
 	end
 
-	local Mission = PlayerSelectedMission[Player]
 	if not Mission then
 		return false
 	end
 
 	table.remove(PlayerBoards[Player], table.find(PlayerBoards[Player], Mission))
-	Missions[Mission.Name]:Select(Player, Mission)
+	table.insert(ActiveMissions, Mission)
+
+	local Success = Missions[Mission.Name]:Select(Player, Mission)
+	if Success == false then
+		table.remove(ActiveMissions, table.find(ActiveMissions, Mission))
+		return false
+	end
 
 	return true
 end
@@ -140,20 +170,35 @@ function MissionBoardService:FinishedMission(Player: Player, Mission: { any })
 
 	LevelService:GiveExp(Player, Mission.Exp)
 	TetsuService:AddTetsu(Player, Mission.Tetsu)
-	ObjectiveService:ClearObjectives(Player, true)
+	local ObjectiveName = GetMissionObjectiveName(Mission)
+	if ObjectiveName then
+		ObjectiveService:ClearObjective(Player, ObjectiveName, true)
+	end
 
-	MissionBoardService:DestroyMission(Player)
+	MissionBoardService:DestroyMission(Player, Mission, true)
 end
 
-function MissionBoardService:DestroyMission(Player: Player)
-	local Mission = PlayerSelectedMission[Player]
+function MissionBoardService:DestroyMission(Player: Player, MissionOrId: any?, SkipObjectiveClear: boolean?)
+	local ActiveMissions = GetActiveMissions(Player)
+	if not MissionOrId then
+		for Index = #ActiveMissions, 1, -1 do
+			MissionBoardService:DestroyMission(Player, ActiveMissions[Index], SkipObjectiveClear)
+		end
+		return
+	end
+
+	local Index, Mission = FindActiveMission(Player, MissionOrId)
 	if not Mission then
 		return
 	end
 
 	Missions[Mission.Name]:Destroy(Player, Mission)
-	PlayerSelectedMission[Player] = nil
-	ObjectiveService:ClearObjectives(Player)
+	table.remove(ActiveMissions, Index)
+
+	local ObjectiveName = GetMissionObjectiveName(Mission)
+	if ObjectiveName and not SkipObjectiveClear then
+		ObjectiveService:ClearObjective(Player, ObjectiveName)
+	end
 end
 
 function MissionBoardService:RerollMissions(Player: Player)
@@ -170,25 +215,39 @@ function MissionBoardService.Client:RerollMissions(Player: Player)
 end
 
 function MissionBoardService:GetPlayerSelectedMission(Player: Player)
-	return PlayerSelectedMission[Player]
+	local ActiveMissions = GetActiveMissions(Player)
+	if #ActiveMissions == 0 then
+		return nil
+	end
+
+	return ActiveMissions
 end
 
 function MissionBoardService:CallMissionFunction(Player: Player, FunctionName: string, ...: any)
-	local Mission = PlayerSelectedMission[Player]
-	if not Mission then
+	local ActiveMissions = GetActiveMissions(Player)
+	if #ActiveMissions == 0 then
 		return false
 	end
 
-	local MissionModule = Missions[Mission.Name]
-	if not MissionModule or not MissionModule[FunctionName] then
-		return false
+	local Called = false
+	local ActiveMissionsSnapshot = table.clone(ActiveMissions)
+	for _, Mission in ActiveMissionsSnapshot do
+		local MissionModule = Missions[Mission.Name]
+		if MissionModule and MissionModule[FunctionName] then
+			local Result = MissionModule[FunctionName](MissionModule, Player, Mission, ...)
+			if Result ~= false then
+				Called = true
+			end
+		end
 	end
 
-	return MissionModule[FunctionName](MissionModule, Player, Mission, ...)
+	return Called
 end
 
 function MissionBoardService:ClearMissions(Player: Player)
 	PlayerBoards[Player] = nil
+	MissionBoardService:DestroyMission(Player)
+	PlayerSelectedMissions[Player] = nil
 end
 
 function MissionBoardService.KnitInit()

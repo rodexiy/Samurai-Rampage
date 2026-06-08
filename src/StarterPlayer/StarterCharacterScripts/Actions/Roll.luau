@@ -135,6 +135,12 @@ local Roll = {
 			MovementService:Roll(Direction, Character:GetPivot())
 		end)
 
+		local HasLightningDash = Character:GetAttribute("Race") == "Raijin"
+			and SkillTreeController:IsSkillUnlocked("Lightning Dash")
+		if WasRunning and HasLightningDash then
+			map = Vector3.new(0, 0, 1)
+		end
+
 		local reversed = Vector3.new(map.X, 0, -map.Z).Unit
 
 		local ForwardRayParams = RaycastParams.new()
@@ -143,7 +149,7 @@ local Roll = {
 		ForwardRayParams.FilterDescendantsInstances = { CollectionService:GetTagged("Entity") }
 		ForwardRayParams.FilterType = Enum.RaycastFilterType.Exclude
 
-		if Character:GetAttribute("Race") == "Raijin" and SkillTreeController:IsSkillUnlocked("Lightning Dash") then
+		if HasLightningDash then
 			local LookDirection =
 				CFrame.new(RootPart.CFrame.Position, (RootPart.CFrame * CFrame.new(reversed)).Position).LookVector.Unit
 

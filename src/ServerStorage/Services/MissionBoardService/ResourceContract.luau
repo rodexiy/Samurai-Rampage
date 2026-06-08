@@ -5,6 +5,11 @@ local MissionBoardService = Knit.GetService("MissionBoardService")
 local ObjectiveService = Knit.GetService("ObjectiveService")
 
 local ObjectiveName = "MissionBoardResourceContract"
+local DefaultImage = "rbxassetid://127605539843467"
+
+local function GetObjectiveName(Mission: { any }): string
+	return ObjectiveName .. "_" .. Mission.Id
+end
 
 local Resources = {
 	{
@@ -13,6 +18,7 @@ local Resources = {
 		Amount = { 8, 15 },
 		ExpPerItem = 60,
 		RequiredTool = "Axe",
+		Image = "rbxassetid://92492431702081",
 	},
 	{
 		ItemName = "Coal",
@@ -20,6 +26,7 @@ local Resources = {
 		Amount = { 6, 12 },
 		ExpPerItem = 80,
 		RequiredTool = "Pickaxe",
+		Image = "rbxassetid://109948883841049",
 	},
 	{
 		ItemName = "IronOre",
@@ -27,6 +34,7 @@ local Resources = {
 		Amount = { 4, 8 },
 		ExpPerItem = 110,
 		RequiredTool = "Pickaxe",
+		Image = "rbxassetid://127605539843467",
 	},
 	{
 		ItemName = "Crystal",
@@ -34,6 +42,7 @@ local Resources = {
 		Amount = { 3, 6 },
 		ExpPerItem = 150,
 		RequiredTool = "Pickaxe",
+		Image = "rbxassetid://100613085739677",
 	},
 	{
 		ItemName = "GoldOre",
@@ -41,6 +50,7 @@ local Resources = {
 		Amount = { 2, 4 },
 		ExpPerItem = 220,
 		RequiredTool = "Pickaxe",
+		Image = "rbxassetid://91461897585407",
 	},
 }
 
@@ -68,14 +78,15 @@ function ResourceContract:Randomize(Player: Player)
 			TargetAmount = Amount,
 			CurrentAmount = 0,
 		},
-		Image = "rbxassetid://127605539843467",
+		Image = Resource.Image or DefaultImage,
 	}
 end
 
 function ResourceContract:Select(Player: Player, Mission: { any })
 	local Data = Mission.MissionData
+	Data.ObjectiveName = GetObjectiveName(Mission)
 
-	ObjectiveService:AddObjective(Player, ObjectiveName, {
+	ObjectiveService:AddObjective(Player, Data.ObjectiveName, {
 		{
 			Name = "Gather " .. Data.DisplayName,
 			TargetAmount = Data.TargetAmount,
@@ -92,7 +103,7 @@ function ResourceContract:CollectResource(Player: Player, Mission: { any }, Item
 
 	local Progress = math.min(Amount, Data.TargetAmount - Data.CurrentAmount)
 	Data.CurrentAmount += Progress
-	ObjectiveService:UpdateProgress(Player, ObjectiveName, 1, Progress)
+	ObjectiveService:UpdateProgress(Player, Data.ObjectiveName, 1, Progress)
 
 	if Data.CurrentAmount >= Data.TargetAmount then
 		MissionBoardService:FinishedMission(Player, Mission)

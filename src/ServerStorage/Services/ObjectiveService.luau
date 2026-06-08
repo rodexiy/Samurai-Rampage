@@ -5,6 +5,7 @@ type SubObjective = {
 	Name: string,
 	TargetAmount: number,
 	CurrentAmount: number,
+	EndTime: number?,
 }
 
 type Objective = {
@@ -40,7 +41,14 @@ function ObjectiveService:AddObjective(Player: Player, Name: string, ObjectiveDa
 end
 
 function ObjectiveService:ClearObjectives(Player: Player, Completed: boolean)
+	PlayerObjectives[Player] = {}
 	self.Client.ObjectiveCleared:Fire(Player, Completed)
+end
+
+function ObjectiveService:ClearObjective(Player: Player, Name: string, Completed: boolean?)
+	local Objectives = GetOrCreatePlayerObjectives(Player)
+	Objectives[Name] = nil
+	self.Client.ObjectiveCleared:Fire(Player, Name, Completed)
 end
 
 function ObjectiveService:UpdateProgress(Player: Player, ObjectiveName: string, Index: number, Amount: number)
@@ -55,7 +63,7 @@ function ObjectiveService:UpdateProgress(Player: Player, ObjectiveName: string, 
 		return
 	end
 	SubObjective.CurrentAmount = math.clamp(SubObjective.CurrentAmount + Amount, 0, SubObjective.TargetAmount)
-	self.Client.ObjectiveUpdated:Fire(Player, SubObjective)
+	self.Client.ObjectiveUpdated:Fire(Player, ObjectiveName, Index, SubObjective)
 end
 
 function ObjectiveService:GetObjectives(Player: Player): { [string]: Objective }

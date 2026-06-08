@@ -45,15 +45,20 @@ local function GetPromptModel(Prompt: ProximityPrompt)
 		return
 	end
 
-	if Parent:IsA("Attachment") and Parent.Parent then
-		return Parent.Parent:FindFirstAncestorWhichIsA("Model") or Parent.Parent
+	return Parent
+end
+
+local function GetPromptHighlightParent(Prompt: ProximityPrompt): Instance?
+	return Prompt.Parent
+end
+
+local function GetPromptHighlight(Prompt: ProximityPrompt): Highlight?
+	local HighlightParent = GetPromptHighlightParent(Prompt)
+	if not HighlightParent then
+		return nil
 	end
 
-	if Parent:IsA("BasePart") then
-		return Parent:FindFirstAncestorWhichIsA("Model") or Parent
-	end
-
-	return Parent:FindFirstAncestorWhichIsA("Model") or Parent
+	return HighlightParent:FindFirstChild("PromptHighlight") :: Highlight?
 end
 
 local function GetPromptTargetPart(Prompt: ProximityPrompt): BasePart?
@@ -138,7 +143,8 @@ end
 
 ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inputType)
 	local Model = GetPromptModel(prompt)
-	if not Model then
+	local HighlightParent = GetPromptHighlightParent(prompt)
+	if not Model or not HighlightParent then
 		return
 	end
 
@@ -150,15 +156,16 @@ ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inp
 		Key = prompt.KeyboardKeyCode.Name
 	end
 
-	if Model:FindFirstChild("PromptHighlight") then
-		Model:FindFirstChild("PromptHighlight"):Destroy()
+	local ExistingPromptHighlight = GetPromptHighlight(prompt)
+	if ExistingPromptHighlight then
+		ExistingPromptHighlight:Destroy()
 	end
 
 	ProximityPromptUI.Enabled = true
 	PromptLabel.Text = `'` .. Key .. `' ` .. prompt.ActionText
 	CurrentPrompt = prompt
 	CreatePromptBeam(prompt)
-	if not Model:FindFirstChild("PromptHighlight") then
+	if not GetPromptHighlight(prompt) then
 		local PromptHighlight = Instance.new("Highlight")
 		PromptHighlight.Name = "PromptHighlight"
 		PromptHighlight.DepthMode = Enum.HighlightDepthMode.Occluded
@@ -166,7 +173,7 @@ ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inp
 		PromptHighlight.OutlineColor = Color3.fromRGB(250, 250, 250)
 		PromptHighlight.FillColor = Color3.fromRGB(250, 250, 250)
 		PromptHighlight.OutlineTransparency = 0
-		PromptHighlight.Parent = Model
+		PromptHighlight.Parent = HighlightParent
 
 		DestroyingCache[PromptHighlight] = prompt.Destroying:Once(function()
 			PromptHighlight:Destroy()
@@ -224,7 +231,7 @@ ProximityPromptService.PromptHidden:Connect(function(prompt)
 	ProximityPromptUI.Enabled = false
 	CurrentPrompt = nil
 	DestroyPromptBeam(prompt)
-	local PromptHighlight = Model:FindFirstChild("PromptHighlight")
+	local PromptHighlight = GetPromptHighlight(prompt)
 
 	if PromptHighlight then
 		TweenService:Create(PromptHighlight, TweenInfo.new(0.5), { FillTransparency = 1, OutlineTransparency = 1 })
@@ -234,7 +241,8 @@ ProximityPromptService.PromptHidden:Connect(function(prompt)
 		PromptHighlight:Destroy()
 	end
 
-	if DestroyingCache[PromptHighlight] then
+	if PromptHighlight and DestroyingCache[PromptHighlight] then
 		DestroyingCache[PromptHighlight]:Disconnect()
+		DestroyingCache[PromptHighlight] = nil
 	end
 end)

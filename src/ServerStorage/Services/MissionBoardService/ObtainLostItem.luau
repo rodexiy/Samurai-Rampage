@@ -14,6 +14,14 @@ local Vases = ReplicatedStorage.Assets.Models.Vases:GetChildren()
 local AllEnemies = {}
 local BoardPosition = Vector3.new(131, 32, -26)
 
+local function GetObjectiveName(Mission: { any }): string
+	return "MissionBoardObtainLostItem_" .. Mission.Id
+end
+
+local function GetTargetName(Mission: { any }): string
+	return "Find Hidden Item " .. Mission.Id
+end
+
 function ObtainLostItem:Randomize(Player: Player)
 	local HiddenArea = MissionBoardService:GetRandomPointInSpawn()
 	local HiddenPosition
@@ -47,6 +55,8 @@ end
 
 function ObtainLostItem:Select(Player: Player, Mission: { any })
 	local HiddenPosition = Mission.MissionData.HiddenPosition
+	Mission.MissionData.ObjectiveName = GetObjectiveName(Mission)
+
 	local Vase = Vases[math.random(1, #Vases)]:Clone()
 	Mission.MissionData.Vase = Vase
 
@@ -81,7 +91,7 @@ function ObtainLostItem:Select(Player: Player, Mission: { any })
 	Vase.Parent = workspace
 
 	-- Criar o objetivo
-	ObjectiveService:AddObjective(Player, "MissionBoardObtainLostItem", {
+	ObjectiveService:AddObjective(Player, Mission.MissionData.ObjectiveName, {
 		{
 			Name = "Locate the lost item",
 			TargetAmount = 1,
@@ -91,7 +101,7 @@ function ObtainLostItem:Select(Player: Player, Mission: { any })
 
 	task.wait(0.5)
 
-	Prompt.Triggered:Connect(function(PlayerWhoTriggered: Player)
+	Mission.MissionData.PromptConnection = Prompt.Triggered:Connect(function(PlayerWhoTriggered: Player)
 		if PlayerWhoTriggered ~= Player then
 			AlertService:AlertPlayer(Player, "This item is not for you.", "Error")
 			return
@@ -109,16 +119,22 @@ function ObtainLostItem:Select(Player: Player, Mission: { any })
 
 		Vase:Destroy()
 
-		ObjectiveService:UpdateProgress(Player, "MissionBoardObtainLostItem", 1, 1)
+		ObjectiveService:UpdateProgress(Player, Mission.MissionData.ObjectiveName, 1, 1)
 
 		MissionBoardService:FinishedMission(Player, Mission)
 	end)
 
-	QuestService:CreateTarget(Player, "Find Hidden Item", Area)
+	QuestService:CreateTarget(Player, GetTargetName(Mission), Area)
 end
 
 function ObtainLostItem:Destroy(Player: Player, Mission: { any })
-	QuestService:RemoveTarget(Player, "Find Hidden Item")
+	QuestService:RemoveTarget(Player, GetTargetName(Mission))
+
+	if Mission.MissionData.PromptConnection then
+		Mission.MissionData.PromptConnection:Disconnect()
+		Mission.MissionData.PromptConnection = nil
+	end
+
 	local Vase = Mission.MissionData.Vase
 	if Mission.MissionData.AreaModel then
 		Mission.MissionData.AreaModel:Destroy()
@@ -126,9 +142,6 @@ function ObtainLostItem:Destroy(Player: Player, Mission: { any })
 	if Vase then
 		Vase:Destroy()
 	end
-
-	-- Remover os objetivos
-	ObjectiveService:ClearObjectives(Player, false)
 end
 
 return ObtainLostItem
