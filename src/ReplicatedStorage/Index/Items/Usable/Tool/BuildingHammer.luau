@@ -6,10 +6,5 @@ return {
 	DisplayName = "Building Hammer",
 	Description = "Build things in your mental realm!",
 
-	MaxStack = 1,
-	RecipeType = "Crafting",
-	CraftingRequirements = {
-		IronOre = 2,
-		WoodLog = 5,
-	},
+	
 }

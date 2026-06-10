@@ -50,6 +50,7 @@ local Callbacks = {
 	end,
 
 	AbandonQuest = function()
+		MissionBoardService:AbandonMissions()
 		QuestService:AbandonQuest(Player)
 	end,
 

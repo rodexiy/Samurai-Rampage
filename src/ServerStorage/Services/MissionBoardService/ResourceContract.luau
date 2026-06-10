@@ -57,7 +57,7 @@ local Resources = {
 function ResourceContract:Randomize(Player: Player)
 	local Resource = Resources[math.random(1, #Resources)]
 	local Amount = math.random(Resource.Amount[1], Resource.Amount[2])
-	local Exp = Amount * Resource.ExpPerItem
+local Exp = Amount * Resource.ExpPerItem
 
 	return {
 		Name = "ResourceContract",

@@ -10,8 +10,8 @@ return {
 	RecipeType = "Forge",
 
 	CraftingRequirements = {
-		Coal = 1,
-		IronOre = 1,
+		{ { Coal = 1 } },
+		{ { IronOre = 1 } },
 	},
 	
 	MaxStack = 99,

@@ -28,6 +28,73 @@ local function MatchesRecipeType(ItemData, RecipeType: string?)
 	return not RecipeType or GetRecipeType(ItemData) == RecipeType
 end
 
+local function GetRequirementGroups(ItemData)
+	local Requirements = ItemData.CraftingRequirements
+	if not Requirements then
+		return {}
+	end
+
+	local FirstKey, FirstValue = next(Requirements)
+	if typeof(FirstKey) == "string" then
+		local Groups = {}
+		for Requirement, Amount in Requirements do
+			table.insert(Groups, { { [Requirement] = Amount } })
+		end
+		return Groups
+	end
+
+	if typeof(FirstKey) == "number" and typeof(next(FirstValue)) == "string" then
+		return { Requirements }
+	end
+
+	return Requirements
+end
+
+local function GetMaxCraftableForRequirements(Player: Player, Requirements): number
+	local MaxCraftable = math.huge
+	for Requirement, Amount in Requirements do
+		local ItemInInventory = InventoryService:GetPlayerItemByName(Player, Requirement)
+		local Stack = if ItemInInventory then ItemInInventory.Stack else 0
+		MaxCraftable = math.min(MaxCraftable, math.floor(Stack / Amount))
+	end
+
+	return MaxCraftable
+end
+
+local function ResolveRequirements(Player: Player, ItemData, SelectedOptions, RequireSelections: boolean?)
+	local CombinedRequirements = {}
+
+	for GroupIndex, Options in GetRequirementGroups(ItemData) do
+		local OptionIndex
+		if #Options == 1 then
+			OptionIndex = 1
+		elseif typeof(SelectedOptions) == "table" then
+			OptionIndex = math.floor(tonumber(SelectedOptions[GroupIndex]) or 0)
+		end
+
+		if not OptionIndex or not Options[OptionIndex] then
+			if RequireSelections then
+				return nil, 0
+			end
+
+			local BestMaxCraftable = -1
+			for Index, Requirements in Options do
+				local MaxCraftable = GetMaxCraftableForRequirements(Player, Requirements)
+				if MaxCraftable > BestMaxCraftable then
+					OptionIndex = Index
+					BestMaxCraftable = MaxCraftable
+				end
+			end
+		end
+
+		for Requirement, Amount in Options[OptionIndex] do
+			CombinedRequirements[Requirement] = (CombinedRequirements[Requirement] or 0) + Amount
+		end
+	end
+
+	return CombinedRequirements, GetMaxCraftableForRequirements(Player, CombinedRequirements)
+end
+
 function CraftingService:UnlockBlueprint(Player: Player, BlueprintName: string)
 	local PlayerData = DataService:GetData(Player)
 	if table.find(PlayerData.UnlockedBlueprints, BlueprintName) then
@@ -41,24 +108,24 @@ end
 
 function CraftingService:UnlockAllBlueprints() end
 
-function CraftingService:GetMaxCraftable(Player: Player, ItemToCraft: string, RecipeType: string?): number
+function CraftingService:GetMaxCraftable(
+	Player: Player,
+	ItemToCraft: string,
+	RecipeType: string?,
+	SelectedOptions: { [number]: number }?
+): number
 	local ItemData = ItemService:GetItemData(ItemToCraft)
 	local PlayerData = DataService:GetData(Player)
 	if
 		not ItemData
-		or not ItemData.CraftingRequirements
+		or #GetRequirementGroups(ItemData) == 0
 		or not MatchesRecipeType(ItemData, RecipeType)
 		or not IsRecipeUnlocked(PlayerData, ItemData)
 	then
 		return 0
 	end
 
-	local MaxCraftable = math.huge
-	for Requirement, Amount in ItemData.CraftingRequirements do
-		local ItemInInventory = InventoryService:GetPlayerItemByName(Player, Requirement)
-		local Stack = if ItemInInventory then ItemInInventory.Stack else 0
-		MaxCraftable = math.min(MaxCraftable, math.floor(Stack / Amount))
-	end
+	local _, MaxCraftable = ResolveRequirements(Player, ItemData, SelectedOptions)
 
 	local AmountPerCraft = ItemData.AmountPerCraft or 1
 	local CraftedItem = InventoryService:GetPlayerItemByName(Player, ItemToCraft)
@@ -73,9 +140,32 @@ function CraftingService:Craft(
 	Player: Player,
 	ItemToCraft: string,
 	RequestedAmount: number | string?,
-	RecipeType: string?
+	RecipeType: string?,
+	SelectedOptions: { [number]: number }?
 ): number
-	local MaxCraftable = self:GetMaxCraftable(Player, ItemToCraft, RecipeType)
+	local ItemData = ItemService:GetItemData(ItemToCraft)
+	local PlayerData = DataService:GetData(Player)
+	if
+		not ItemData
+		or #GetRequirementGroups(ItemData) == 0
+		or not MatchesRecipeType(ItemData, RecipeType)
+		or not IsRecipeUnlocked(PlayerData, ItemData)
+	then
+		return 0
+	end
+
+	local Requirements, MaxCraftable = ResolveRequirements(Player, ItemData, SelectedOptions, true)
+	if not Requirements then
+		AlertService:AlertPlayer(Player, "Select an option for every material group.", "Error")
+		return 0
+	end
+
+	local AmountPerCraft = ItemData.AmountPerCraft or 1
+	local CraftedItem = InventoryService:GetPlayerItemByName(Player, ItemToCraft)
+	local CurrentStack = if CraftedItem then CraftedItem.Stack else 0
+	local RemainingCapacity = (ItemData.MaxStack or 1) - CurrentStack
+	MaxCraftable = math.min(MaxCraftable, math.floor(RemainingCapacity / AmountPerCraft))
+
 	if MaxCraftable <= 0 then
 		AlertService:AlertPlayer(Player, "You do not have the required items to craft this item.", "Error")
 		return 0
@@ -90,12 +180,10 @@ function CraftingService:Craft(
 		return 0
 	end
 
-	local ItemData = ItemService:GetItemData(ItemToCraft)
-	for Requirement, RequirementAmount in ItemData.CraftingRequirements do
+	for Requirement, RequirementAmount in Requirements do
 		InventoryService:RemoveItemFromPlayer(Player, Requirement, RequirementAmount * Amount)
 	end
 
-	local AmountPerCraft = ItemData.AmountPerCraft or 1
 	local CraftedAmount = AmountPerCraft * Amount
 	InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem(ItemToCraft, CraftedAmount))
 	-- AlertService:AlertPlayer(
@@ -117,7 +205,7 @@ function CraftingService:GetAvailableRecipes(Player: Player, RecipeType: string?
 
 	for _, ItemData in ItemService:GetAllItems() do
 		if
-			not ItemData.CraftingRequirements
+			#GetRequirementGroups(ItemData) == 0
 			or not MatchesRecipeType(ItemData, RecipeType)
 			or not IsRecipeUnlocked(PlayerData, ItemData)
 		then
@@ -153,9 +241,10 @@ function CraftingService.Client:Craft(
 	Player: Player,
 	ItemToCraft: string,
 	RequestedAmount: number | string?,
-	RecipeType: string?
+	RecipeType: string?,
+	SelectedOptions: { [number]: number }?
 )
-	return self.Server:Craft(Player, ItemToCraft, RequestedAmount, RecipeType)
+	return self.Server:Craft(Player, ItemToCraft, RequestedAmount, RecipeType, SelectedOptions)
 end
 
 function CraftingService.KnitInit()

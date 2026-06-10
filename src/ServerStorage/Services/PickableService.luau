@@ -23,6 +23,12 @@ local Pickables = {
 		Amount = {1, 2},
 		RespawnTime = { 30, 60 },
 	},
+
+	
+	Rice = {
+		Amount = {1, 2},
+		RespawnTime = { 30, 60 },
+	},
 }
 
 function PickableService:Pick(Player: Player, Pickable: Model)

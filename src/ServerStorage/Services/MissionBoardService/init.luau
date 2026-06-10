@@ -201,6 +201,10 @@ function MissionBoardService:DestroyMission(Player: Player, MissionOrId: any?, S
 	end
 end
 
+function MissionBoardService.Client:AbandonMissions(Player: Player)
+	self.Server:DestroyMission(Player)
+end
+
 function MissionBoardService:RerollMissions(Player: Player)
 	if PlayerBoards[Player] then
 		table.clear(PlayerBoards[Player])
@@ -242,6 +246,22 @@ function MissionBoardService:CallMissionFunction(Player: Player, FunctionName: s
 	end
 
 	return Called
+end
+
+function MissionBoardService:CollectResource(Player: Player, ItemName: string, Amount: number)
+	local ActiveMissionsSnapshot = table.clone(GetActiveMissions(Player))
+
+	for _, Mission in ActiveMissionsSnapshot do
+		local MissionModule = Missions[Mission.Name]
+		if MissionModule and MissionModule.CollectResource then
+			local Collected = MissionModule:CollectResource(Player, Mission, ItemName, Amount)
+			if Collected then
+				return true
+			end
+		end
+	end
+
+	return false
 end
 
 function MissionBoardService:ClearMissions(Player: Player)

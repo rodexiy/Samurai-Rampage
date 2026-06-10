@@ -9,7 +9,7 @@ return {
 	MaxStack = 1,
 	RecipeType = "Crafting",
 	CraftingRequirements = {
-		Stone = 4,
-		WoodLog = 3,
+		{ { Stone = 4 } },
+		{ { WoodLog = 3 } },
 	},
 }

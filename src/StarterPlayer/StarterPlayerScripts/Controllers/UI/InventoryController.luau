@@ -309,10 +309,16 @@ function InventoryController:AddModelToViewport(Viewport: ViewportFrame, Item: {
 	end
 
 	local InventoryOffset = Model:GetAttribute("InventoryOffset") or CFrame.new()
+	local _, BoundingSize = Model:GetBoundingBox()
+	local LargestDimension = math.max(BoundingSize.X, BoundingSize.Y, BoundingSize.Z)
 	if Item.Class == "Equipable" then
 		Model:PivotTo(CFrame.new(0, 0, -5) * InventoryOffset)
 	else
-		Model:PivotTo(CFrame.new(0, 0, -2.5) * CFrame.Angles(0, 0, math.rad(45)) * InventoryOffset)
+		local InventoryDistance = Model:GetAttribute("InventoryDistance")
+			or math.clamp(LargestDimension * 1.8, 1.1, 2.5)
+		Model:PivotTo(
+			CFrame.new(0, 0, -InventoryDistance) * CFrame.Angles(0, 0, math.rad(45)) * InventoryOffset
+		)
 	end
 
 	for _, Part in Model:GetDescendants() do

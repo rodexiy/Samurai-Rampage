@@ -11,6 +11,6 @@ return {
 	RecipeType = "Crafting",
 
 	CraftingRequirements = {
-		HealingHerbs = 2,
+		{ { HealingHerbs = 2 } },
 	},
 }
