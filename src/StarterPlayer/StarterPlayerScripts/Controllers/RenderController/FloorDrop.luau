@@ -44,6 +44,11 @@ local function SpinAndFloat(Model: Model, SpinSpeed: number, FloatSpeed: number,
 		end
 	end)
 end
+function FloorDrop.PickAnim(RenderData)
+	local Character = RenderData.Character
+	AnimationController:PlayAnimation(Character, game.ReplicatedStorage.Assets.Animations.Misc.Pickup)
+end
+
 function FloorDrop.Drop(RenderData)
 	local DropId = RenderData.Id
 	local DropName = RenderData.Name

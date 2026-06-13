@@ -1,14 +1,10 @@
 local Knit = require(game.ReplicatedStorage.Packages.Knit)
 
 local CarryService
-local InteractionService
-local InteractionController
 local LoadedServices = false
 
 Knit.OnStart():andThen(function()
 	CarryService = Knit.GetService("CarryService")
-	InteractionService = Knit.GetService("InteractionService")
-	InteractionController = Knit.GetController("InteractionController")
 	LoadedServices = true
 end)
 
@@ -27,17 +23,211 @@ local Hud = PlayerGui:WaitForChild("Hud")
 local ProximityPromptUI = Hud:WaitForChild("ProximityPrompt")
 local PromptLabel = ProximityPromptUI:WaitForChild("TextLabel")
 
+local RARITY_COLORS = {
+	Common = {
+		Primary = Color3.fromRGB(238, 242, 247),
+		Secondary = Color3.fromRGB(142, 154, 170),
+	},
+	Uncommon = {
+		Primary = Color3.fromRGB(105, 255, 137),
+		Secondary = Color3.fromRGB(23, 179, 93),
+	},
+	Rare = {
+		Primary = Color3.fromRGB(86, 226, 255),
+		Secondary = Color3.fromRGB(31, 111, 255),
+	},
+	Epic = {
+		Primary = Color3.fromRGB(218, 147, 255),
+		Secondary = Color3.fromRGB(128, 46, 255),
+	},
+	Legendary = {
+		Primary = Color3.fromRGB(255, 224, 102),
+		Secondary = Color3.fromRGB(255, 92, 46),
+	},
+}
+
+local function GetRarityColors(Prompt: ProximityPrompt)
+	return RARITY_COLORS[Prompt:GetAttribute("Rarity") or "Common"] or RARITY_COLORS.Common
+end
+
+local function GetOrCreate(ClassName: string, Name: string, Parent: Instance)
+	local Existing = Parent:FindFirstChild(Name)
+	if Existing and Existing.ClassName == ClassName then
+		return Existing
+	end
+	if Existing then
+		Existing:Destroy()
+	end
+
+	local Created = Instance.new(ClassName)
+	Created.Name = Name
+	Created.Parent = Parent
+	return Created
+end
+
+PromptLabel.AnchorPoint = Vector2.new(0.5, 1)
+PromptLabel.AutoButtonColor = false
+PromptLabel.BackgroundColor3 = Color3.fromRGB(11, 14, 20)
+PromptLabel.BackgroundTransparency = 0.08
+PromptLabel.ClipsDescendants = true
+PromptLabel.Position = UDim2.new(0.5, 0, 0.9, 0)
+PromptLabel.Size = UDim2.fromOffset(390, 82)
+PromptLabel.Text = ""
+PromptLabel.TextTransparency = 1
+
+local PromptCorner = GetOrCreate("UICorner", "PromptCorner", PromptLabel)
+PromptCorner.CornerRadius = UDim.new(0, 12)
+
+local PromptStroke = GetOrCreate("UIStroke", "PromptStroke", PromptLabel)
+PromptStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+PromptStroke.Color = RARITY_COLORS.Common.Primary
+PromptStroke.Thickness = 1.5
+PromptStroke.Transparency = 0.35
+
+local BackgroundGradient = GetOrCreate("UIGradient", "BackgroundGradient", PromptLabel)
+BackgroundGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 34, 46)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(9, 11, 16)),
+})
+BackgroundGradient.Rotation = 25
+
+local PromptScale = GetOrCreate("UIScale", "PromptScale", PromptLabel)
+
+local Accent = GetOrCreate("Frame", "Accent", PromptLabel)
+Accent.BackgroundColor3 = Color3.new(1, 1, 1)
+Accent.BorderSizePixel = 0
+Accent.Position = UDim2.fromOffset(0, 0)
+Accent.Size = UDim2.new(1, 0, 0, 4)
+
+local AccentGradient = GetOrCreate("UIGradient", "AccentGradient", Accent)
+
+local KeyBadge = GetOrCreate("Frame", "KeyBadge", PromptLabel)
+KeyBadge.BackgroundColor3 = Color3.fromRGB(35, 41, 53)
+KeyBadge.BackgroundTransparency = 0.08
+KeyBadge.BorderSizePixel = 0
+KeyBadge.Position = UDim2.fromOffset(14, 16)
+KeyBadge.Size = UDim2.fromOffset(50, 50)
+
+local KeyCorner = GetOrCreate("UICorner", "KeyCorner", KeyBadge)
+KeyCorner.CornerRadius = UDim.new(0, 10)
+
+local KeyStroke = GetOrCreate("UIStroke", "KeyStroke", KeyBadge)
+KeyStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+KeyStroke.Thickness = 1.5
+KeyStroke.Transparency = 0.2
+
+local KeyLabel = GetOrCreate("TextLabel", "KeyLabel", KeyBadge)
+KeyLabel.BackgroundTransparency = 1
+KeyLabel.Font = Enum.Font.GothamBold
+KeyLabel.Size = UDim2.fromScale(1, 1)
+KeyLabel.Text = "F"
+KeyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyLabel.TextScaled = true
+
+local KeyTextConstraint = GetOrCreate("UITextSizeConstraint", "KeyTextConstraint", KeyLabel)
+KeyTextConstraint.MaxTextSize = 22
+KeyTextConstraint.MinTextSize = 9
+
+local Content = GetOrCreate("Frame", "Content", PromptLabel)
+Content.BackgroundTransparency = 1
+Content.Position = UDim2.fromOffset(78, 10)
+Content.Size = UDim2.new(1, -92, 1, -20)
+
+local ActionLabel = GetOrCreate("TextLabel", "ActionLabel", Content)
+ActionLabel.BackgroundTransparency = 1
+ActionLabel.Font = Enum.Font.GothamBold
+ActionLabel.Position = UDim2.fromOffset(0, 0)
+ActionLabel.Size = UDim2.new(1, 0, 0, 15)
+ActionLabel.Text = "INTERACT"
+ActionLabel.TextColor3 = Color3.fromRGB(166, 177, 193)
+ActionLabel.TextSize = 10
+ActionLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local ObjectLabel = GetOrCreate("TextLabel", "ObjectLabel", Content)
+ObjectLabel.BackgroundTransparency = 1
+ObjectLabel.Font = Enum.Font.GothamBold
+ObjectLabel.Position = UDim2.fromOffset(0, 14)
+ObjectLabel.Size = UDim2.new(1, 0, 0, 28)
+ObjectLabel.Text = "Object"
+ObjectLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ObjectLabel.TextSize = 21
+ObjectLabel.TextTruncate = Enum.TextTruncate.AtEnd
+ObjectLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local ObjectGradient = GetOrCreate("UIGradient", "ObjectGradient", ObjectLabel)
+
+local RarityLabel = GetOrCreate("TextLabel", "RarityLabel", Content)
+RarityLabel.BackgroundTransparency = 1
+RarityLabel.Font = Enum.Font.GothamMedium
+RarityLabel.Position = UDim2.fromOffset(0, 43)
+RarityLabel.Size = UDim2.new(1, 0, 0, 14)
+RarityLabel.Text = "COMMON"
+RarityLabel.TextSize = 10
+RarityLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local ProgressTrack = GetOrCreate("Frame", "ProgressTrack", PromptLabel)
+ProgressTrack.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ProgressTrack.BackgroundTransparency = 0.88
+ProgressTrack.BorderSizePixel = 0
+ProgressTrack.Position = UDim2.new(0, 0, 1, -3)
+ProgressTrack.Size = UDim2.new(1, 0, 0, 3)
+
+local ProgressFill = GetOrCreate("Frame", "ProgressFill", ProgressTrack)
+ProgressFill.BackgroundColor3 = Color3.new(1, 1, 1)
+ProgressFill.BorderSizePixel = 0
+ProgressFill.Size = UDim2.fromScale(0, 1)
+
+local ProgressGradient = GetOrCreate("UIGradient", "ProgressGradient", ProgressFill)
+
 local DestroyingCache = {}
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
-
-local Connections = Collector.new()
-
 local CurrentPrompt = nil
 local PromptBeams = {}
 
 local BEAM_NAME = "PromptBeam"
 local TARGET_ATTACHMENT_NAME = "PromptBeamTargetAttachment"
 local CHARACTER_ATTACHMENT_NAME = "PromptBeamCharacterAttachment"
+
+local HoldTween
+local HeldPrompt
+
+local function ResetHoldProgress()
+	if HoldTween then
+		HoldTween:Cancel()
+		HoldTween = nil
+	end
+	ProgressFill.Size = UDim2.fromScale(0, 1)
+end
+
+local function ApplyPromptAppearance(Prompt: ProximityPrompt, Key: string)
+	local Colors = GetRarityColors(Prompt)
+	local Rarity = Prompt:GetAttribute("Rarity") or "Common"
+	local IsPickable = Prompt:GetAttribute("Pickable") == true or Prompt:GetAttribute("callback") == "Pick"
+	local DisplayName = Prompt:GetAttribute("DisplayName") or Prompt.ObjectText
+
+	if DisplayName == "" and Prompt.Parent then
+		DisplayName = Prompt.Parent.Name
+	end
+
+	KeyLabel.Text = Key:gsub("Button", "")
+	ActionLabel.Text = string.upper(Prompt.ActionText ~= "" and Prompt.ActionText or "Interact")
+	ObjectLabel.Text = DisplayName
+	RarityLabel.Text = string.upper(Rarity)
+	RarityLabel.TextColor3 = Colors.Primary
+	RarityLabel.Visible = IsPickable or Prompt:GetAttribute("Rarity") ~= nil
+
+	local RarityGradient = ColorSequence.new(Colors.Primary, Colors.Secondary)
+	AccentGradient.Color = RarityGradient
+	KeyStroke.Color = Colors.Primary
+	ObjectGradient.Color = RarityGradient
+	ProgressGradient.Color = RarityGradient
+	PromptStroke.Color = Colors.Primary
+
+	ResetHoldProgress()
+	PromptScale.Scale = 0.92
+	TweenService:Create(PromptScale, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	}):Play()
+end
 
 local function GetPromptModel(Prompt: ProximityPrompt)
 	local Parent = Prompt.Parent
@@ -116,10 +306,11 @@ local function CreatePromptBeam(Prompt: ProximityPrompt)
 	CharacterAttachment.Parent = RootPart
 
 	local Beam = Instance.new("Beam")
+	local Colors = GetRarityColors(Prompt)
 	Beam.Name = BEAM_NAME
 	Beam.Attachment0 = TargetAttachment
 	Beam.Attachment1 = CharacterAttachment
-	Beam.Color = ColorSequence.new(Color3.fromRGB(255, 233, 188))
+	Beam.Color = ColorSequence.new(Colors.Primary, Colors.Secondary)
 	Beam.FaceCamera = true
 	Beam.LightEmission = 0.45
 	Beam.LightInfluence = 0
@@ -162,24 +353,55 @@ ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inp
 	end
 
 	ProximityPromptUI.Enabled = true
-	PromptLabel.Text = `'` .. Key .. `' ` .. prompt.ActionText
 	CurrentPrompt = prompt
+	ApplyPromptAppearance(prompt, Key)
 	CreatePromptBeam(prompt)
 	if not GetPromptHighlight(prompt) then
+		local Colors = GetRarityColors(prompt)
 		local PromptHighlight = Instance.new("Highlight")
 		PromptHighlight.Name = "PromptHighlight"
 		PromptHighlight.DepthMode = Enum.HighlightDepthMode.Occluded
 		PromptHighlight.FillTransparency = 0.85
-		PromptHighlight.OutlineColor = Color3.fromRGB(250, 250, 250)
-		PromptHighlight.FillColor = Color3.fromRGB(250, 250, 250)
+		PromptHighlight.OutlineColor = Colors.Primary
+		PromptHighlight.FillColor = Colors.Secondary
 		PromptHighlight.OutlineTransparency = 0
 		PromptHighlight.Parent = HighlightParent
 
 		DestroyingCache[PromptHighlight] = prompt.Destroying:Once(function()
 			PromptHighlight:Destroy()
 			DestroyPromptBeam(prompt)
-			ProximityPromptUI.Enabled = false
+			if CurrentPrompt == prompt then
+				CurrentPrompt = nil
+				ProximityPromptUI.Enabled = false
+				ResetHoldProgress()
+			end
 		end)
+	end
+end)
+
+ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt: ProximityPrompt)
+	if prompt ~= CurrentPrompt or prompt.HoldDuration <= 0 then
+		return
+	end
+
+	ResetHoldProgress()
+	HoldTween = TweenService:Create(
+		ProgressFill,
+		TweenInfo.new(prompt.HoldDuration, Enum.EasingStyle.Linear),
+		{ Size = UDim2.fromScale(1, 1) }
+	)
+	HoldTween:Play()
+end)
+
+ProximityPromptService.PromptButtonHoldEnded:Connect(function(prompt: ProximityPrompt)
+	if prompt == CurrentPrompt then
+		ResetHoldProgress()
+	end
+end)
+
+ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
+	if prompt == CurrentPrompt then
+		ResetHoldProgress()
 	end
 end)
 
@@ -216,9 +438,29 @@ CarryService.Carry:Connect(function()
 	end)
 end)
 
-PromptLabel.Activated:Connect(function()
-	InteractionController.ButtonTriggered(CurrentPrompt, Player)
-	InteractionService:Interact(CurrentPrompt, CurrentPrompt:GetAttribute("callback"))
+PromptLabel.MouseButton1Down:Connect(function()
+	if not CurrentPrompt or HeldPrompt then
+		return
+	end
+
+	HeldPrompt = CurrentPrompt
+	HeldPrompt:InputHoldBegin()
+end)
+
+local function EndButtonHold()
+	if not HeldPrompt then
+		return
+	end
+
+	HeldPrompt:InputHoldEnd()
+	HeldPrompt = nil
+end
+
+PromptLabel.MouseButton1Up:Connect(EndButtonHold)
+PromptLabel.MouseLeave:Connect(EndButtonHold)
+
+PromptLabel.Destroying:Connect(function()
+	EndButtonHold()
 end)
 
 ProximityPromptService.PromptHidden:Connect(function(prompt)
@@ -228,21 +470,38 @@ ProximityPromptService.PromptHidden:Connect(function(prompt)
 		return
 	end
 
-	ProximityPromptUI.Enabled = false
-	CurrentPrompt = nil
 	DestroyPromptBeam(prompt)
 	local PromptHighlight = GetPromptHighlight(prompt)
 
 	if PromptHighlight then
-		TweenService:Create(PromptHighlight, TweenInfo.new(0.5), { FillTransparency = 1, OutlineTransparency = 1 })
-			:Play()
-
-		task.wait(0.5)
-		PromptHighlight:Destroy()
+		local HighlightTween =
+			TweenService:Create(PromptHighlight, TweenInfo.new(0.25), { FillTransparency = 1, OutlineTransparency = 1 })
+		HighlightTween:Play()
+		HighlightTween.Completed:Once(function()
+			if PromptHighlight.Parent then
+				PromptHighlight:Destroy()
+			end
+		end)
 	end
 
 	if PromptHighlight and DestroyingCache[PromptHighlight] then
 		DestroyingCache[PromptHighlight]:Disconnect()
 		DestroyingCache[PromptHighlight] = nil
+	end
+
+	if CurrentPrompt == prompt then
+		if HeldPrompt == prompt then
+			EndButtonHold()
+		end
+		CurrentPrompt = nil
+		ResetHoldProgress()
+		TweenService:Create(PromptScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Scale = 0.94,
+		}):Play()
+		task.delay(0.12, function()
+			if not CurrentPrompt then
+				ProximityPromptUI.Enabled = false
+			end
+		end)
 	end
 end)

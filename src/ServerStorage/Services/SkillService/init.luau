@@ -146,6 +146,7 @@ function SkillService:TryCancelSkillData(Character: Model)
 	end
 end
 -- usar quando o humanoid morrer
+
 function SkillService:ClearSkillData(Character: Model)
 	if not SkillDatas[Character] then
 		return

@@ -1,5 +1,6 @@
 local CollectionService = game:GetService("CollectionService")
 local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Items = require(game.ReplicatedStorage.Shared.Index.Items)
 
 local PickableService = Knit.CreateService({
 	Name = "PickableService",
@@ -8,6 +9,12 @@ local PickableService = Knit.CreateService({
 
 local ItemService
 local InventoryService
+local RenderService
+local DebounceService
+
+local PICK_DURATION = 1
+local PICK_PROMPT_NAME = "PickPrompt"
+local PICK_PROMPT_DISTANCE = 5
 
 local Pickables = {
 	Apple = {
@@ -41,6 +48,11 @@ function PickableService:Pick(Player: Player, Pickable: Model)
 
 		Pickable.Parent = nil
 
+		local Character = Player.Character
+		if Character then
+			DebounceService:AddDebounce(Character, "SkillLockMovement", PICK_DURATION)
+		end
+
 		local PickableData = Pickables[Pickable.Name]
 		local Amount = PickableData.Amount
 		if type(Amount) == "table" then
@@ -54,22 +66,43 @@ function PickableService:Pick(Player: Player, Pickable: Model)
 
 		local Item = ItemService:CreateItem(Pickable.Name, Amount)
 		InventoryService:GiveItemToPlayer(Player, Item)
+		task.spawn(function()
+			RenderService:RenderForPlayer(
+				Player,
+				"FloorDrop",
+				"PickAnim"
+			)
+		end)
 		task.wait(RespawnTime)
 
 		Pickable.Parent = OldParent
+
 	end)
 end
 
 function PickableService:BindPickable(Pickable: Model)
-	local Detector = Pickable:FindFirstChild("ClickDetector")
-	if not Detector then
-		Detector = Instance.new("ClickDetector")
-		Detector.Parent = Pickable
+	local Prompt = Pickable:FindFirstChild(PICK_PROMPT_NAME)
+	if not Prompt then
+		Prompt = Instance.new("ProximityPrompt")
+		Prompt.Name = PICK_PROMPT_NAME
+		Prompt.Parent = Pickable
 	end
 
-	Detector.MouseClick:Connect(function(Player)
-		PickableService:Pick(Player, Pickable)
-	end)
+	local ItemData = Items[Pickable.Name]
+	local DisplayName = if ItemData then ItemData.DisplayName or ItemData.Name else Pickable.Name
+	local Rarity = if ItemData then ItemData.Rarity or "Common" else "Common"
+
+	Prompt.ActionText = "Pick up"
+	Prompt.ObjectText = DisplayName
+	Prompt.HoldDuration = PICK_DURATION
+	Prompt.KeyboardKeyCode = Enum.KeyCode.F
+	Prompt.MaxActivationDistance = PICK_PROMPT_DISTANCE
+	Prompt.RequiresLineOfSight = false
+	Prompt.Style = Enum.ProximityPromptStyle.Custom
+	Prompt:SetAttribute("callback", "Pick")
+	Prompt:SetAttribute("DisplayName", DisplayName)
+	Prompt:SetAttribute("Pickable", true)
+	Prompt:SetAttribute("Rarity", Rarity)
 end
 
 function PickableService.KnitInit()
@@ -84,6 +117,8 @@ end
 function PickableService.KnitStart()
 	ItemService = Knit.GetService("ItemService")
 	InventoryService = Knit.GetService("InventoryService")
+	RenderService = Knit.GetService("RenderService")
+	DebounceService = Knit.GetService("DebounceService")
 end
 
 return PickableService

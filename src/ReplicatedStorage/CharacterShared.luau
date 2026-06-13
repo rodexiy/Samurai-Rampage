@@ -35,7 +35,7 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 		end,
 
 		SkillLockMovement = function()
-			change("PostureBreak", 0)
+			change("SkillLockMovement", 0)
 		end,
 
 		BeenHitted = function()
@@ -123,7 +123,7 @@ function Shared:ChangeJumpPower(Character, amount, overwrite)
 		end,
 
 		SkillLockMovement = function()
-			change("PostureBreak", 0)
+			change("SkillLockMovement", 0)
 		end,
 
 		BeenHitted = function()

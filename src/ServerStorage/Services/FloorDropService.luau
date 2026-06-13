@@ -46,7 +46,8 @@ function DropItemClass:Render()
 	if not Player then
 		return
 	end
-	RenderService:RenderForAllPlayers(
+	RenderService:RenderForPlayer(
+		Player,
 		"FloorDrop",
 		"Drop",
 		{ Name = self.Name, Amount = self.Amount, Id = self.Id, Position = self.Position }
