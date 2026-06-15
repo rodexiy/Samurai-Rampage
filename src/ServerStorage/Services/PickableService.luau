@@ -12,7 +12,7 @@ local InventoryService
 local RenderService
 local DebounceService
 
-local PICK_DURATION = 1
+local PICK_ANIMATION_DURATION = 1
 local PICK_PROMPT_NAME = "PickPrompt"
 local PICK_PROMPT_DISTANCE = 5
 
@@ -50,7 +50,7 @@ function PickableService:Pick(Player: Player, Pickable: Model)
 
 		local Character = Player.Character
 		if Character then
-			DebounceService:AddDebounce(Character, "SkillLockMovement", PICK_DURATION)
+			DebounceService:AddDebounce(Character, "SkillLockMovement", PICK_ANIMATION_DURATION)
 		end
 
 		local PickableData = Pickables[Pickable.Name]
@@ -94,7 +94,7 @@ function PickableService:BindPickable(Pickable: Model)
 
 	Prompt.ActionText = "Pick up"
 	Prompt.ObjectText = DisplayName
-	Prompt.HoldDuration = PICK_DURATION
+	Prompt.HoldDuration = 0
 	Prompt.KeyboardKeyCode = Enum.KeyCode.F
 	Prompt.MaxActivationDistance = PICK_PROMPT_DISTANCE
 	Prompt.RequiresLineOfSight = false
@@ -112,6 +112,15 @@ function PickableService.KnitInit()
 	CollectionService:GetInstanceAddedSignal("Pickable"):Connect(function(Pickable)
 		PickableService:BindPickable(Pickable)
 	end)
+
+	local PickablesFolder = workspace:FindFirstChild("Pickable")
+	if PickablesFolder then
+		for _, Pickable in PickablesFolder:GetChildren() do
+			if not Pickable:HasTag("Pickable") then
+				Pickable:AddTag("Pickable")
+			end
+		end
+	end
 end
 
 function PickableService.KnitStart()
