@@ -268,6 +268,17 @@ function InventoryController:Select(Item)
 	end
 
 	ItemInfo.EquipButton.Visible = SelectedItemData.Class == "Equipable" or SelectedItemData.Class == "Weapon"
+	local EquipLeftButton = ItemInfo:FindFirstChild("EquipLeftButton")
+	if EquipLeftButton then
+		local ShowLeftButton = SelectedItemData.Class == "Weapon"
+			and (SelectedItemData.CanEquipLeft or SelectedItemData.EquippedLeft)
+
+		EquipLeftButton.Visible = ShowLeftButton
+		if EquipLeftButton:IsA("TextButton") then
+			EquipLeftButton.Text = if SelectedItemData.EquippedLeft then "Unequip Left" else "Equip Left"
+		end
+	end
+
 	ItemInfo.Vanity.Visible = SelectedItemData.Class == "Equipable"
 
 	ItemInfo.Visible = true
@@ -288,6 +299,11 @@ end
 function InventoryController:EquipItem()
 	ItemInfo.Visible = false
 	InventoryService:EquipUnequipItem(SelectedItem:GetAttribute("Name"))
+end
+
+function InventoryController:EquipLeftItem()
+	ItemInfo.Visible = false
+	InventoryService:EquipUnequipLeftItem(SelectedItem:GetAttribute("Name"))
 end
 
 function InventoryController:AddModelToViewport(Viewport: ViewportFrame, Item: { any })
@@ -360,8 +376,18 @@ function InventoryController:LoadItems()
 		end
 
 		if Item.Class == "Equipable" or Item.Class == "Weapon" then
-			if Item.Equipped then
-				Template.EquipIndex.Text = "[E]"
+			if Item.Equipped or Item.EquippedLeft then
+				if Item.Class == "Weapon" then
+					if Item.Equipped and Item.EquippedLeft then
+						Template.EquipIndex.Text = "[R/L]"
+					elseif Item.Equipped then
+						Template.EquipIndex.Text = "[R]"
+					else
+						Template.EquipIndex.Text = "[L]"
+					end
+				else
+					Template.EquipIndex.Text = "[E]"
+				end
 				Template.Name = "1" .. Item.Name
 
 				local Rarity = Item.Rarity or "Common"
@@ -567,6 +593,11 @@ function InventoryController.KnitStart()
 	end)
 
 	InventoryController:UpdateStatus()
+
+	local EquipLeftButton = ItemInfo:FindFirstChild("EquipLeftButton")
+	if EquipLeftButton then
+		EquipLeftButton:SetAttribute("callback", "EquipLeft")
+	end
 end
 
 return InventoryController

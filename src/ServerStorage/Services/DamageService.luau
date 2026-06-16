@@ -35,7 +35,13 @@ function DamageService:GetMultiplierTotalFromEquipments(Character: Model, Multip
 	return Amount
 end
 
-function DamageService:CalculateDamage(Attacker: Model, Enemy: Model, BaseDamage: number, Multipliers: { string })
+function DamageService:CalculateDamage(
+	Attacker: Model,
+	Enemy: Model,
+	BaseDamage: number,
+	Multipliers: { string },
+	WeaponSide: string?
+)
 	local TotalStrength = 0
 	local TotalResistance = 0
 	for _, Multiplier in Multipliers do
@@ -44,14 +50,9 @@ function DamageService:CalculateDamage(Attacker: Model, Enemy: Model, BaseDamage
 			NodeIncrease = BaseDamage
 				* ((ValuesService:GetAmountUnlockedNodesMatch(Attacker, Attacker:GetAttribute("Artifact")) or 0) * 0.15)
 		elseif Multiplier == "Weapon" then
-			local StanceData = StanceService:GetStance(Attacker:GetAttribute("Stance"))
-			local WeaponData = ItemService:GetItemData(Attacker:GetAttribute("Weapon"))
-
+			local StanceData = StanceService:GetStance(Attacker:GetAttribute("Stance")) or {}
 			local SwordBaseDamage = StanceData.BaseDamage or 0
-
-			if WeaponData then
-				SwordBaseDamage += WeaponData.AdditionalDamage or 0
-			end
+			SwordBaseDamage += ValuesService:GetWeaponAdditionalStat(Attacker, WeaponSide, "AdditionalDamage")
 
 			BaseDamage += SwordBaseDamage
 			NodeIncrease = ValuesService:GetAmountUnlockedNodesMatch(Attacker, "Kendo Proficiency")

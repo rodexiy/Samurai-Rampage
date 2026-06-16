@@ -8,15 +8,18 @@ local BloodService = Knit.CreateService({
 function BloodService:GetBlades(Character: Model)
 	local Assets = Character.Assets
 	local WeaponFolder = Assets.Weapon
-	local Weapon = WeaponFolder:FindFirstChild("Weapon")
-	if not Weapon then
-		return
-	end
 
 	local Blades = {}
-	for _, Part in Weapon:GetDescendants() do
-		if Part.Name == "Blade" and Part:IsA("BasePart") then
-			table.insert(Blades, Part)
+	for _, WeaponName in { "Weapon", "LeftWeapon" } do
+		local Weapon = WeaponFolder:FindFirstChild(WeaponName)
+		if not Weapon then
+			continue
+		end
+
+		for _, Part in Weapon:GetDescendants() do
+			if Part.Name == "Blade" and Part:IsA("BasePart") then
+				table.insert(Blades, Part)
+			end
 		end
 	end
 

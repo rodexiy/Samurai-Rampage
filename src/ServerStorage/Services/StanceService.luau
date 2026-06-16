@@ -58,7 +58,12 @@ function StanceService:EquipStance(Player: Player, StanceName: string)
 	local PlayerData = DataService:GetData(Player)
 
 	if table.find(PlayerData.Stances, StanceName) then
+		local DidChangeStance = PlayerData.SelectedStance ~= StanceName
 		PlayerData.SelectedStance = StanceName
+		if DidChangeStance then
+			InventoryService:UnequipLeftWeapon(Player, false, false)
+		end
+
 		local Character = Player.Character
 
 		if Character then
@@ -69,20 +74,35 @@ function StanceService:EquipStance(Player: Player, StanceName: string)
 				end
 
 				local StanceData = self:GetStance(StanceName)
-				local CurrentWeaponData = ItemService:GetItemData(Character:GetAttribute("Weapon"))
+				local CurrentWeaponData = ItemService:GetItemData(PlayerData.Equipped.Weapon)
 
-				if StanceData.WeaponType ~= CurrentWeaponData.Type then
+				if not CurrentWeaponData or StanceData.WeaponType ~= CurrentWeaponData.Type then
 					for _, Item in PlayerData.Inventory do
 						local ItemData = ItemService:GetItemData(Item.Name)
-						if ItemData.Type == StanceData.WeaponType then
+						if ItemData and ItemData.Type == StanceData.WeaponType then
 							InventoryService:EquipUnequipItem(Player, Item.Name)
 							break
 						end
 					end
 				end
 
+				if StanceData.DualWield then
+					WeaponService:LoadLeftWeapon(
+						Character,
+						PlayerData.Equipped.LeftWeapon,
+						PlayerData.Equipped.Weapon,
+						PlayerData.SelectedStance
+					)
+				else
+					WeaponService:UnloadLeftWeapon(Character)
+				end
+
 				ValuesService:UpdateAll(Character, false)
 			end
+		end
+
+		if DidChangeStance then
+			InventoryService:UpdateUI(Player)
 		end
 	end
 end

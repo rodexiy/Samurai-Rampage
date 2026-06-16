@@ -23,6 +23,7 @@ return {
 
 	Equipped = {
 		Weapon = nil,
+		LeftWeapon = nil,
 		Head = nil,
 		Face = nil,
 		Torso = nil,

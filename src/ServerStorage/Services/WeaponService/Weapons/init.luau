@@ -14,10 +14,51 @@ local ExecutionService = Knit.GetService("ExecutionService")
 local LagCompensationService = Knit.GetService("LagCompensationService")
 local HitService = Knit.GetService("HitService")
 local DamageService = Knit.GetService("DamageService")
+local ValuesService = Knit.GetService("ValuesService")
 
 local Validate = require(game.ReplicatedStorage.Shared.Validate)
 local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
 local Stances = require(game.ReplicatedStorage.Shared.Index.Stances)
+
+local function GetStanceData(Attacker: Model)
+	return Stances[Attacker:GetAttribute("Stance")]
+end
+
+local function GetM1Config(Attacker: Model)
+	local StanceData = GetStanceData(Attacker)
+	return StanceData and StanceData.M1 and StanceData.M1[Attacker:GetAttribute("ComboCounter")]
+end
+
+local function GetM2Config(Attacker: Model)
+	local StanceData = GetStanceData(Attacker)
+	return StanceData and StanceData.M2 and StanceData.M2.Hits and StanceData.M2.Hits[1]
+end
+
+local function GetWeaponSide(Config: { [string]: any }?): string
+	if not Config then
+		return "Right"
+	end
+
+	return Config.WeaponSide or Config.SwordSide or Config.HandHitbox or "Right"
+end
+
+local function GetHitboxHand(Config: { [string]: any }?): string?
+	local HandHitbox = Config and Config.HandHitbox
+	if HandHitbox == "Left" or HandHitbox == "Right" then
+		return HandHitbox
+	end
+
+	return nil
+end
+
+local function GetDamageMultiplier(Config: { [string]: any }?, DefaultMultiplier: number): number
+	local DamageMultiplier = Config and (Config.DamageMultiplier or Config.DamageMult)
+	if typeof(DamageMultiplier) == "number" then
+		return DamageMultiplier
+	end
+
+	return DefaultMultiplier
+end
 
 Weapon.Attack = function(Attacker: Model, Data: { any })
 	if not Validate:CanAttack(Attacker) then
@@ -35,10 +76,9 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 	AnimationService:StopAnimationFind(Attacker, "Deflected")
 	AnimationService:StopAttackAnimations(Attacker)
 
-	local StanceData = Stances[Attacker:GetAttribute("Stance")]
-	local M1Config = StanceData and StanceData.M1 and StanceData.M1[Attacker:GetAttribute("ComboCounter")]
-
 	local AttackAnimation, M1Animation: AnimationTrack = WeaponService:PlayM1Animation(Attacker)
+	local M1Config = GetM1Config(Attacker)
+	local WeaponSide = GetWeaponSide(M1Config)
 	local AttackAdjustSpeed = Data.Server.AttackAdjustSpeed or 1
 	AttackAnimation:AdjustSpeed(AttackAdjustSpeed)
 	local AdjustedSubtract = AttackAdjustSpeed - 1
@@ -46,16 +86,14 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 	local StartTime = tick()
 	local AttackDuration = AttackAnimation.Length
 
-	local SwordStaminaCost = Attacker:GetAttribute("SwordStaminaCost")
+	local SwordStaminaCost = ValuesService:GetWeaponStaminaCost(Attacker, WeaponSide)
 
 	StaminaService:RemoveStamina(Attacker, SwordStaminaCost)
 	DebounceService:AddDebounce(Attacker, "Attack", AttackDuration)
 	DebounceService:AddDebounce(Attacker, "Attacking", AttackDuration + 0.15)
-	DebounceService:AddDebounce(Attacker, "AttackDebounce", AttackDuration)
+	DebounceService:AddDebounce(Attacker, "AttackDebounce", AttackDuration - 0.1)
 
-	local AttackDelay = (M1Config and M1Config.HitboxDelay)
-		or AttackAnimation:GetAttribute("HitboxDelay")
-		or (AttackDuration * 0.2)
+	local AttackDelay = (M1Config and M1Config.HitboxDelay) or (AttackDuration * 0.2)
 	local SecondsAdjusted = AttackDuration - (AttackDuration * AttackAdjustSpeed)
 	AttackDelay = AttackDelay - AdjustedSubtract
 
@@ -67,7 +105,7 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 		local ShouldPlaySwingSound = not M1Config or M1Config.PlaySwingSound ~= false
 
 		if ShouldEnableSwordTrail then
-			WeaponService:SwordTrailsEnabled(Attacker, true)
+			WeaponService:SwordTrailsEnabled(Attacker, true, WeaponSide)
 		end
 
 		local Swing: Sound?
@@ -83,7 +121,7 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 			end
 
 			if ShouldEnableSwordTrail then
-				WeaponService:SwordTrailsEnabled(Attacker, false)
+				WeaponService:SwordTrailsEnabled(Attacker, false, WeaponSide)
 			end
 		end
 
@@ -97,7 +135,7 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 		end)
 
 		local function HitCharacter(Character: Model, RayCFrame: CFrame?)
-			local Damage = DamageService:CalculateDamage(Attacker, Character, 0, { "Weapon" })
+			local Damage = DamageService:CalculateDamage(Attacker, Character, 0, { "Weapon" }, WeaponSide)
 
 			task.delay(LagCompensationService:GetCompensation(Character), function()
 				local Context = HitService:NormalHit(
@@ -149,7 +187,9 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 
 		HitboxService:CharacterRaycastHitbox(Attacker, HitboxDuration + SecondsAdjusted, function(Character, Hit, Result)
 			HitCharacter(Character, CFrame.new(Hit.Position, Result.Position + -Result.Normal))
-		end, Cancel)
+		end, Cancel, {
+			HandHitbox = GetHitboxHand(M1Config),
+		})
 	end)
 end
 
@@ -164,9 +204,14 @@ Weapon.StrongAttack = function(Attacker: Model, Data: { any })
 
 	local AttackDuration = AttackAnimation.Length
 	local StartTime = tick()
+	local M2Config = GetM2Config(Attacker)
+	local WeaponSide = GetWeaponSide(M2Config)
+	local DamageMultiplier = GetDamageMultiplier(M2Config, 2)
+	local AttackDelay = (M2Config and (M2Config.HitboxDelay or M2Config.Delay)) or AttackDuration * 0.35
+	local SlashDelay = M2Config.SlashDelay
+	
 
-	local Damage = Attacker:GetAttribute("SwordDamage") * 2
-	local SwordStaminaCost = Attacker:GetAttribute("SwordStaminaCost") * 2
+	local SwordStaminaCost = ValuesService:GetWeaponStaminaCost(Attacker, WeaponSide) * DamageMultiplier
 
 	AnimationService:StopAnimationFind(Attacker, "Block")
 	StaminaService:RemoveStamina(Attacker, SwordStaminaCost)
@@ -175,10 +220,19 @@ Weapon.StrongAttack = function(Attacker: Model, Data: { any })
 	DebounceService:AddDebounce(Attacker, "Attacking", AttackDuration)
 	DebounceService:AddDebounce(Attacker, "StrongAttackDebounce", 2)
 
-	task.delay(AttackAnimation:GetAttribute("HitboxDelay") or AttackDuration * 0.35, function()
+	if SlashDelay then
+		task.delay(SlashDelay, function()
+			if WeaponService:DidCancel(Attacker) or not AnimationService:GetAnimationFind(Attacker, "M2") then
+				return
+			end
+			WeaponService:ShowSlash(Attacker, AnimationInstance)
+		end)
+	end
+
+	task.delay(AttackDelay, function()
 		local Difference = tick() - StartTime
 		local HitboxDuration = (AttackDuration - Difference) * 0.8
-		WeaponService:SwordTrailsEnabled(Attacker, true)
+		WeaponService:SwordTrailsEnabled(Attacker, true, WeaponSide)
 		local Swing: Sound = SoundEffectService:CustomSwordWoosh(Attacker, "M2")
 		SoundEffectService:AddPitchEffect(Swing, 0.85, 1.25)
 
@@ -186,7 +240,7 @@ Weapon.StrongAttack = function(Attacker: Model, Data: { any })
 			Swing:Stop()
 			Swing:Destroy()
 
-			WeaponService:SwordTrailsEnabled(Attacker, false)
+			WeaponService:SwordTrailsEnabled(Attacker, false, WeaponSide)
 		end
 
 		if WeaponService:DidCancel(Attacker) or not AnimationService:GetAnimationFind(Attacker, "M2") then
@@ -194,19 +248,25 @@ Weapon.StrongAttack = function(Attacker: Model, Data: { any })
 			return
 		end
 
-		task.delay(0.1, function()
-			WeaponService:ShowSlash(Attacker, AnimationInstance)
-		end)
+		if not SlashDelay then
+			task.delay(0.1, function()
+				WeaponService:ShowSlash(Attacker, AnimationInstance)
+			end)
+		end
+		
 
 		ExecutionService:ExecuteInRange(Attacker)
 
 		HitboxService:CharacterRaycastHitbox(Attacker, HitboxDuration, function(Character, Hit, Result)
 			local RayCFrame = CFrame.new(Hit.Position, Result.Position + -Result.Normal)
+			local Damage = DamageService:CalculateDamage(Attacker, Character, 0, { "Weapon" }, WeaponSide) * DamageMultiplier
 
 			task.delay(LagCompensationService:GetCompensation(Character), function()
 				HitService:NormalHit(Character, Attacker, Damage, { RayCFrame = RayCFrame, By = "Weapon" })
 			end)
-		end, Cancel)
+		end, Cancel, {
+			HandHitbox = GetHitboxHand(M2Config),
+		})
 	end)
 end
 

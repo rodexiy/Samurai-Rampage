@@ -299,7 +299,11 @@ end
 local RaycastHitboxV4 = require(game.ReplicatedStorage.Assets.Libraries.RaycastHitboxV4)
 
 function HitboxService:RaycastHitbox(Attacker: Model, Duration: number, callback, Data)
-	local Model = Attacker.Assets.Weapon.Weapon
+	local Model = Attacker.Assets.Weapon:FindFirstChild("Weapon")
+	if not Model then
+		return
+	end
+
 	local Hitbox = RaycastHitboxV4.new(Model)
 	Hitbox:HitStart(Duration)
 
@@ -323,17 +327,23 @@ Rayparams.FilterDescendantsInstances = { CollectionService:GetTagged("HitboxDete
 function HitboxService:CharacterRaycastHitbox(Character: Model, Duration: number, callback, onDisconnect, Data)
 	local Data = Data or {}
 	local HandHitbox = Data.HandHitbox
+	local WeaponFolder = Character.Assets.Weapon
 
 	if Data.HandHitbox then
 		Data.HandHitbox = nil
 	end
 
-	local PartHitbox = Character.Assets.Weapon.Weapon
+	local PartHitbox = WeaponFolder:FindFirstChild("Weapon")
 	if HandHitbox == "Left" then
-		PartHitbox = Character.Assets.Weapon.Weapon["Left Arm"]
+		PartHitbox = WeaponFolder:FindFirstChild("LeftWeapon") or (PartHitbox and PartHitbox:FindFirstChild("Left Arm"))
 	elseif HandHitbox == "Right" then
-		PartHitbox = Character.Assets.Weapon.Weapon["Right Arm"]
+		PartHitbox = PartHitbox and (PartHitbox:FindFirstChild("Right Arm") or PartHitbox)
 	end
+
+	if not PartHitbox then
+		return
+	end
+
 	local Hitbox = RaycastHitboxV4.new(PartHitbox)
 	Rayparams.FilterDescendantsInstances = { CollectionService:GetTagged("HitboxDetectable") }
 	Hitbox.RaycastParams = Rayparams

@@ -36,7 +36,8 @@ return {
 		Hits = {
 			{	
 				HitboxType = "Raycast", 
-				HitboxDelay = 0.37, 
+				HitboxDelay = 0.37,
+				SlashDelay = 0.65 
 			},
 		},
 	},

@@ -23,6 +23,20 @@ local StanceService
 
 local DeepCopy = require(game.ReplicatedStorage.Shared.Utils.DeepCopy)
 
+local function CanChangeEquippedItems(Character: Model?)
+	if not Character then
+		return true
+	end
+
+	return not (
+		Character:GetAttribute("Attacking")
+		or Character:GetAttribute("BeenHitted")
+		or Character:GetAttribute("Blocking")
+		or Character:GetAttribute("BeenDeflected")
+		or Character:GetAttribute("Ragdoll")
+	)
+end
+
 function InventoryService:GetInventoryData(Player: Player)
 	local PlayerData = DataService:GetData(Player)
 	local InventoryData = {}
@@ -285,28 +299,29 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string)
 	local PlayerData = DataService:GetData(Player)
 	local ItemData = ItemService:GetItemData(ItemName)
 
-	local Character = Player.Character
-
-	if Character then
-		if
-			Character:GetAttribute("Attacking")
-			or Character:GetAttribute("BeenHitted")
-			or Character:GetAttribute("Blocking")
-			or Character:GetAttribute("BeenDeflected")
-			or Character:GetAttribute("Ragdoll")
-		then
-			return
-		end
+	if not ItemData then
+		return
 	end
 
-	if not self:IsEquipped(Player, ItemName) then
-		if ItemData.Class == "Weapon" then
+	local Character = Player.Character
+
+	if not CanChangeEquippedItems(Character) then
+		return
+	end
+
+	if ItemData.Class == "Weapon" then
+		if PlayerData.Equipped.Weapon ~= ItemName then
 			local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
 
-			if StanceData.WeaponType ~= ItemData.Type then
+			if not StanceData or StanceData.WeaponType ~= ItemData.Type then
 				AlertService:AlertPlayer(Player, "You cannot equip this weapon in this stance!", "Warn")
 				return
 			end
+
+			if PlayerData.Equipped.LeftWeapon == ItemName then
+				self:UnequipLeftWeapon(Player, false, false)
+			end
+
 			PlayerData.Equipped.Weapon = ItemName
 
 			if Character then
@@ -315,12 +330,34 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string)
 				end
 				Character:SetAttribute("Weapon", ItemName)
 				Character:SetAttribute("WeaponType", ItemData.Type)
-				WeaponService:LoadWeapon(Character)
+				WeaponService:LoadWeapon(
+					Character,
+					PlayerData.Equipped.Weapon,
+					PlayerData.Equipped.LeftWeapon,
+					PlayerData.SelectedStance
+				)
 
 				Character:SetAttribute("WeaponEquipped", false)
 				ValuesService:UpdateDamage(Character)
 			end
-		elseif ItemData.Class == "Equipable" then
+		else
+			PlayerData.Equipped.Weapon = nil
+			PlayerData.Equipped.LeftWeapon = nil
+			if Character then
+				if Character:GetAttribute("WeaponEquipped") then
+					WeaponService:Equip(Character, false, 1.5)
+				end
+				WeaponService:UnloadWeapon(Character)
+				Character:SetAttribute("Weapon", nil)
+				Character:SetAttribute("WeaponType", nil)
+				Character:SetAttribute("LeftWeapon", nil)
+				Character:SetAttribute("LeftWeaponType", nil)
+				Character:SetAttribute("WeaponEquipped", false)
+				ValuesService:UpdateDamage(Character)
+			end
+		end
+	elseif not self:IsEquipped(Player, ItemName) then
+		if ItemData.Class == "Equipable" then
 			if Character then
 				PlayerData.Equipped[ItemData.Type] = ItemName
 				if Character then
@@ -330,19 +367,7 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string)
 			end
 		end
 	else
-		if ItemData.Class == "Weapon" then
-			PlayerData.Equipped.Weapon = nil
-			if Character then
-				if Character:GetAttribute("WeaponEquipped") then
-					WeaponService:Equip(Character, false, 1.5)
-				end
-				WeaponService:UnloadWeapon(Character)
-				Character:SetAttribute("Weapon", nil)
-				Character:SetAttribute("WeaponType", nil)
-				Character:SetAttribute("WeaponEquipped", false)
-				ValuesService:UpdateDamage(Character)
-			end
-		elseif ItemData.Class == "Equipable" then
+		if ItemData.Class == "Equipable" then
 			PlayerData.Equipped[ItemData.Type] = nil
 
 			if Character then
@@ -360,9 +385,95 @@ function InventoryService.Client:EquipUnequipItem(Player: Player, ItemName: stri
 	self.Server:EquipUnequipItem(Player, ItemName)
 end
 
+function InventoryService:UnequipLeftWeapon(Player: Player, UpdateUI: boolean?, LoadFallback: boolean?)
+	local PlayerData = DataService:GetData(Player)
+	PlayerData.Equipped.LeftWeapon = nil
+
+	local Character = Player.Character
+	if Character then
+		local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
+		if LoadFallback ~= false and StanceData and StanceData.DualWield and PlayerData.Equipped.Weapon then
+			WeaponService:LoadLeftWeapon(
+				Character,
+				PlayerData.Equipped.LeftWeapon,
+				PlayerData.Equipped.Weapon,
+				PlayerData.SelectedStance
+			)
+		else
+			WeaponService:UnloadLeftWeapon(Character)
+		end
+
+		ValuesService:UpdateDamage(Character)
+	end
+
+	if UpdateUI ~= false then
+		self:UpdateUI(Player)
+	end
+end
+
+function InventoryService:EquipUnequipLeftItem(Player: Player, ItemName: string)
+	local PlayerData = DataService:GetData(Player)
+	local ItemData = ItemService:GetItemData(ItemName)
+
+	if not ItemData or ItemData.Class ~= "Weapon" then
+		return
+	end
+
+	local Character = Player.Character
+	if not CanChangeEquippedItems(Character) then
+		return
+	end
+
+	if PlayerData.Equipped.LeftWeapon == ItemName then
+		self:UnequipLeftWeapon(Player)
+		return
+	end
+
+	local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
+	if not StanceData or not StanceData.DualWield then
+		AlertService:AlertPlayer(Player, "This stance cannot dual wield.", "Warn")
+		return
+	end
+
+	if StanceData.WeaponType ~= ItemData.Type then
+		AlertService:AlertPlayer(Player, "You cannot equip this weapon in this stance!", "Warn")
+		return
+	end
+
+	if not PlayerData.Equipped.Weapon then
+		AlertService:AlertPlayer(Player, "Equip a right-hand weapon first.", "Warn")
+		return
+	end
+
+	if PlayerData.Equipped.Weapon == ItemName then
+		AlertService:AlertPlayer(Player, "This weapon is already in your right hand.", "Warn")
+		return
+	end
+
+	PlayerData.Equipped.LeftWeapon = ItemName
+
+	if Character then
+		Character:SetAttribute("LeftWeapon", ItemName)
+		Character:SetAttribute("LeftWeaponType", ItemData.Type)
+		WeaponService:LoadLeftWeapon(
+			Character,
+			PlayerData.Equipped.LeftWeapon,
+			PlayerData.Equipped.Weapon,
+			PlayerData.SelectedStance
+		)
+		ValuesService:UpdateDamage(Character)
+	end
+
+	self:UpdateUI(Player)
+end
+function InventoryService.Client:EquipUnequipLeftItem(Player: Player, ItemName: string)
+	self.Server:EquipUnequipLeftItem(Player, ItemName)
+end
+
 function InventoryService:GetInventory(Player: Player)
 	local PlayerData = DataService:GetData(Player)
 	local InventoryCopy = DeepCopy(PlayerData.Inventory)
+	local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
 
 	for _, Item in InventoryCopy do
 		local ItemData = ItemService:GetItemData(Item.Name)
@@ -377,7 +488,17 @@ function InventoryService:GetInventory(Player: Player)
 			continue
 		end
 
-		Item.Equipped = self:IsEquipped(Player, Item.Name)
+		if Item.Class == "Weapon" then
+			Item.Equipped = PlayerData.Equipped.Weapon == Item.Name
+			Item.EquippedLeft = PlayerData.Equipped.LeftWeapon == Item.Name
+			Item.CanEquipLeft = StanceData
+				and StanceData.DualWield
+				and StanceData.WeaponType == Item.Type
+				and PlayerData.Equipped.Weapon ~= nil
+				and PlayerData.Equipped.Weapon ~= Item.Name
+		else
+			Item.Equipped = self:IsEquipped(Player, Item.Name)
+		end
 	end
 
 	return InventoryCopy

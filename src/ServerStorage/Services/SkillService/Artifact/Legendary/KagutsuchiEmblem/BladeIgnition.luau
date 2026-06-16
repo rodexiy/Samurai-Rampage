@@ -18,9 +18,67 @@ local TweenService = game:GetService("TweenService")
 
 local Collector = require(game.ReplicatedStorage.Shared.Collector)
 
+local function GetBladeSwordTrail(Blade: BasePart): Trail?
+	local DirectTrail = Blade:FindFirstChild("SwordTrail")
+	if DirectTrail and DirectTrail:IsA("Trail") then
+		return DirectTrail
+	end
+
+	local Weapon = Blade:FindFirstAncestorWhichIsA("Model")
+	if not Weapon then
+		return nil
+	end
+
+	local SwordTrail = Weapon:FindFirstChild("SwordTrail", true)
+	if SwordTrail and SwordTrail:IsA("Trail") then
+		return SwordTrail
+	end
+
+	return nil
+end
+
+local function AttachEffectTrailToBlade(EffectVFX: Instance, Blade: BasePart, TrailName: string)
+	local EffectTrail = EffectVFX:FindFirstChild(TrailName, true)
+	if not EffectTrail or not EffectTrail:IsA("Trail") then
+		return
+	end
+
+	local SwordTrail = GetBladeSwordTrail(Blade)
+	if not SwordTrail then
+		EffectTrail.Enabled = false
+		return
+	end
+
+	EffectTrail.Attachment0 = SwordTrail.Attachment0
+	EffectTrail.Attachment1 = SwordTrail.Attachment1
+end
+
+local function DisableFireVFX(FireVFX: Instance)
+	local Trail = FireVFX:FindFirstChildWhichIsA("Trail", true)
+	if Trail then
+		Trail.Enabled = false
+	end
+
+	for _, VFX in FireVFX:GetDescendants() do
+		if VFX:IsA("ParticleEmitter") then
+			VFX.Enabled = false
+		end
+	end
+
+	local Sound = FireVFX:FindFirstChildWhichIsA("Sound", true)
+	if Sound then
+		TweenService:Create(Sound, TweenInfo.new(0.5, Enum.EasingStyle.Linear), { Volume = 0 }):Play()
+	end
+
+	local PointLight = FireVFX:FindFirstChildWhichIsA("PointLight", true)
+	if PointLight then
+		TweenService:Create(PointLight, TweenInfo.new(0.5, Enum.EasingStyle.Linear), { Brightness = 0 }):Play()
+	end
+end
+
 function BladeIgnition.Ignite(Attacker: Model, Data: { any })
 	local Blades = BloodService:GetBlades(Attacker)
-	if not Blades or not Attacker:GetAttribute("WeaponEquipped") then
+	if #Blades == 0 or not Attacker:GetAttribute("WeaponEquipped") then
 		return
 	end
 
@@ -41,60 +99,34 @@ function BladeIgnition.Ignite(Attacker: Model, Data: { any })
 		return
 	end
 
-	local Blade = Blades[1]
+	local FireVFXs = {}
+	for _, Blade in Blades do
+		local FireVFX: MeshPart = game.ReplicatedStorage.Assets.VFX.Buff.SwordFire:Clone()
+		local Weld = Instance.new("WeldConstraint")
+		Weld.Part0 = Blade
+		Weld.Part1 = FireVFX
+		Weld.Parent = FireVFX
 
-	if not Blade then
-		return
+		AttachEffectTrailToBlade(FireVFX, Blade, "FireTrail")
+
+		FireVFX.Name = "FireVFX"
+		FireVFX.Size = Blade.Size
+		FireVFX:PivotTo(Blade:GetPivot())
+		FireVFX.Parent = Blade
+		table.insert(FireVFXs, FireVFX)
 	end
-
-	local FireVFX: MeshPart = game.ReplicatedStorage.Assets.VFX.Buff.SwordFire:Clone()
-	local Weld = Instance.new("WeldConstraint")
-	Weld.Part0 = Blade
-	Weld.Part1 = FireVFX
-	Weld.Parent = FireVFX
-
-	local SwordTrail = Attacker.Assets:FindFirstChild("SwordTrail", true)
-	local FireTrail = FireVFX:FindFirstChild("FireTrail", true)
-	if FireTrail then
-		if not SwordTrail then
-			FireTrail.Enabled = false
-		end
-
-		FireTrail.Attachment0 = SwordTrail.Attachment0
-		FireTrail.Attachment1 = SwordTrail.Attachment1
-	end
-
-	FireVFX.Name = "FireVFX"
-	FireVFX.Size = Blade.Size
-	FireVFX:PivotTo(Blade:GetPivot())
-	FireVFX.Parent = Blade
 
 	local Connections = Collector.new()
 	Connections:Add(Attacker:GetAttributeChangedSignal("SwordOnFire"):Connect(function()
 		if not Attacker:GetAttribute("SwordOnFire") then
-			local Trail = FireVFX:FindFirstChildWhichIsA("Trail", true)
-			if Trail then
-				Trail.Enabled = false
-			end
-
-			for _, VFX in FireVFX:GetChildren() do
-				if VFX:IsA("ParticleEmitter") then
-					VFX.Enabled = false
-				end
-			end
-
-			local Sound = FireVFX:FindFirstChildWhichIsA("Sound", true)
-			if Sound then
-				TweenService:Create(Sound, TweenInfo.new(0.5, Enum.EasingStyle.Linear), { Volume = 0 }):Play()
-			end
-
-			local PointLight = FireVFX:FindFirstChildWhichIsA("PointLight", true)
-			if PointLight then
-				TweenService:Create(PointLight, TweenInfo.new(0.5, Enum.EasingStyle.Linear), { Brightness = 0 }):Play()
+			for _, FireVFX in FireVFXs do
+				DisableFireVFX(FireVFX)
 			end
 
 			task.wait(1)
-			FireVFX:Destroy()
+			for _, FireVFX in FireVFXs do
+				FireVFX:Destroy()
+			end
 			Connections:Destroy()
 		end
 	end))

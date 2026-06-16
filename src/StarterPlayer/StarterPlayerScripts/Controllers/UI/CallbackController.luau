@@ -30,6 +30,14 @@ local Callbacks = {
 		InventoryController:EquipItem()
 	end,
 
+	EquipLeft = function(button)
+		InventoryController:EquipLeftItem()
+	end,
+
+	EquipLeftButton = function(button)
+		InventoryController:EquipLeftItem()
+	end,
+
 	BuyGamepass = function(Button: ImageButton)
 		GamepassService:BuyGamepass(Button.Name)
 	end,
@@ -77,8 +85,10 @@ function CallbackController:BindCallbacks()
 	for _, v in ipairs(PlayerGui:GetDescendants()) do
 		if v:IsA("TextButton") or v:IsA("ImageButton") then
 			v.Activated:Connect(function()
-				if Callbacks[v:GetAttribute("callback")] then
-					Callbacks[v:GetAttribute("callback")](v)
+				local CallbackName = if v.Name == "EquipLeftButton" then "EquipLeft" else v:GetAttribute("callback")
+
+				if Callbacks[CallbackName] then
+					Callbacks[CallbackName](v)
 				end
 			end)
 		end

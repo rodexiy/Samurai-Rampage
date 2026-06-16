@@ -53,33 +53,89 @@ function ValuesService:UpdateRegeneration(Character: Model)
 	Character:SetAttribute("Regeneration", 0.01 + NodeIncrease)
 end
 
-function ValuesService:UpdateDamage(Character: Model)
-	local StanceData = StanceService:GetStance(Character:GetAttribute("Stance"))
-	local WeaponData = ItemService:GetItemData(Character:GetAttribute("Weapon"))
+local function NormalizeWeaponSide(WeaponSide: string?): string
+	if WeaponSide == "Left" or WeaponSide == "Both" then
+		return WeaponSide
+	end
 
-	local EnergyConservation = 1
+	return "Right"
+end
+
+function ValuesService:GetWeaponName(Character: Model, WeaponSide: string?): string?
+	local NormalizedSide = NormalizeWeaponSide(WeaponSide)
+
+	if NormalizedSide == "Left" then
+		return Character:GetAttribute("LeftWeapon") or Character:GetAttribute("Weapon")
+	end
+
+	return Character:GetAttribute("Weapon")
+end
+
+function ValuesService:GetWeaponData(Character: Model, WeaponSide: string?): { [string]: any }?
+	local WeaponName = self:GetWeaponName(Character, WeaponSide)
+	if not WeaponName then
+		return nil
+	end
+
+	return ItemService:GetItemData(WeaponName)
+end
+
+function ValuesService:GetWeaponAdditionalStat(Character: Model, WeaponSide: string?, StatName: string): number
+	local NormalizedSide = NormalizeWeaponSide(WeaponSide)
+
+	if NormalizedSide == "Both" then
+		return (
+			self:GetWeaponAdditionalStat(Character, "Right", StatName)
+			+ self:GetWeaponAdditionalStat(Character, "Left", StatName)
+		) / 2
+	end
+
+	local WeaponData = self:GetWeaponData(Character, NormalizedSide)
+	if not WeaponData then
+		return 0
+	end
+
+	return WeaponData[StatName] or 0
+end
+
+function ValuesService:GetWeaponDamage(Character: Model, WeaponSide: string?): number
+	local StanceData = StanceService:GetStance(Character:GetAttribute("Stance")) or {}
 
 	local Kendo = 1
 	local Player = Players:GetPlayerFromCharacter(Character)
 	if Player then
-		if SkillTreeService:IsSkillUnlocked(Player, "Energy Conservation") then
-			EnergyConservation = 0.7
-		end
-
 		Kendo = self:GetAmountUnlockedNodesMatch(Player, "Kendo") * 2
 	end
 
 	local SwordBaseDamage = StanceData.BaseDamage or 0
-	local SwordBaseStaminaCost = StanceData.BaseStaminaCost or 0
+	SwordBaseDamage += self:GetWeaponAdditionalStat(Character, WeaponSide, "AdditionalDamage")
 
-	if WeaponData then
-		SwordBaseDamage += WeaponData.AdditionalDamage or 0
-		SwordBaseStaminaCost += WeaponData.AdditionalStaminaCost or 0
+	return SwordBaseDamage + Kendo
+end
+
+function ValuesService:GetWeaponStaminaCost(Character: Model, WeaponSide: string?): number
+	local StanceData = StanceService:GetStance(Character:GetAttribute("Stance")) or {}
+	local EnergyConservation = 1
+
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if Player and SkillTreeService:IsSkillUnlocked(Player, "Energy Conservation") then
+		EnergyConservation = 0.7
 	end
 
-	Character:SetAttribute("SwordDamage", SwordBaseDamage + Kendo)
+	local SwordBaseStaminaCost = StanceData.BaseStaminaCost or 0
+	SwordBaseStaminaCost += self:GetWeaponAdditionalStat(Character, WeaponSide, "AdditionalStaminaCost")
 
-	Character:SetAttribute("SwordStaminaCost", SwordBaseStaminaCost * EnergyConservation)
+	return SwordBaseStaminaCost * EnergyConservation
+end
+
+function ValuesService:UpdateDamage(Character: Model)
+	Character:SetAttribute("SwordDamage", self:GetWeaponDamage(Character, "Right"))
+	Character:SetAttribute("LeftSwordDamage", self:GetWeaponDamage(Character, "Left"))
+	Character:SetAttribute("BothSwordDamage", self:GetWeaponDamage(Character, "Both"))
+
+	Character:SetAttribute("SwordStaminaCost", self:GetWeaponStaminaCost(Character, "Right"))
+	Character:SetAttribute("LeftSwordStaminaCost", self:GetWeaponStaminaCost(Character, "Left"))
+	Character:SetAttribute("BothSwordStaminaCost", self:GetWeaponStaminaCost(Character, "Both"))
 end
 
 function ValuesService:UpdateMaxHealth(Character: Model, SetToMax: boolean)

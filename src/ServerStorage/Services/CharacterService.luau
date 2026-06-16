@@ -97,10 +97,8 @@ function CharacterService:SetAttributes(Character: Model, Player: Player?)
 	if Player then
 		local PlayerData = DataService:GetData(Player)
 		Character:SetAttribute("Weapon", PlayerData.Equipped.Weapon)
-
-		if not Character:GetAttribute("Stance") then
-			Character:SetAttribute("Stance", PlayerData.SelectedStance)
-		end
+		Character:SetAttribute("LeftWeapon", PlayerData.Equipped.LeftWeapon)
+		Character:SetAttribute("Stance", PlayerData.SelectedStance or "Beginner")
 
 		Character:SetAttribute("Artifact", PlayerData.Artifact)
 		Character:SetAttribute("Race", PlayerData.Race)
@@ -111,6 +109,13 @@ function CharacterService:SetAttributes(Character: Model, Player: Player?)
 
 		if WeaponData then
 			Character:SetAttribute("WeaponType", WeaponData.Type)
+		end
+
+		local LeftWeaponName = PlayerData.Equipped.LeftWeapon
+		local LeftWeaponData = ItemService:GetItemData(LeftWeaponName)
+
+		if LeftWeaponData then
+			Character:SetAttribute("LeftWeaponType", LeftWeaponData.Type)
 		end
 	else
 		if Character:GetAttribute("Weapon") then
@@ -406,7 +411,13 @@ function CharacterService:LoadCharacter(Player: Player)
 	EquipmentService:LoadEquipments(Player)
 	ValuesService:UpdateAll(Character, true)
 
-	WeaponService:LoadWeapon(Character)
+	local PlayerData = DataService:GetData(Player)
+	WeaponService:LoadWeapon(
+		Character,
+		PlayerData and PlayerData.Equipped.Weapon,
+		PlayerData and PlayerData.Equipped.LeftWeapon,
+		PlayerData and PlayerData.SelectedStance
+	)
 	ToolService:LoadPlayerTools(Player)
 
 	PrisonService:CheckJoin(Player)
