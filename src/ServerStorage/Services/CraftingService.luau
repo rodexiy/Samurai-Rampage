@@ -9,6 +9,7 @@ local DataService
 local AlertService
 local ItemService
 local InventoryService
+local QuestService
 
 local DEFAULT_RECIPE_TYPE = "Crafting"
 
@@ -186,6 +187,7 @@ function CraftingService:Craft(
 
 	local CraftedAmount = AmountPerCraft * Amount
 	InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem(ItemToCraft, CraftedAmount))
+	QuestService:CallQuestFunction(Player, "CraftItem", ItemToCraft, CraftedAmount, RecipeType)
 	-- AlertService:AlertPlayer(
 	-- 	Player,
 	-- 	"Crafted " .. tostring(CraftedAmount) .. "x " .. (ItemData.DisplayName or ItemData.Name) .. ".",
@@ -252,6 +254,7 @@ function CraftingService.KnitInit()
 	AlertService = Knit.GetService("AlertService")
 	DataService = Knit.GetService("DataService")
 	InventoryService = Knit.GetService("InventoryService")
+	QuestService = Knit.GetService("QuestService")
 end
 
 function CraftingService.KnitStart() end

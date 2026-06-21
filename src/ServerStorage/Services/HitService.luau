@@ -53,7 +53,7 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 
 	Character:SetAttribute("Blocking", false)
 
-	if not Attacker:GetAttribute("AttackedBeforeUnequip") then
+	if not Attacker:GetAttribute("AttackedBeforeUnequip") or not BloodService:HasBloodOnBlade(Attacker) then
 		BloodService:ApplyBloodOnBlade(Attacker)
 	end
 	Attacker:SetAttribute("AttackedBeforeUnequip", true)

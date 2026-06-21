@@ -122,9 +122,16 @@ function UnloadAnswers()
 end
 
 function EndDialog(client)
-	player.Character.HumanoidRootPart.Anchored = false
-	UnloadAnswers()
 	InDialog = false
+	player:SetAttribute("InDialog", false)
+
+	local Character = player.Character
+	local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+	if HumanoidRootPart then
+		HumanoidRootPart.Anchored = false
+	end
+
+	UnloadAnswers()
 	DialogueUI.Enabled = false
 
 	if NPCPrompt then
@@ -262,6 +269,7 @@ function DialogController.KnitStart()
 		end
 
 		InDialog = true
+		player:SetAttribute("InDialog", true)
 		DialogueUI.Enabled = true
 
 		task.spawn(function()

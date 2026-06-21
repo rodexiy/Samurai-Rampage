@@ -147,6 +147,7 @@ function ResourceService:BreakResource(Player: Player, Resource: Model)
 		local AmountAdded = InventoryService:GiveItemToPlayer(Player, Item)
 		if AmountAdded > 0 then
 			MissionBoardService:CollectResource(Player, ItemName, AmountAdded)
+			QuestService:CallQuestFunction(Player, "CollectResource", ItemName, AmountAdded, ResourceType.Name, Resource)
 		end
 	end
 

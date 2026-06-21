@@ -3,6 +3,8 @@ local Knit = require(game.ReplicatedStorage.Packages.Knit)
 local TetsuService = Knit.GetService("TetsuService")
 local ItemService = Knit.GetService("ItemService")
 local InventoryService = Knit.GetService("InventoryService")
+local DataService = Knit.GetService("DataService")
+local QuestService = Knit.GetService("QuestService")
 
 local ores = {
 	["Coal"] = 5,
@@ -27,7 +29,105 @@ local function GetOres(Player: Player)
 	return ores[Item.Name] * Item:GetAttribute("Stack"), Item
 end
 
+local function IsTalkWithBlacksmithStep(Player: Player, StepName: string): boolean
+	local PlayerData = DataService:GetData(Player)
+	if not PlayerData or not PlayerData.Quest or PlayerData.Quest.Name ~= "TalkWithBlacksmith" then
+		return false
+	end
+
+	local StoryData = PlayerData.Story and PlayerData.Story.TalkWithBlacksmith
+	if typeof(StoryData) ~= "table" then
+		return StepName == "TalkWithBlacksmith"
+	end
+
+	return StoryData.Step == StepName
+end
+
+local function HasTalkWithBlacksmithQuest(Player: Player): boolean
+	return IsTalkWithBlacksmithStep(Player, "TalkWithBlacksmith")
+end
+
 local Godot = {
+	TalkWithBlacksmith = {
+		[1] = {
+			npcName = "Godot",
+			npcText = "Its a miracle you are alive! That storm was massive. I see you lost almost everything you had, at least you still have clothes haha.",
+			answers = {
+				[1] = {
+					text = "I do not know what to do now.",
+					nextDialog = 2,
+				},
+			},
+		},
+
+		[2] = {
+			npcName = "Godot",
+			npcText = "Well, I can help you forge a sword, but you will need to get the resources.",
+			answers = {
+				[1] = {
+					text = "What i need to get?",
+					nextDialog = 3,
+				},
+			},
+		},
+
+		[3] = {
+			npcName = "Godot",
+			npcText = "Here, take this pickaxe. follow the path behind the blacksmith and get 10 iron and 10 coal, also talk with the lumberjack after getting the items, you will need to get 5 wood logs too.",
+			answers = {
+				[1] = {
+					text = "All right.",
+					callback = function(Player)
+						QuestService:CallQuestFunction(Player, "StartMining")
+					end,
+				},
+			},
+		},
+
+		priority = 100,
+		validation = HasTalkWithBlacksmithQuest,
+	},
+
+	TalkWithBlacksmithReturn = {
+		[1] = {
+			npcName = "Godot",
+			npcText = "Now that we have the resources, go to the forge and craft your Katana!",
+			answers = {
+				[1] = {
+					text = "...",
+					callback = function(Player)
+						QuestService:CallQuestFunction(Player, "StartCraftKatana")
+					end,
+				},
+			},
+		},
+
+		priority = 100,
+		validation = function(Player)
+			return IsTalkWithBlacksmithStep(Player, "ReturnToGodot")
+		end,
+	},
+
+	TalkWithBlacksmithKatanaCrafted = {
+		[1] = {
+			npcName = "Godot",
+			npcText = "Good. Now you have a blade of your own. Keep it close.",
+			answers = {
+				[1] = {
+					text = "...",
+					callback = function(Player)
+						QuestService:CallQuestFunction(Player, "CompleteQuest")
+					end,
+				},
+			},
+		},
+
+		priority = 100,
+		validation = function(Player)
+			return IsTalkWithBlacksmithStep(Player, "TalkWithGodotAfterKatana")
+		end,
+	},
+
 	Normal = {
 		[1] = {
 			npcName = "Godot",

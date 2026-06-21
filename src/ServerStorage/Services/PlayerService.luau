@@ -26,6 +26,7 @@ local KillStreakService
 local WisdomService
 local WisdomWorldService
 local LoadingService
+local TutorialService
 
 function PlayerService:PlayerAdded(Player: Player)
 	if Player:HasTag("Player") then
@@ -51,6 +52,7 @@ function PlayerService:PlayerAdded(Player: Player)
 	GamepassService:LoadAttributes(Player)
 	SkillTreeService:LoadAttributes(Player)
 	WisdomService:LoadAttributes(Player)
+
 	self:CheckFirstJoin(Player)
 
 	Player:SetAttribute("Bounty", PlayerData.Bounty)
@@ -60,6 +62,7 @@ function PlayerService:PlayerAdded(Player: Player)
 		return
 	end
 
+	TutorialService:CreateTutorialMission(Player)
 	CharacterService:LoadCharacter(Player)
 end
 
@@ -111,30 +114,30 @@ function PlayerService:CheckFirstJoin(Player: Player)
 		RaceService:RollRandomRace(Player)
 	end
 
-	local HasKimono = false
-	for _, Item in PlayerData.Inventory do
-		if Item.Name:find("Kimono") then
-			HasKimono = true
-			break
-		end
-	end
+	-- local HasKimono = false
+	-- for _, Item in PlayerData.Inventory do
+	-- 	if Item.Name:find("Kimono") then
+	-- 		HasKimono = true
+	-- 		break
+	-- 	end
+	-- end
 
-	if not HasKimono then
-		local Kimono
-		if math.random(1, 1000) == 1 then
-			Kimono = RareKimonos[math.random(1, #RareKimonos)]
-		else
-			Kimono = CommonKimonos[math.random(1, #CommonKimonos)]
-		end
+	-- if not HasKimono then
+	-- 	local Kimono
+	-- 	if math.random(1, 1000) == 1 then
+	-- 		Kimono = RareKimonos[math.random(1, #RareKimonos)]
+	-- 	else
+	-- 		Kimono = CommonKimonos[math.random(1, #CommonKimonos)]
+	-- 	end
 
-		InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem(Kimono, 1))
-		PlayerData.Equipped.Torso = Kimono
-	end
+	-- 	InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem(Kimono, 1))
+	-- 	PlayerData.Equipped.Torso = Kimono
+	-- end
 
-	if not InventoryService:GetPlayerItemByName(Player, "BasicKatana") then
-		InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem("BasicKatana", 1))
-		PlayerData.Equipped.Weapon = "BasicKatana"
-	end
+	-- if not InventoryService:GetPlayerItemByName(Player, "BasicKatana") then
+	-- 	InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem("BasicKatana", 1))
+	-- 	PlayerData.Equipped.Weapon = "BasicKatana"
+	-- end
 
 	if not InventoryService:GetPlayerItemByName(Player, "Fists") then
 		InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem("Fists", 1))
@@ -186,6 +189,7 @@ function PlayerService.KnitInit()
 	WisdomService = Knit.GetService("WisdomService")
 	WisdomWorldService = Knit.GetService("WisdomWorldService")
 	LoadingService = Knit.GetService("LoadingService")
+	TutorialService = Knit.GetService("TutorialService")
 end
 
 function PlayerService.KnitStart()

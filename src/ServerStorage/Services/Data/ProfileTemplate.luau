@@ -33,6 +33,8 @@ return {
 		Prosthetic = nil,
 	},
 
+	Story = {},
+
 	RaceVariant = 1,
 
 	Bounty = 0,
@@ -48,9 +50,9 @@ return {
 	Hotbar = {},
 	Inventory = {},
 
-	SelectedStance = "Beginner",
+	SelectedStance = nil,
 	Stances = {
-		"Beginner",
+	
 	},
 
 	Settings = {

@@ -13,8 +13,47 @@ local RealmService = Knit.GetService("RealmService")
 local TreeParams = OverlapParams.new()
 TreeParams.FilterType = Enum.RaycastFilterType.Whitelist
 
+local function GetTreesFolder(): Folder?
+	local Map = workspace:FindFirstChild("Map")
+	local Vegetation = Map and Map:FindFirstChild("Vegetation")
+	local TreesFolder = Vegetation and Vegetation:FindFirstChild("Trees")
+	if TreesFolder and TreesFolder:IsA("Folder") then
+		return TreesFolder
+	end
+
+	return nil
+end
+
+local function GetTreeFilterInstances(TreesFolder: Folder): { Instance }
+	local FilterInstances = { TreesFolder }
+
+	for _, TaggedTree in CollectionService:GetTagged("Tree") do
+		table.insert(FilterInstances, TaggedTree)
+	end
+
+	return FilterInstances
+end
+
+local function GetTreeFromPart(Part: BasePart, TreesFolder: Folder): Model?
+	local Current = Part.Parent
+	while Current and Current ~= TreesFolder do
+		if Current:IsA("Model") and (Current.Parent == TreesFolder or CollectionService:HasTag(Current, "Tree")) then
+			return Current
+		end
+
+		Current = Current.Parent
+	end
+
+	return nil
+end
+
 function Axe.Activated(Character: Model, Data: { any })
-	TreeParams.FilterDescendantsInstances = { workspace.Map.Vegetation.Trees, CollectionService:GetTagged("Tree") }
+	local TreesFolder = GetTreesFolder()
+	if not TreesFolder then
+		return
+	end
+
+	TreeParams.FilterDescendantsInstances = GetTreeFilterInstances(TreesFolder)
 
 	local Tool = Character:FindFirstChildWhichIsA("Tool")
 	if
@@ -42,14 +81,14 @@ function Axe.Activated(Character: Model, Data: { any })
 		return
 	end
 
-	local Tree =
+	local TreeParts =
 		workspace:GetPartBoundsInBox(Character:GetPivot() * CFrame.new(0, 0, -2.5), Vector3.new(5, 5, 5), TreeParams)
 
 	local Trees = {}
 
-	for _, Part in Tree do
-		local Tree = Part.Parent.Parent
-		if Tree and Tree:IsA("Model") and Tree.Name:find("Tree") and not table.find(Trees, Tree) then
+	for _, Part in TreeParts do
+		local Tree = GetTreeFromPart(Part, TreesFolder)
+		if Tree and not table.find(Trees, Tree) then
 			table.insert(Trees, Tree)
 		end
 	end
@@ -68,7 +107,7 @@ function Axe.Activated(Character: Model, Data: { any })
 		if not Tree:GetAttribute("Health") then
 			local _, Size = Tree:GetBoundingBox()
 			if not Tree:GetAttribute("MaxHealth") then
-				Tree:SetAttribute("MaxHealth", math.min(1, math.floor(Size.Y / 4)))
+				Tree:SetAttribute("MaxHealth", math.max(1, math.floor(Size.Y / 8)))
 				Tree:SetAttribute("Health", Tree:GetAttribute("MaxHealth") - 1)
 			end
 		end

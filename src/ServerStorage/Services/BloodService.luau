@@ -6,8 +6,11 @@ local BloodService = Knit.CreateService({
 })
 
 function BloodService:GetBlades(Character: Model)
-	local Assets = Character.Assets
-	local WeaponFolder = Assets.Weapon
+	local Assets = Character:FindFirstChild("Assets")
+	local WeaponFolder = Assets and Assets:FindFirstChild("Weapon")
+	if not WeaponFolder then
+		return {}
+	end
 
 	local Blades = {}
 	for _, WeaponName in { "Weapon", "LeftWeapon" } do
@@ -26,13 +29,32 @@ function BloodService:GetBlades(Character: Model)
 	return Blades
 end
 
+function BloodService:HasBloodOnBlade(Character: Model): boolean
+	local Blades = self:GetBlades(Character)
+	if #Blades == 0 then
+		return false
+	end
+
+	for _, Blade in Blades do
+		if not Blade:FindFirstChild("Blood") then
+			return false
+		end
+	end
+
+	return true
+end
+
 function BloodService:ApplyBloodOnBlade(Character: Model)
 	local Blades = self:GetBlades(Character)
-	if not Blades then
+	if #Blades == 0 then
 		return
 	end
 
 	for _, Blade in Blades do
+		if Blade:FindFirstChild("Blood") then
+			continue
+		end
+
 		for _, _Blood in game.ReplicatedStorage.Assets.VFX.SwordBlood["1"]:GetChildren() do
 			local Blood = _Blood:Clone()
 			Blood.Parent = Blade
@@ -42,7 +64,7 @@ end
 
 function BloodService:RemoveBloodFromBlade(Character: Model)
 	local Blades = self:GetBlades(Character)
-	if not Blades then
+	if #Blades == 0 then
 		return
 	end
 

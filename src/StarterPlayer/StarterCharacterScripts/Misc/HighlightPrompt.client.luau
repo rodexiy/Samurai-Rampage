@@ -98,6 +98,15 @@ local function ResetHoldProgress()
 	end
 end
 
+local function StopHeldPrompt()
+	if not HeldPrompt then
+		return
+	end
+
+	HeldPrompt:InputHoldEnd()
+	HeldPrompt = nil
+end
+
 local function ApplyPromptAppearance(Prompt: ProximityPrompt, Key: string)
 	local Colors = GetRarityColors(Prompt)
 	local Rarity = Prompt:GetAttribute("Rarity") or "Common"
@@ -170,6 +179,7 @@ local function GetPromptTargetPart(Prompt: ProximityPrompt): BasePart?
 	end
 
 	if Parent:IsA("Model") then
+		print("aqui")
 		return Parent.PrimaryPart or Parent:FindFirstChildWhichIsA("BasePart", true)
 	end
 
@@ -178,6 +188,10 @@ end
 
 local function IsPickablePrompt(Prompt: ProximityPrompt): boolean
 	return Prompt:GetAttribute("Pickable") == true or Prompt:GetAttribute("callback") == "Pick"
+end
+
+local function IsPromptSuppressed(): boolean
+	return Player:GetAttribute("InDialog") == true
 end
 
 local function ShowPromptUI(Prompt: ProximityPrompt)
@@ -218,12 +232,35 @@ local function DestroyPromptBeam(Prompt: ProximityPrompt)
 	end
 end
 
-local function CreatePromptBeam(Prompt: ProximityPrompt)
-	DestroyPromptBeam(Prompt)
-
-	if IsPickablePrompt(Prompt) then
+local function DestroyPromptHighlight(Prompt: ProximityPrompt)
+	local PromptHighlight = GetPromptHighlight(Prompt)
+	if not PromptHighlight then
 		return
 	end
+
+	if DestroyingCache[PromptHighlight] then
+		DestroyingCache[PromptHighlight]:Disconnect()
+		DestroyingCache[PromptHighlight] = nil
+	end
+
+	PromptHighlight:Destroy()
+end
+
+local function HideActivePrompt()
+	StopHeldPrompt()
+
+	if CurrentPrompt then
+		DestroyPromptBeam(CurrentPrompt)
+		DestroyPromptHighlight(CurrentPrompt)
+		CurrentPrompt = nil
+	end
+
+	ResetHoldProgress()
+	HidePromptUI()
+end
+
+local function CreatePromptBeam(Prompt: ProximityPrompt)
+	DestroyPromptBeam(Prompt)
 
 	local Character = Player.Character
 	local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
@@ -267,7 +304,18 @@ local function CreatePromptBeam(Prompt: ProximityPrompt)
 	}
 end
 
+Player:GetAttributeChangedSignal("InDialog"):Connect(function()
+	if IsPromptSuppressed() then
+		HideActivePrompt()
+	end
+end)
+
 ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inputType)
+	if IsPromptSuppressed() then
+		HideActivePrompt()
+		return
+	end
+
 	local Model = GetPromptModel(prompt)
 	local HighlightParent = GetPromptHighlightParent(prompt)
 	if not Model or not HighlightParent then
@@ -301,7 +349,7 @@ ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inp
 		PromptHighlight.FillColor = Colors.Secondary
 		PromptHighlight.OutlineTransparency = 0
 		if IsPickablePrompt(prompt) then
-			PromptHighlight.Adornee = GetPromptTargetPart(prompt)
+			PromptHighlight.Adornee = prompt.Parent
 		end
 		PromptHighlight.Parent = HighlightParent
 
@@ -371,12 +419,7 @@ CarryService.Carry:Connect(function()
 end)
 
 local function EndButtonHold()
-	if not HeldPrompt then
-		return
-	end
-
-	HeldPrompt:InputHoldEnd()
-	HeldPrompt = nil
+	StopHeldPrompt()
 end
 
 local function BindPromptButton(Button: TextButton)

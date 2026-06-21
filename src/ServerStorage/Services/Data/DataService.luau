@@ -3,7 +3,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 
-local STUDIO_DATA_STORE_KEY = "Progression Test 1"
+local STUDIO_DATA_STORE_KEY = "Rampage Studio 1"
 local LIVE_DATA_STORE_KEY = "Progression Test 1"
 local DataStoreKey = if RunService:IsStudio() then STUDIO_DATA_STORE_KEY else LIVE_DATA_STORE_KEY
 
