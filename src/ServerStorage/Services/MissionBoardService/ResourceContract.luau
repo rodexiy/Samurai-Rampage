@@ -92,7 +92,7 @@ function ResourceContract:Select(Player: Player, Mission: { any })
 			TargetAmount = Data.TargetAmount,
 			CurrentAmount = 0,
 		},
-	})
+	}, Mission.DisplayName)
 end
 
 function ResourceContract:CollectResource(Player: Player, Mission: { any }, ItemName: string, Amount: number)

@@ -16,6 +16,7 @@ local DialogController = Knit.CreateController({
 })
 
 local DialogService
+local HotbarController
 
 local Player = game.Players.LocalPlayer
 local PlayerGui
@@ -124,6 +125,7 @@ end
 function EndDialog(client)
 	InDialog = false
 	player:SetAttribute("InDialog", false)
+	HotbarController:SetDialogHidden(false)
 
 	local Character = player.Character
 	local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
@@ -252,6 +254,7 @@ function DialogController.KnitStart()
 	NPCNameTextArea = Content:WaitForChild("NPCHolder"):WaitForChild("TextLabel")
 
 	DialogService = Knit.GetService("DialogService")
+	HotbarController = Knit.GetController("HotbarController")
 
 	DialogService.CloseDialogEvent:Connect(function()
 		EndDialog()
@@ -270,6 +273,7 @@ function DialogController.KnitStart()
 
 		InDialog = true
 		player:SetAttribute("InDialog", true)
+		HotbarController:SetDialogHidden(true)
 		DialogueUI.Enabled = true
 
 		task.spawn(function()

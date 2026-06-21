@@ -28,6 +28,21 @@ local function GetRugCFrame(Rug: Instance)
 	return nil
 end
 
+local function GetFirstSpawnCFrame()
+	local Important = workspace:FindFirstChild("Important")
+	if not Important then
+		local Map = workspace:FindFirstChild("Map")
+		Important = Map and Map:FindFirstChild("Important")
+	end
+
+	local FirstSpawn = Important and Important:FindFirstChild("FirstSpawn")
+	if not FirstSpawn or (not FirstSpawn:IsA("Model") and not FirstSpawn:IsA("BasePart")) then
+		return nil
+	end
+
+	return FirstSpawn:GetPivot() * CFrame.new(0, SPAWN_HEIGHT, 0)
+end
+
 local function GetClosestRug(Character: Model)
 	local Rugs = workspace:FindFirstChild("Rugs")
 	if not Rugs then
@@ -95,16 +110,16 @@ function RugService:GetSpawnCFrame(Player: Player)
 	local Rugs = workspace:FindFirstChild("Rugs")
 	local SpawnRug = PlayerData and PlayerData.SpawnRug
 	if not Rugs or typeof(SpawnRug) ~= "string" or SpawnRug == "" then
-		return nil
+		return GetFirstSpawnCFrame()
 	end
 
 	local Rug = Rugs:FindFirstChild(SpawnRug)
 	if not Rug or Rug:GetAttribute("NotSetSpawn") ~= nil then
-		return nil
+		return GetFirstSpawnCFrame()
 	end
 
 	local RugCFrame = GetRugCFrame(Rug)
-	return if RugCFrame then RugCFrame * CFrame.new(0, SPAWN_HEIGHT, 0) else nil
+	return if RugCFrame then RugCFrame * CFrame.new(0, SPAWN_HEIGHT, 0) else GetFirstSpawnCFrame()
 end
 
 function RugService:UnlockRug(Player: Player)

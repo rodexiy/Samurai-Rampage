@@ -82,6 +82,35 @@ local RareKimonos = {
 	"SunflowerKimono",
 }
 
+local function ClearPlayerTools(Player: Player)
+	local Backpack = Player:FindFirstChildOfClass("Backpack")
+	if Backpack then
+		for _, Tool in Backpack:GetChildren() do
+			if Tool:IsA("Tool") then
+				Tool:Destroy()
+			end
+		end
+	end
+
+	local StarterGear = Player:FindFirstChild("StarterGear")
+	if StarterGear then
+		for _, Tool in StarterGear:GetChildren() do
+			if Tool:IsA("Tool") then
+				Tool:Destroy()
+			end
+		end
+	end
+
+	local Character = Player.Character
+	if Character then
+		for _, Tool in Character:GetChildren() do
+			if Tool:IsA("Tool") then
+				Tool:Destroy()
+			end
+		end
+	end
+end
+
 function PlayerService:CheckFirstJoin(Player: Player)
 	local PlayerData = DataService:GetData(Player)
 
@@ -144,6 +173,51 @@ function PlayerService:CheckFirstJoin(Player: Player)
 	end
 
 	PlayerData.LoadedFirstTime = true
+end
+
+function PlayerService:ResetDataAndRestartTutorial(Player: Player)
+	if not DataService:IsDataLoaded(Player) then
+		return false, "Data is not loaded."
+	end
+
+	pcall(function()
+		QuestService:AbandonQuest(Player)
+	end)
+	pcall(function()
+		MissionBoardService:DestroyMission(Player)
+	end)
+	pcall(function()
+		WisdomWorldService:Cleanup(Player, "DataReset")
+	end)
+	pcall(function()
+		PartyService:LeaveParty(Player)
+	end)
+
+	local PlayerData = DataService:ResetData(Player)
+	if not PlayerData then
+		return false, "Data reset failed."
+	end
+
+	ClearPlayerTools(Player)
+	Player:SetAttribute("MeditateAnywhere", false)
+
+	self:CheckFirstJoin(Player)
+
+	KillStreakService:LoadPlayer(Player)
+	SettingsService:LoadSettings(Player)
+	GamepassService:LoadAttributes(Player)
+	SkillTreeService:LoadAttributes(Player)
+	WisdomService:LoadAttributes(Player)
+
+	InventoryService:UpdateUI(Player, true)
+
+	Player:SetAttribute("Bounty", PlayerData.Bounty)
+	Player:SetAttribute("Loaded", true)
+
+	TutorialService:CreateTutorialMission(Player)
+	CharacterService:LoadCharacter(Player)
+
+	return true
 end
 
 function PlayerService:SaveData(Player: Player)

@@ -36,6 +36,15 @@ function QuestService:MeetRequirements(Player: Player, QuestName: string)
 	return true
 end
 
+function QuestService:CanAbandonQuest(Player: Player)
+	local PlayerData = DataService:GetData(Player)
+	local Quest = PlayerData and PlayerData.Quest
+	local QuestName = Quest and Quest.Name
+	local QuestData = QuestName and QuestService:GetQuestData(QuestName)
+
+	return not QuestData or QuestData.CanAbandon ~= false
+end
+
 function QuestService:GiveQuest(Player: Player, QuestName: string, ...)
 	if not QuestService:MeetRequirements(Player, QuestName) then
 		return false
@@ -79,12 +88,18 @@ function QuestService:RemoveQuest(Player: Player)
 end
 
 function QuestService:AbandonQuest(Player: Player)
+	if not QuestService:CanAbandonQuest(Player) then
+		AlertService:AlertPlayer(Player, "You cannot abandon this story mission.", "Error")
+		return false
+	end
+
 	QuestService:CallQuestFunction(Player, "Cancel")
 	QuestService:RemoveQuest(Player)
 	ObjectiveService:ClearObjectives(Player)
+	return true
 end
 function QuestService.Client:AbandonQuest(Player: Player)
-	self.Server:AbandonQuest(Player)
+	return self.Server:AbandonQuest(Player)
 end
 
 function QuestService:CallQuestFunction(Player: Player, FunctionName: string, ...: any)
@@ -115,7 +130,7 @@ function QuestService.KnitInit()
 end
 
 function QuestService.KnitStart()
-	QuestsData = require(game.ReplicatedStorage.Shared.Index.Quests)
+	QuestsData = require(game.ServerStorage.Services.Index.Quests)
 end
 
 return QuestService

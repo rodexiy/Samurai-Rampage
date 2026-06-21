@@ -23,6 +23,7 @@ local SkillTreeController
 local EquipDebounce = false
 local SelectedSlot
 local Ghosts = false
+local DialogHidden = false
 
 local Character = Player.Character
 local KeysDisplay = {
@@ -50,6 +51,14 @@ function HotbarController:HotbarEnabledBooleans()
 			and Selected:GetAttribute("ItemClass") ~= "Equipable"
 			and Selected:GetAttribute("ItemClass") ~= "Weapon"
 		)
+end
+
+function HotbarController:SetDialogHidden(Hidden: boolean)
+	DialogHidden = Hidden
+
+	if Hotbar then
+		Hotbar.Enabled = not DialogHidden
+	end
 end
 
 function HotbarController:GetToolInHotbarIndex(Index: number)
@@ -236,6 +245,10 @@ local KeepLookingAtMouse = false
 local Released = false
 function HotbarController.OnKeyPress(value: number, state)
 	if not value or not Character then
+		return
+	end
+
+	if DialogHidden or Player:GetAttribute("InDialog") then
 		return
 	end
 
@@ -489,6 +502,7 @@ function HotbarController.KnitStart()
 	Hud = PlayerGui:WaitForChild("Hud")
 	Hotbar = Hud:WaitForChild("NewHotbar")
 	Background = Hotbar:WaitForChild("Background")
+	Hotbar.Enabled = not DialogHidden
 
 	Player.Backpack.ChildAdded:Connect(function(tool)
 		if Character and Character:GetAttribute("Loaded") then

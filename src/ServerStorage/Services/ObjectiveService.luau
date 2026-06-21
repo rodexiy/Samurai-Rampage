@@ -10,6 +10,8 @@ type SubObjective = {
 
 type Objective = {
 	Name: string,
+	DisplayName: string?,
+	CanAbandon: boolean?,
 	Objectives: { SubObjective },
 }
 
@@ -31,10 +33,18 @@ local function GetOrCreatePlayerObjectives(Player: Player): { [string]: Objectiv
 	return PlayerObjectives[Player]
 end
 
-function ObjectiveService:AddObjective(Player: Player, Name: string, ObjectiveData: { SubObjective })
+function ObjectiveService:AddObjective(
+	Player: Player,
+	Name: string,
+	ObjectiveData: { SubObjective },
+	DisplayName: string?,
+	CanAbandon: boolean?
+)
 	local Objectives = GetOrCreatePlayerObjectives(Player)
 	Objectives[Name] = {
 		Name = Name,
+		DisplayName = DisplayName,
+		CanAbandon = CanAbandon,
 		Objectives = ObjectiveData,
 	}
 	self.Client.ObjectiveAdded:Fire(Player, Name, Objectives[Name])

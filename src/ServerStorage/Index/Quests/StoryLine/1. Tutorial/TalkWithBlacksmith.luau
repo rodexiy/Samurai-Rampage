@@ -29,6 +29,8 @@ local TARGET_LUMBERJACK = "Talk with Vasco"
 local TARGET_WOOD = "Wood"
 local TARGET_GODOT_FORGE = "Godot Forge"
 
+local MissionDisplayName = "MAKING A KATANA"
+
 local IRON_REQUIRED = 10
 local COAL_REQUIRED = 10
 local WOOD_REQUIRED = 5
@@ -136,7 +138,7 @@ local function AddTalkWithGodotObjective(Player: Player)
 
 	ObjectiveService:AddObjective(Player, OBJECTIVE_NAME, {
 		{ Name = "Talk with Godot", TargetAmount = 1, CurrentAmount = 0 },
-	})
+	}, MissionDisplayName, false)
 
 	SetTarget(Player, TARGET_GODOT, GetTargetPosition(Godot))
 end
@@ -193,7 +195,7 @@ local function AddMiningObjective(Player: Player, StoryData)
 	ObjectiveService:AddObjective(Player, OBJECTIVE_NAME, {
 		{ Name = "Mine Iron Ore", TargetAmount = IRON_REQUIRED, CurrentAmount = StoryData.IronOre },
 		{ Name = "Mine Coal", TargetAmount = COAL_REQUIRED, CurrentAmount = StoryData.Coal },
-	})
+	}, MissionDisplayName, false)
 
 	AddTutorialOreTargets(Player)
 end
@@ -204,7 +206,7 @@ local function AddTalkWithLumberjackObjective(Player: Player)
 
 	ObjectiveService:AddObjective(Player, OBJECTIVE_NAME, {
 		{ Name = "Talk with Vasco", TargetAmount = 1, CurrentAmount = 0 },
-	})
+	}, MissionDisplayName, false)
 
 	SetTarget(Player, TARGET_LUMBERJACK, GetTargetPosition(Vasco))
 end
@@ -218,7 +220,7 @@ local function AddWoodObjective(Player: Player, StoryData)
 
 	ObjectiveService:AddObjective(Player, OBJECTIVE_NAME, {
 		{ Name = "Collect Wood Logs", TargetAmount = WOOD_REQUIRED, CurrentAmount = StoryData.WoodLog },
-	})
+	}, MissionDisplayName, false)
 
 	SetTarget(Player, TARGET_WOOD, GetTargetPosition(Trees))
 end
@@ -233,7 +235,7 @@ local function AddCraftKatanaObjective(Player: Player)
 
 	ObjectiveService:AddObjective(Player, OBJECTIVE_NAME, {
 		{ Name = "Craft a Katana", TargetAmount = 1, CurrentAmount = 0 },
-	})
+	}, MissionDisplayName, false)
 
 	SetTarget(Player, TARGET_GODOT_FORGE, GetTargetPosition(GodotForge))
 end
@@ -499,6 +501,7 @@ return {
 	QuestType = "Story",
 	Requirements = {},
 	Persistent = true,
+	CanAbandon = false,
 
 	OnStart = function(Player: Player)
 		return Resume(Player)

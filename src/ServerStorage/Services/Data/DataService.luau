@@ -10,6 +10,7 @@ local DataStoreKey = if RunService:IsStudio() then STUDIO_DATA_STORE_KEY else LI
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local ProfileStore = require(game.ServerStorage.ServerAssets.Libraries.ProfileStore)
 local PROFILE_TEMPLATE = require(script.Parent.ProfileTemplate)
+local DeepCopy = require(ReplicatedStorage.Shared.Utils.DeepCopy)
 local PlayerStore = ProfileStore.New(DataStoreKey, PROFILE_TEMPLATE)
 local Profiles: { [Player]: typeof(PlayerStore:StartSessionAsync()) } = {}
 
@@ -30,6 +31,22 @@ end
 
 function DataService:IsDataLoaded(Player: Player)
 	return Profiles[Player] ~= nil
+end
+
+function DataService:ResetData(Player: Player)
+	local profile = Profiles[Player]
+	if not profile then
+		return nil
+	end
+
+	local FreshData = DeepCopy(PROFILE_TEMPLATE)
+	table.clear(profile.Data)
+
+	for Key, Value in FreshData do
+		profile.Data[Key] = Value
+	end
+
+	return profile.Data
 end
 
 local function processReceipt(receipt_info)

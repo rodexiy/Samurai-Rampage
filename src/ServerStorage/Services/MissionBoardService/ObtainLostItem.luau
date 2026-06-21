@@ -97,7 +97,7 @@ function ObtainLostItem:Select(Player: Player, Mission: { any })
 			TargetAmount = 1,
 			CurrentAmount = 0,
 		},
-	})
+	}, Mission.DisplayName)
 
 	task.wait(0.5)
 

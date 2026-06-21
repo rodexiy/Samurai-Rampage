@@ -59,7 +59,7 @@ function Kill:Select(Player: Player, Mission: { any })
 		CurrentAmount = 0,
 	})
 
-	ObjectiveService:AddObjective(Player, Mission.MissionData.ObjectiveName, SubObjectives)
+	ObjectiveService:AddObjective(Player, Mission.MissionData.ObjectiveName, SubObjectives, Mission.DisplayName)
 
 	for i = 1, AmountOfEnemies do
 		local RandomMobPosition = EnemiesSpawnPosition + Vector3.new(math.random(-10, 10), 0, math.random(-10, 10))

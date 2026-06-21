@@ -15,20 +15,31 @@ local Background: Frame
 local Content: Frame
 local Template: Frame
 local AbandonQuest: TextButton
+local TitleLabel: TextLabel
 local TimerFrames = {}
 
 local function GetObjectiveFrameName(ObjectiveName: string, Index: number): string
 	return ObjectiveName .. "_" .. tostring(Index)
 end
 
+local function GetObjectiveDisplayName(DisplayName: string?): string
+	if typeof(DisplayName) == "string" and DisplayName ~= "" then
+		return DisplayName
+	end
+
+	return "Mission"
+end
+
 local function RefreshObjectiveHud()
 	local HasObjectives = false
 	local HasAbandonableObjective = false
+	local ObjectiveDisplayName = "Mission"
 
 	for _, child in ipairs(Content:GetChildren()) do
 		if child.Name ~= "Template" and child:IsA("Frame") then
 			HasObjectives = true
-			if child:GetAttribute("ObjectiveName") ~= "PrisonLabor" then
+			ObjectiveDisplayName = child:GetAttribute("ObjectiveDisplayName") or ObjectiveDisplayName
+			if child:GetAttribute("ObjectiveName") ~= "PrisonLabor" and child:GetAttribute("CanAbandon") ~= false then
 				HasAbandonableObjective = true
 			end
 		end
@@ -36,6 +47,7 @@ local function RefreshObjectiveHud()
 
 	ObjectiveHUD.Enabled = HasObjectives
 	AbandonQuest.Visible = HasAbandonableObjective
+	TitleLabel.Text = ObjectiveDisplayName
 end
 
 local function ClearRenderedObjective(ObjectiveName: string?)
@@ -78,7 +90,9 @@ end
 
 function ObjectiveController:RenderObjective(
 	ObjectiveName: string,
-	SubObjectives: { { Name: string, TargetAmount: number, CurrentAmount: number, EndTime: number? } }
+	SubObjectives: { { Name: string, TargetAmount: number, CurrentAmount: number, EndTime: number? } },
+	DisplayName: string?,
+	CanAbandon: boolean?
 )
 	ObjectiveHUD.Enabled = true
 
@@ -88,6 +102,8 @@ function ObjectiveController:RenderObjective(
 		local SubFrame = Template:Clone()
 		SubFrame.Name = GetObjectiveFrameName(ObjectiveName, Index)
 		SubFrame:SetAttribute("ObjectiveName", ObjectiveName)
+		SubFrame:SetAttribute("ObjectiveDisplayName", GetObjectiveDisplayName(DisplayName))
+		SubFrame:SetAttribute("CanAbandon", CanAbandon ~= false)
 		SubFrame:SetAttribute("ObjectiveIndex", Index)
 		SubFrame.ObjectiveName.Text = Data.Name
 		if Data.EndTime then
@@ -134,12 +150,13 @@ function ObjectiveController:KnitStart()
 	Content = Background:WaitForChild("content")
 	Template = Content:WaitForChild("Template")
 	AbandonQuest = Background:WaitForChild("Title"):WaitForChild("Abandon")
+	TitleLabel = Background:WaitForChild("Title"):WaitForChild("TextLabel")
 
 	ObjectiveHUD.Enabled = false
 	Template.Visible = false
 
 	ObjectiveService.ObjectiveAdded:Connect(function(ObjectiveName, Data)
-		self:RenderObjective(ObjectiveName, Data.Objectives)
+		self:RenderObjective(ObjectiveName, Data.Objectives, Data.DisplayName, Data.CanAbandon)
 	end)
 
 	ObjectiveService.ObjectiveUpdated:Connect(function(ObjectiveName, Index, SubObjective)
@@ -177,7 +194,7 @@ function ObjectiveController:KnitStart()
 	local Objective = ObjectiveService:GetObjectives(Player)
 	if Objective then
 		for _, Objective in pairs(Objective) do
-			ObjectiveController:RenderObjective(Objective.Name, Objective.Objectives)
+			ObjectiveController:RenderObjective(Objective.Name, Objective.Objectives, Objective.DisplayName, Objective.CanAbandon)
 		end
 	end
 

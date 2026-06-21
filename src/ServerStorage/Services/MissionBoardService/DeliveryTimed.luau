@@ -236,7 +236,7 @@ function DeliveryTimed:Select(Player: Player, Mission: { any })
 			CurrentAmount = 0,
 			EndTime = Data.StartedAt + Data.TimeLimit,
 		},
-	})
+	}, Mission.DisplayName)
 
 	QuestService:CreateTargetAtPosition(Player, Data.TargetName, Data.DestinationCFrame.Position)
 	AlertService:AlertPlayer(Player, "Timed delivery started. Time limit: " .. FormatTime(Data.TimeLimit), "Default")
