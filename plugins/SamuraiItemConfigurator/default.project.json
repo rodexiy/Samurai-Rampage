@@ -1,0 +1,10 @@
+{
+  "name": "SamuraiItemConfigurator",
+  "tree": {
+    "$className": "DataModel",
+    "$ignoreUnknownInstances": true,
+    "SamuraiItemConfigurator": {
+      "$path": "SamuraiItemConfigurator.plugin.luau"
+    }
+  }
+}

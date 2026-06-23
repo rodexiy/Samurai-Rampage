@@ -3,8 +3,8 @@ local Knit = require(game.ReplicatedStorage.Packages.Knit)
 local TetsuService = Knit.GetService("TetsuService")
 local ItemService = Knit.GetService("ItemService")
 local InventoryService = Knit.GetService("InventoryService")
-local DataService = Knit.GetService("DataService")
 local QuestService = Knit.GetService("QuestService")
+local TutorialService = Knit.GetService("TutorialService")
 
 local ores = {
 	["Coal"] = 5,
@@ -29,24 +29,6 @@ local function GetOres(Player: Player)
 	return ores[Item.Name] * Item:GetAttribute("Stack"), Item
 end
 
-local function IsTalkWithBlacksmithStep(Player: Player, StepName: string): boolean
-	local PlayerData = DataService:GetData(Player)
-	if not PlayerData or not PlayerData.Quest or PlayerData.Quest.Name ~= "TalkWithBlacksmith" then
-		return false
-	end
-
-	local StoryData = PlayerData.Story and PlayerData.Story.TalkWithBlacksmith
-	if typeof(StoryData) ~= "table" then
-		return StepName == "TalkWithBlacksmith"
-	end
-
-	return StoryData.Step == StepName
-end
-
-local function HasTalkWithBlacksmithQuest(Player: Player): boolean
-	return IsTalkWithBlacksmithStep(Player, "TalkWithBlacksmith")
-end
-
 local Godot = {
 	TalkWithBlacksmith = {
 		[1] = {
@@ -56,6 +38,11 @@ local Godot = {
 				[1] = {
 					text = "I do not know what to do now.",
 					nextDialog = 2,
+					callback = function(Player)
+						if TutorialService:CanStartMission(Player, "TalkWithBlacksmith") then
+							TutorialService:StartMission(Player, "TalkWithBlacksmith")
+						end
+					end,
 				},
 			},
 		},
@@ -85,7 +72,10 @@ local Godot = {
 		},
 
 		priority = 100,
-		validation = HasTalkWithBlacksmithQuest,
+		validation = function(Player)
+			return TutorialService:IsMissionStep(Player, "TalkWithBlacksmith", "TalkWithBlacksmith")
+				or TutorialService:CanStartMission(Player, "TalkWithBlacksmith")
+		end,
 	},
 
 	TalkWithBlacksmithReturn = {
@@ -104,14 +94,14 @@ local Godot = {
 
 		priority = 100,
 		validation = function(Player)
-			return IsTalkWithBlacksmithStep(Player, "ReturnToGodot")
+			return TutorialService:IsMissionStep(Player, "TalkWithBlacksmith", "ReturnToGodot")
 		end,
 	},
 
 	TalkWithBlacksmithKatanaCrafted = {
 		[1] = {
 			npcName = "Godot",
-			npcText = "Good. Now you have a blade of your own. Keep it close.",
+			npcText = "Good. Now you have a blade of your own. Take it to the old dojo and find Mikoto. The sword master will teach you the basics.",
 			answers = {
 				[1] = {
 					text = "...",
@@ -124,7 +114,7 @@ local Godot = {
 
 		priority = 100,
 		validation = function(Player)
-			return IsTalkWithBlacksmithStep(Player, "TalkWithGodotAfterKatana")
+			return TutorialService:IsMissionStep(Player, "TalkWithBlacksmith", "TalkWithGodotAfterKatana")
 		end,
 	},
 

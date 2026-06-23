@@ -1,3 +1,4 @@
+local Players = game:GetService("Players")
 local Knit = require(game.ReplicatedStorage.Packages.Knit)
 
 local MovementService = Knit.CreateService({
@@ -13,6 +14,7 @@ local AnimationService
 local SoundEffectService
 local BuffService
 local SkillTreeService
+local QuestService
 
 local Validate = require(game.ReplicatedStorage.Shared.Validate)
 function MovementService:Run(Character: Model, State: boolean)
@@ -53,6 +55,11 @@ function MovementService:Roll(Character: Model, Direction: string, StartCFrame: 
 	end
 	DebounceService:AddDebounce(Character, "RollDebounce", 1.65)
 
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if Player then
+		QuestService:CallQuestFunction(Player, "CombatAction", "Roll")
+	end
+
 	RenderService:RenderForAllPlayers(
 		"Combat",
 		"Roll",
@@ -90,6 +97,7 @@ function MovementService.KnitInit()
 	SoundEffectService = Knit.GetService("SoundEffectService")
 	BuffService = Knit.GetService("BuffService")
 	SkillTreeService = Knit.GetService("SkillTreeService")
+	QuestService = Knit.GetService("QuestService")
 end
 
 function MovementService.KnitStart() end

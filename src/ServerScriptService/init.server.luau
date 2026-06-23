@@ -93,5 +93,26 @@ if SharedCmdr and SharedCmdr:FindFirstChild("Commands") then
 	Cmdr:RegisterCommandsIn(SharedCmdr.Commands)
 end
 
+local ServerCmdr = game.ServerStorage.Services:FindFirstChild("Cmdr")
+if ServerCmdr then
+	local Types = ServerCmdr:FindFirstChild("Types")
+	if Types then
+		local StoryMissionType = Types:FindFirstChild("StoryMission")
+		if StoryMissionType then
+			local MissionNames = {}
+			for _, Mission in require(game.ServerStorage.Services.Index.StoryMissions) do
+				table.insert(MissionNames, Mission.Name)
+			end
+			StoryMissionType:SetAttribute("MissionNames", table.concat(MissionNames, ","))
+		end
+		Cmdr:RegisterTypesIn(Types)
+	end
+
+	local Commands = ServerCmdr:FindFirstChild("Commands")
+	if Commands then
+		Cmdr:RegisterCommandsIn(Commands)
+	end
+end
+
 local MobService = Knit.GetService("MobService")
 local AIService = Knit.GetService("AIService")

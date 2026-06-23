@@ -12,6 +12,7 @@ local Player = game.Players.LocalPlayer
 
 local NIGHT_START_TIME = 18
 local NIGHT_END_TIME = 5.4
+local NIGHT_AMBIENT = Color3.fromRGB(94, 102, 150)
 local NIGHT_ATMOSPHERE_VALUE = 0.38
 local ATMOSPHERE_TWEEN_INFO = TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
 
@@ -23,6 +24,7 @@ local WISDOM_WORLD_LIGHTING_NAMES = {
 
 local CurrentAtmosphere
 local DefaultAtmosphereColor
+local DefaultAmbient
 local IsNight
 local AtmosphereTween
 
@@ -45,6 +47,7 @@ local function UpdateAtmosphere()
 	end
 
 	IsNight = Night
+	Lighting.Ambient = if Night then NIGHT_AMBIENT else DefaultAmbient
 
 	if not Atmosphere or not DefaultAtmosphereColor then
 		return
@@ -91,6 +94,8 @@ function LightingController:LoadLighting()
 	end
 
 	LightLoader:Apply(LightingToApply)
+	local PresetAmbient = LightingToApply:GetAttribute("Ambient")
+	DefaultAmbient = if typeof(PresetAmbient) == "Color3" then PresetAmbient else Lighting.Ambient
 	UpdateAtmosphere()
 end
 

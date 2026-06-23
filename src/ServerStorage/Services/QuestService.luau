@@ -20,12 +20,12 @@ function QuestService:GetQuestData(QuestName: string)
 	return QuestsData[QuestName]
 end
 
-function QuestService:CreateTarget(Player: Player, Title: string, Parent: Instance)
-	QuestService.Client.CreateTargetBillboard:Fire(Player, Title, Parent)
+function QuestService:CreateTarget(Player: Player, Title: string, Parent: Instance, Options)
+	QuestService.Client.CreateTargetBillboard:Fire(Player, Title, Parent, Options)
 end
 
-function QuestService:CreateTargetAtPosition(Player: Player, Title: string, Position: Vector3)
-	QuestService.Client.CreateTargetBillboardAtPosition:Fire(Player, Title, Position)
+function QuestService:CreateTargetAtPosition(Player: Player, Title: string, Position: Vector3, Options)
+	QuestService.Client.CreateTargetBillboardAtPosition:Fire(Player, Title, Position, Options)
 end
 
 function QuestService:RemoveTarget(Player: Player, Title: string)

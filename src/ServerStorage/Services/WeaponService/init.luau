@@ -12,6 +12,7 @@ local RenderService
 local BloodService
 local SoundEffectService
 local ItemService
+local QuestService
 
 local WeaponsModules = {}
 
@@ -612,6 +613,9 @@ function WeaponService.Client:WeaponInput(Player: Player, Action: string, Data: 
 	Data.Server = {}
 
 	self.Server:WeaponInput(Character, Action, Data)
+	if Action == "Attack" then
+		QuestService:CallQuestFunction(Player, "CombatAction", "Attack")
+	end
 end
 
 WeaponService.CancelM1Attributes = {
@@ -645,6 +649,7 @@ function WeaponService.KnitInit()
 	BloodService = Knit.GetService("BloodService")
 	SoundEffectService = Knit.GetService("SoundEffectService")
 	ItemService = Knit.GetService("ItemService")
+	QuestService = Knit.GetService("QuestService")
 
 	for _, Weapon in script:GetDescendants() do
 		if Weapon:IsA("ModuleScript") then

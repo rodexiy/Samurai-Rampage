@@ -20,6 +20,7 @@ local SoundEffectService
 local StaminaService
 local SkillTreeService
 local LagCompensationService
+local QuestService
 
 local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
 
@@ -232,6 +233,11 @@ function PostureService:Block(Character: Model, State: boolean, manyRequests: bo
 
 		Character:SetAttribute("Blocking", true)
 
+		local Player = Players:GetPlayerFromCharacter(Character)
+		if Player then
+			QuestService:CallQuestFunction(Player, "CombatAction", "Block")
+		end
+
 		if Character:GetAttribute("DeflectTime") then
 			return true
 		end
@@ -294,6 +300,7 @@ function PostureService.KnitInit()
 	SoundEffectService = Knit.GetService("SoundEffectService")
 	StaminaService = Knit.GetService("StaminaService")
 	SkillTreeService = Knit.GetService("SkillTreeService")
+	QuestService = Knit.GetService("QuestService")
 end
 
 function PostureService.KnitStart()

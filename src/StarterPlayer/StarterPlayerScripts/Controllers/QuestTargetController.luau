@@ -7,6 +7,11 @@ local QuestTargetController = Knit.CreateController({
 local TargetTemplate = game.ReplicatedStorage.Assets.Billboards.QuestTarget
 
 local Targets = {}
+local TargetAdded = Instance.new("BindableEvent")
+local TargetRemoved = Instance.new("BindableEvent")
+
+QuestTargetController.TargetAdded = TargetAdded.Event
+QuestTargetController.TargetRemoved = TargetRemoved.Event
 
 local QuestService
 
@@ -15,7 +20,7 @@ local ClientTargetsFolder = workspace:FindFirstChild("ClientQuestTargets") or In
 ClientTargetsFolder.Name = "ClientQuestTargets"
 ClientTargetsFolder.Parent = workspace
 
-function QuestTargetController:CreateTarget(Title: string, Parent: Instance?)
+function QuestTargetController:CreateTarget(Title: string, Parent: Instance?, Options)
 	if not Parent then
 		return
 	end
@@ -23,13 +28,39 @@ function QuestTargetController:CreateTarget(Title: string, Parent: Instance?)
 	local Target = TargetTemplate:Clone()
 	Target.Name = Title
 	Target.Info.Text = Title:find("DONTSHOW") and "" or Title
+
+	if typeof(Options) == "table" then
+		if typeof(Options.CompassMode) == "string" then
+			Target:SetAttribute("CompassMode", Options.CompassMode)
+		end
+		if typeof(Options.CompassLabel) == "string" then
+			Target:SetAttribute("CompassLabel", Options.CompassLabel)
+		end
+		if typeof(Options.WorldMaxDistance) == "number" then
+			Target.MaxDistance = Options.WorldMaxDistance
+		end
+		if typeof(Options.WorldLabel) == "string" then
+			Target.Info.Text = Options.WorldLabel
+			Target.Info.Visible = true
+		end
+		if Options.WorldHideDistance == true then
+			Target.Distance.Visible = false
+		end
+		if Options.WorldIconOnly == true then
+			Target.Info.Visible = false
+			Target.Distance.Visible = false
+		end
+	end
+
 	Target.Parent = Parent
 	Target.Enabled = true
 
 	table.insert(Targets, Target)
+	TargetAdded:Fire(Target)
+	return Target
 end
 
-function QuestTargetController:CreateTargetAtPosition(Title: string, Position: Vector3)
+function QuestTargetController:CreateTargetAtPosition(Title: string, Position: Vector3, Options)
 	local TargetPart = Instance.new("Part")
 	TargetPart.Name = Title .. "Target"
 	TargetPart.Anchored = true
@@ -41,9 +72,8 @@ function QuestTargetController:CreateTargetAtPosition(Title: string, Position: V
 	TargetPart.Position = Position
 	TargetPart.Parent = ClientTargetsFolder
 
-	QuestTargetController:CreateTarget(Title, TargetPart)
+	local Target = QuestTargetController:CreateTarget(Title, TargetPart, Options)
 
-	local Target = Targets[#Targets]
 	if Target then
 		Target:SetAttribute("DestroyParentOnRemove", true)
 	end
@@ -55,6 +85,7 @@ function QuestTargetController:RemoveTarget(Title: string)
 		if Target.Name == Title then
 			local Parent = Target.Parent
 			local DestroyParent = Target:GetAttribute("DestroyParentOnRemove")
+			TargetRemoved:Fire(Target)
 			Target:Destroy()
 			table.remove(Targets, index)
 
@@ -63,6 +94,10 @@ function QuestTargetController:RemoveTarget(Title: string)
 			end
 		end
 	end
+end
+
+function QuestTargetController:GetTargets()
+	return table.clone(Targets)
 end
 
 function QuestTargetController:Update()
@@ -75,6 +110,7 @@ function QuestTargetController:Update()
 		local Target = Targets[index]
 		local Parent = Target.Parent
 		if not Parent then
+			TargetRemoved:Fire(Target)
 			Target:Destroy()
 			table.remove(Targets, index)
 			continue
@@ -88,11 +124,11 @@ end
 function QuestTargetController.KnitStart()
 	QuestService = Knit.GetService("QuestService")
 
-	QuestService.CreateTargetBillboard:Connect(function(Title: string, Parent: Instance)
-		QuestTargetController:CreateTarget(Title, Parent)
+	QuestService.CreateTargetBillboard:Connect(function(Title: string, Parent: Instance, Options)
+		QuestTargetController:CreateTarget(Title, Parent, Options)
 	end)
-	QuestService.CreateTargetBillboardAtPosition:Connect(function(Title: string, Position: Vector3)
-		QuestTargetController:CreateTargetAtPosition(Title, Position)
+	QuestService.CreateTargetBillboardAtPosition:Connect(function(Title: string, Position: Vector3, Options)
+		QuestTargetController:CreateTargetAtPosition(Title, Position, Options)
 	end)
 	QuestService.RemoveTargetBillboard:Connect(function(Title: string)
 		QuestTargetController:RemoveTarget(Title)

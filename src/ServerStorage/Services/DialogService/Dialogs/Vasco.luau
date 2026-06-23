@@ -1,17 +1,7 @@
 local Knit = require(game.ReplicatedStorage.Packages.Knit)
 
-local DataService = Knit.GetService("DataService")
 local QuestService = Knit.GetService("QuestService")
-
-local function IsTalkWithBlacksmithStep(Player: Player, StepName: string): boolean
-	local PlayerData = DataService:GetData(Player)
-	if not PlayerData or not PlayerData.Quest or PlayerData.Quest.Name ~= "TalkWithBlacksmith" then
-		return false
-	end
-
-	local StoryData = PlayerData.Story and PlayerData.Story.TalkWithBlacksmith
-	return typeof(StoryData) == "table" and StoryData.Step == StepName
-end
+local TutorialService = Knit.GetService("TutorialService")
 
 return {
 	TalkWithBlacksmith = {
@@ -46,7 +36,7 @@ return {
 
 		priority = 100,
 		validation = function(Player)
-			return IsTalkWithBlacksmithStep(Player, "TalkWithLumberjack")
+			return TutorialService:IsMissionStep(Player, "TalkWithBlacksmith", "TalkWithLumberjack")
 		end,
 	},
 }

@@ -9,6 +9,7 @@ local InventoryService = Knit.GetService("InventoryService")
 local ItemService = Knit.GetService("ItemService")
 local AlertService = Knit.GetService("AlertService")
 local StanceService = Knit.GetService("StanceService")
+local TutorialService = Knit.GetService("TutorialService")
 
 local OBJECTIVE_NAME = "TalkWithBlacksmith"
 
@@ -27,7 +28,7 @@ local TARGET_TUTORIAL_IRON_ORE = "Iron Ore"
 local TARGET_TUTORIAL_COAL = "Coal"
 local TARGET_LUMBERJACK = "Talk with Vasco"
 local TARGET_WOOD = "Wood"
-local TARGET_GODOT_FORGE = "Godot Forge"
+local TARGET_GODOT_FORGE = "Forge a Katana"
 
 local MissionDisplayName = "MAKING A KATANA"
 
@@ -211,18 +212,36 @@ local function AddTalkWithLumberjackObjective(Player: Player)
 	SetTarget(Player, TARGET_LUMBERJACK, GetTargetPosition(Vasco))
 end
 
+local function AddWoodTargets(Player: Player, Trees: Instance?)
+	ClearTargets(Player)
+
+	if Trees then
+		for _, Tree in Trees:GetChildren() do
+			local Position = GetTargetPosition(Tree)
+			if Position then
+				QuestService:CreateTargetAtPosition(Player, TARGET_WOOD, Position)
+			end
+		end
+	end
+
+	local PlayerData = DataService:GetData(Player)
+	if PlayerData and PlayerData.Quest then
+		PlayerData.Quest.TargetName = TARGET_WOOD
+	end
+end
+
 local function AddWoodObjective(Player: Player, StoryData)
 	SyncWoodProgress(Player, StoryData)
 
 	local Map = workspace:FindFirstChild("Map")
 	local Vegetation = Map and Map:FindFirstChild("Vegetation")
-	local Trees = Vegetation and Vegetation:FindFirstChild("Trees")
+	local Trees = Vegetation and Vegetation:FindFirstChild("TutorialTrees")
 
 	ObjectiveService:AddObjective(Player, OBJECTIVE_NAME, {
 		{ Name = "Collect Wood Logs", TargetAmount = WOOD_REQUIRED, CurrentAmount = StoryData.WoodLog },
 	}, MissionDisplayName, false)
 
-	SetTarget(Player, TARGET_WOOD, GetTargetPosition(Trees))
+	AddWoodTargets(Player, Trees)
 end
 
 local function AddReturnToGodotObjective(Player: Player)
@@ -234,7 +253,7 @@ local function AddCraftKatanaObjective(Player: Player)
 	local GodotForge = Important and Important:FindFirstChild("GodotForge")
 
 	ObjectiveService:AddObjective(Player, OBJECTIVE_NAME, {
-		{ Name = "Craft a Katana", TargetAmount = 1, CurrentAmount = 0 },
+		{ Name = "Forge a Katana", TargetAmount = 1, CurrentAmount = 0 },
 	}, MissionDisplayName, false)
 
 	SetTarget(Player, TARGET_GODOT_FORGE, GetTargetPosition(GodotForge))
@@ -547,7 +566,7 @@ return {
 		LevelService:GiveExp(Player, 300)
 		EnsureMinimumLevel(Player, MIN_LEVEL_AFTER_KATANA)
 		ObjectiveService:ClearObjective(Player, OBJECTIVE_NAME, true)
-		QuestService:RemoveQuest(Player)
+		TutorialService:CompleteMission(Player, OBJECTIVE_NAME)
 		return true
 	end,
 
