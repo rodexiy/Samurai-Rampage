@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Index Studio · Samurai Rampage</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <header class="brand">
+          <div class="brand-mark" aria-hidden="true">侍</div>
+          <div>
+            <strong>Index Studio</strong>
+            <span>Samurai Rampage</span>
+          </div>
+        </header>
+
+        <label class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <input id="search" type="search" placeholder="Buscar dados…" autocomplete="off" />
+          <kbd>Ctrl K</kbd>
+        </label>
+
+        <nav id="file-tree" class="file-tree" aria-label="Arquivos do Index"></nav>
+
+        <footer class="sidebar-footer">
+          <span class="local-dot"></span>
+          <div>
+            <strong>Somente local</strong>
+            <small id="repo-root">Carregando projeto…</small>
+          </div>
+        </footer>
+      </aside>
+
+      <main class="workspace">
+        <section id="dashboard" class="dashboard">
+          <div class="hero-card">
+            <div>
+              <span class="eyebrow">CENTRAL DE DADOS</span>
+              <h1>Configure o jogo sem caçar campos em dezenas de arquivos.</h1>
+              <p>Itens, NPCs, drops, árvores de skill, stances, quests e qualquer tabela dentro dos diretórios Index.</p>
+            </div>
+            <div class="hero-emblem" aria-hidden="true"><span>刀</span></div>
+          </div>
+          <div id="stats-grid" class="stats-grid"></div>
+          <section class="recent-panel">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">NAVEGAÇÃO</span>
+                <h2>Categorias disponíveis</h2>
+              </div>
+              <span id="file-count" class="quiet-badge">0 arquivos</span>
+            </div>
+            <div id="category-grid" class="category-grid"></div>
+          </section>
+        </section>
+
+        <section id="editor-screen" class="editor-screen hidden">
+          <header class="editor-header">
+            <div class="file-heading">
+              <button id="back-dashboard" class="icon-button" type="button" aria-label="Voltar ao início">←</button>
+              <div>
+                <div id="file-path" class="file-path"></div>
+                <h1 id="file-title">Arquivo</h1>
+              </div>
+            </div>
+            <div class="header-actions">
+              <span id="dirty-indicator" class="dirty-indicator">Sem alterações</span>
+              <button id="reset-button" class="button secondary" type="button" disabled>Descartar</button>
+              <button id="save-button" class="button primary" type="button" disabled>
+                <span>Salvar no código</span>
+                <kbd>Ctrl S</kbd>
+              </button>
+            </div>
+          </header>
+
+          <div class="editor-toolbar">
+            <div class="tabs" role="tablist" aria-label="Visualização do arquivo">
+              <button class="tab active" data-tab="form" role="tab" type="button">Editor</button>
+              <button id="dialog-tab-button" class="tab hidden" data-tab="dialog" role="tab" type="button">Diálogos</button>
+              <button class="tab" data-tab="visual" role="tab" type="button">Visualização</button>
+              <button class="tab" data-tab="code" role="tab" type="button">Código gerado</button>
+            </div>
+            <div id="file-meta" class="file-meta"></div>
+          </div>
+
+          <div class="editor-body">
+            <section class="editor-content">
+              <div id="tab-form" class="tab-panel active">
+                <div id="analysis-panel" class="analysis-panel"></div>
+                <div id="form-root" class="form-root"></div>
+              </div>
+              <div id="tab-visual" class="tab-panel">
+                <div id="visual-root" class="visual-root"></div>
+              </div>
+              <div id="tab-dialog" class="tab-panel">
+                <div id="dialog-root" class="dialog-root"></div>
+              </div>
+              <div id="tab-code" class="tab-panel">
+                <div class="code-heading">
+                  <div>
+                    <span class="eyebrow">PREVIEW</span>
+                    <h2>Arquivo que será escrito</h2>
+                  </div>
+                  <button id="copy-code" class="button secondary" type="button">Copiar</button>
+                </div>
+                <pre class="code-preview"><code id="code-preview"></code></pre>
+              </div>
+            </section>
+
+            <aside class="context-panel">
+              <div class="context-card">
+                <span class="eyebrow">ARQUIVO</span>
+                <dl id="file-details"></dl>
+              </div>
+              <div class="context-card safeguards">
+                <span class="eyebrow">PROTEÇÕES</span>
+                <ul>
+                  <li>Backup antes de cada gravação</li>
+                  <li>Bloqueio contra alterações concorrentes</li>
+                  <li>Acesso limitado aos diretórios Index</li>
+                  <li>Validação antes de escrever</li>
+                </ul>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast-region" class="toast-region" aria-live="polite"></div>
+    <dialog id="confirm-dialog" class="confirm-dialog">
+      <form method="dialog">
+        <span class="dialog-icon">!</span>
+        <h2>Descartar alterações?</h2>
+        <p>As modificações feitas nesta tela serão perdidas.</p>
+        <div class="dialog-actions">
+          <button value="cancel" class="button secondary">Continuar editando</button>
+          <button value="confirm" class="button danger">Descartar</button>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
