@@ -67,6 +67,7 @@ return {
 		FollowCamera = true,
 		LagCompensation = true,
 		BloodFX = true,
+		Birds = true,
 
 		Ambience = true,
 		OST = true,

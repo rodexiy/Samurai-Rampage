@@ -165,7 +165,7 @@ function TutorialService:CreateTutorialMission(Player: Player)
 	local HasProgress = typeof(MissionData) == "table"
 		and MissionData.Step ~= nil
 		and MissionData.Step ~= Mission.InitialStep
-	if HasProgress then
+	if Mission.AutoAssign or HasProgress then
 		QuestService:GiveQuest(Player, Mission.Name)
 		return
 	end

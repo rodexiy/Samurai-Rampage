@@ -19,6 +19,32 @@ local DeviceController = Knit.GetController("DeviceController")
 local RugService = Knit.GetService("RugService")
 local FastTravelController = Knit.GetController("FastTravelController")
 
+local MAX_RUG_DISTANCE = 10
+
+local function IsNearRug(): boolean
+	local Rugs = workspace:FindFirstChild("Rugs")
+	if not Rugs then
+		return false
+	end
+
+	local CharacterPosition = Character:GetPivot().Position
+	for _, Rug in Rugs:GetChildren() do
+		local RugPart = Rug:FindFirstChild("Rug")
+		local RugPosition
+		if RugPart and RugPart:IsA("BasePart") then
+			RugPosition = RugPart.Position
+		elseif Rug:IsA("Model") or Rug:IsA("BasePart") then
+			RugPosition = Rug:GetPivot().Position
+		end
+
+		if RugPosition and (RugPosition - CharacterPosition).Magnitude < MAX_RUG_DISTANCE then
+			return true
+		end
+	end
+
+	return false
+end
+
 function Meditate.Stop()
 	if not Character:GetAttribute("Meditating") then
 		return
@@ -51,6 +77,7 @@ function Meditate.callback(inputState)
 		return
 	end
 	if (not ray or not ray.Instance:FindFirstAncestor("Rugs"))
+		and not IsNearRug()
 		and not Player:GetAttribute("MeditateAnywhere")
 	then
 		return

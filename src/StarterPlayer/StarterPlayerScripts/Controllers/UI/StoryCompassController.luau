@@ -209,6 +209,22 @@ local function CreateTargetMarker(Title: string): Frame
 	}, Marker)
 
 	Create("TextLabel", {
+		Name = "TextIcon",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, -2),
+		Size = UDim2.fromOffset(32, 32),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Text = "?",
+		TextColor3 = GOLD,
+		TextSize = 28,
+		TextStrokeColor3 = Color3.new(0, 0, 0),
+		TextStrokeTransparency = 0.1,
+		Visible = false,
+		ZIndex = 5,
+	}, Marker)
+
+	Create("TextLabel", {
 		Name = "Label",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 28),
@@ -244,6 +260,10 @@ local function RenderTargets(CameraBearing: number, Origin: Vector3)
 
 		local FlatOffset = Vector3.new(Position.X - Origin.X, 0, Position.Z - Origin.Z)
 		local Distance = FlatOffset.Magnitude
+		local MaxDistance = Target:GetAttribute("CompassMaxDistance")
+		if typeof(MaxDistance) == "number" and Distance > MaxDistance then
+			continue
+		end
 		local Previous = NearestByTitle[Target.Name]
 		if Distance > 0.01 and (not Previous or Distance < Previous.Distance) then
 			NearestByTitle[Target.Name] = {
@@ -251,6 +271,8 @@ local function RenderTargets(CameraBearing: number, Origin: Vector3)
 				Bearing = BearingFromVector(FlatOffset),
 				Mode = Target:GetAttribute("CompassMode"),
 				Label = Target:GetAttribute("CompassLabel"),
+				IconText = Target:GetAttribute("CompassIconText"),
+				IconImage = Target:GetAttribute("CompassIconImage"),
 			}
 		end
 	end
@@ -273,6 +295,8 @@ local function RenderTargets(CameraBearing: number, Origin: Vector3)
 		if TargetData.Mode == "MissionName" then
 			Marker.Size = UDim2.fromOffset(180, 47)
 			Marker.Icon.Visible = true
+			Marker.Icon.Image = TARGET_ICON
+			Marker.TextIcon.Visible = false
 			Marker.Icon.Position = UDim2.new(0.5, 0, 0, 0)
 			Marker.Icon.Size = UDim2.fromOffset(24, 24)
 			Marker.Label.Position = UDim2.new(0.5, 0, 0, 25)
@@ -282,7 +306,10 @@ local function RenderTargets(CameraBearing: number, Origin: Vector3)
 			Marker.Label.TextSize = 14
 		else
 			Marker.Size = UDim2.fromOffset(90, 47)
-			Marker.Icon.Visible = true
+			Marker.Icon.Visible = TargetData.IconText == nil
+			Marker.Icon.Image = TargetData.IconImage or TARGET_ICON
+			Marker.TextIcon.Visible = TargetData.IconText ~= nil
+			Marker.TextIcon.Text = TargetData.IconText or ""
 			Marker.Icon.Position = UDim2.new(0.5, 0, 0, 0)
 			Marker.Icon.Size = UDim2.fromOffset(28, 28)
 			Marker.Label.Position = UDim2.new(0.5, 0, 0, 28)

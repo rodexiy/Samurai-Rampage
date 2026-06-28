@@ -1,10 +1,9 @@
 local CollectionService = game:GetService("CollectionService")
-local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
-local UserInputService = game:GetService("UserInputService")
 local player = game.Players.LocalPlayer
 local Mouse = player:GetMouse()
 local AnswerDB = false
+local clicked = false
 
 local MouseClickConnection = {}
 local InDialog = false
@@ -46,25 +45,28 @@ local ActionTypes = {
 	["end"] = Color3.fromRGB(255, 41, 41),
 }
 
-local function IsMouseInBounds(uiElement)
-	local mousePos = UserInputService:GetMouseLocation()
-	-- Adjust for the top bar since IgnoreGuiInset is false
-	mousePos = Vector2.new(mousePos.X, mousePos.Y - 36)
+local DEFAULT_ANSWER_TEXT_COLOR = Color3.fromRGB(255, 255, 255)
+local ANSWER_CHARS_PER_LINE = 42
+local ANSWER_MIN_HEIGHT = 0.14
+local ANSWER_LINE_HEIGHT = 0.055
+local ANSWER_MAX_HEIGHT = 0.34
 
-	local absPos = uiElement.AbsolutePosition
-	local absSize = uiElement.AbsoluteSize
+local function GetColor(Value, Fallback: Color3): Color3
+	return if typeof(Value) == "Color3" then Value else Fallback
+end
 
-	return mousePos.X >= absPos.X
-		and mousePos.X <= absPos.X + absSize.X
-		and mousePos.Y >= absPos.Y
-		and mousePos.Y <= absPos.Y + absSize.Y
+local function GetAnswerAccentColor(AnswerTable): Color3
+	local ActionTypeColor = ActionTypes[AnswerTable.actionType] or ActionTypes.default
+	return GetColor(AnswerTable.color or AnswerTable.accentColor, ActionTypeColor)
+end
+
+local function GetAnswerHeightScale(Text: string): number
+	local LineCount = math.max(1, math.ceil(string.len(Text) / ANSWER_CHARS_PER_LINE))
+	return math.clamp(ANSWER_MIN_HEIGHT + ((LineCount - 1) * ANSWER_LINE_HEIGHT), ANSWER_MIN_HEIGHT, ANSWER_MAX_HEIGHT)
 end
 
 local EasyVisuals = require(game.ReplicatedStorage.Assets.Libraries.EasyVisuals)
 local Visuals = {}
-
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
-local RunServiceConnetions = Collector.new()
 
 local TypeWriterSounds = {
 	"rbxassetid://9120299506",
@@ -114,9 +116,8 @@ local function TypeWriterEffect(textToChange: TextLabel, text)
 end
 
 function UnloadAnswers()
-	RunServiceConnetions:DisconnectAll()
 	for _, v in AnswersContent:GetChildren() do
-		if v:IsA("ImageButton") then
+		if v:IsA("GuiButton") then
 			v:Destroy()
 		end
 	end
@@ -181,50 +182,63 @@ function BindAndLoadAnswers(DialogBody)
 	TypeWriterEffect(DialogBox, DialogBody.npcText)
 	for answerIndex, AnswerTable in DialogBody.answers do
 		local AnswerTemplate = DialogueUI.AnswerTemplate:Clone() :: TextButton
+		local AnswerText = tostring(AnswerTable.text or "")
+		local AccentColor = GetAnswerAccentColor(AnswerTable)
+		local TextLabel = AnswerTemplate:FindFirstChild("TextLabel")
+		local ActionType = AnswerTemplate:FindFirstChild("ActionType")
 
-		if AnswerTable.visual then
-			table.insert(Visuals, EasyVisuals.new(AnswerTemplate.TextLabel, AnswerTable.visual, 0.3, 0.3))
+		AnswerTemplate.LayoutOrder = answerIndex
+		AnswerTemplate.Size = UDim2.fromScale(1, GetAnswerHeightScale(AnswerText))
+
+		if AnswerTable.buttonColor or AnswerTable.backgroundColor then
+			local ButtonColor = GetColor(AnswerTable.buttonColor or AnswerTable.backgroundColor, AnswerTemplate.BackgroundColor3)
+			AnswerTemplate.BackgroundColor3 = ButtonColor
+			AnswerTemplate.BackgroundTransparency = math.min(AnswerTemplate.BackgroundTransparency, 0.15)
+
+			if AnswerTemplate:IsA("ImageButton") then
+				AnswerTemplate.ImageColor3 = ButtonColor
+			end
 		end
 
-		local IsSmallerText = string.len(AnswerTable.text) > 25
-		local SmallerText = AnswerTable.text
-		if IsSmallerText then
-			SmallerText = string.sub(AnswerTable.text, 1, 23) .. "..."
+		local Stroke = AnswerTemplate:FindFirstChildWhichIsA("UIStroke")
+		if Stroke then
+			Stroke.Color = GetColor(AnswerTable.strokeColor, AccentColor)
 		end
 
-		AnswerTemplate.ActionType.ImageColor3 = ActionTypes[AnswerTable.actionType] or ActionTypes["default"]
-		AnswerTemplate.TextLabel.Text = SmallerText
+		if ActionType and (ActionType:IsA("ImageLabel") or ActionType:IsA("ImageButton")) then
+			ActionType.ImageColor3 = AccentColor
+		end
+
+		if TextLabel and TextLabel:IsA("TextLabel") then
+			TextLabel.Text = AnswerText
+			TextLabel.TextColor3 = GetColor(AnswerTable.textColor, DEFAULT_ANSWER_TEXT_COLOR)
+			TextLabel.TextScaled = false
+			TextLabel.TextWrapped = true
+			TextLabel.TextTruncate = Enum.TextTruncate.None
+			TextLabel.TextXAlignment = Enum.TextXAlignment.Left
+			TextLabel.TextYAlignment = Enum.TextYAlignment.Center
+			TextLabel.TextSize = math.max(TextLabel.TextSize, 16)
+			TextLabel.LineHeight = 1.05
+
+			if AnswerTable.visual then
+				table.insert(Visuals, EasyVisuals.new(TextLabel, AnswerTable.visual, 0.3, 0.3))
+			end
+		end
+
 		AnswerTemplate.Visible = true
 		AnswerTemplate.Parent = AnswersContent
 
-		local DefaultSizeY = 0.3
-		local DefaultSize = UDim2.fromScale(0.5, DefaultSizeY)
-
-		if IsSmallerText then
-			local TextLabel = AnswerTemplate.TextLabel
-			RunServiceConnetions:Add(RunService.RenderStepped:Connect(function()
-				if IsMouseInBounds(AnswerTemplate) then
-					TextLabel.Text = AnswerTable.text
-					TextLabel.TextXAlignment = Enum.TextXAlignment.Left
-					TextLabel.TextYAlignment = Enum.TextYAlignment.Top
-					AnswerTemplate.Size = UDim2.fromScale(
-						1,
-						DefaultSizeY + ((math.max(1, (string.len(AnswerTable.text) / 50)) * 0.25) - 0.25)
-					)
-				else
-					AnswerTemplate.Size = DefaultSize
-					TextLabel.Text = SmallerText
-					TextLabel.TextXAlignment = Enum.TextXAlignment.Center
-					TextLabel.TextYAlignment = Enum.TextYAlignment.Center
-				end
-			end))
-		end
-
-		AnswerTemplate.Activated:Once(function(inputObject, clickCount)
+		local AnswerConnection
+		AnswerConnection = AnswerTemplate.Activated:Connect(function(inputObject, clickCount)
 			if AnswerDB then
 				return
 			end
 			AnswerDB = true
+			if AnswerConnection then
+				AnswerConnection:Disconnect()
+				AnswerConnection = nil
+			end
+
 			task.delay(0.05, function()
 				AnswerDB = false
 			end)
@@ -252,6 +266,13 @@ function DialogController.KnitStart()
 	DialogBox = DialogContent:WaitForChild("DialogArea")
 	AnswersContent = Content:WaitForChild("Answers")
 	NPCNameTextArea = Content:WaitForChild("NPCHolder"):WaitForChild("TextLabel")
+
+	if AnswersContent:IsA("ScrollingFrame") then
+		AnswersContent.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		AnswersContent.CanvasSize = UDim2.fromScale(0, 0)
+		AnswersContent.ScrollingDirection = Enum.ScrollingDirection.Y
+		AnswersContent.ScrollBarThickness = 4
+	end
 
 	DialogService = Knit.GetService("DialogService")
 	HotbarController = Knit.GetController("HotbarController")

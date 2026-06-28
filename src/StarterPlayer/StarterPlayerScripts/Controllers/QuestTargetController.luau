@@ -36,6 +36,15 @@ function QuestTargetController:CreateTarget(Title: string, Parent: Instance?, Op
 		if typeof(Options.CompassLabel) == "string" then
 			Target:SetAttribute("CompassLabel", Options.CompassLabel)
 		end
+		if typeof(Options.CompassIconText) == "string" then
+			Target:SetAttribute("CompassIconText", Options.CompassIconText)
+		end
+		if typeof(Options.CompassIconImage) == "string" then
+			Target:SetAttribute("CompassIconImage", Options.CompassIconImage)
+		end
+		if typeof(Options.CompassMaxDistance) == "number" then
+			Target:SetAttribute("CompassMaxDistance", Options.CompassMaxDistance)
+		end
 		if typeof(Options.WorldMaxDistance) == "number" then
 			Target.MaxDistance = Options.WorldMaxDistance
 		end
@@ -53,7 +62,7 @@ function QuestTargetController:CreateTarget(Title: string, Parent: Instance?, Op
 	end
 
 	Target.Parent = Parent
-	Target.Enabled = true
+	Target.Enabled = not (typeof(Options) == "table" and Options.CompassOnly == true)
 
 	table.insert(Targets, Target)
 	TargetAdded:Fire(Target)

@@ -1,0 +1,10 @@
+{
+  "name": "SamuraiRegionEditor",
+  "tree": {
+    "$className": "DataModel",
+    "$ignoreUnknownInstances": true,
+    "SamuraiRegionEditor": {
+      "$path": "SamuraiRegionEditor.plugin.luau"
+    }
+  }
+}

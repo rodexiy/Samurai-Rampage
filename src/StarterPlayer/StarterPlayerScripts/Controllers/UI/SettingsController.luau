@@ -29,23 +29,44 @@ local function SetSettingLabel(Setting: Instance, Text: string)
 end
 
 function SettingsController:EnsureSettingButton(SettingName: string)
-	if SettingName ~= "OST" then
-		return
-	end
-
 	if SettingsUI:FindFirstChild(SettingName, true) then
 		return
 	end
 
-	local Template = SettingsUI:FindFirstChild("Ambience", true) or SettingsUI:FindFirstChild("Shadows", true)
-	if not Template then
-		return
-	end
+	if SettingName == "OST" then
+		local Template = SettingsUI:FindFirstChild("Ambience", true) or SettingsUI:FindFirstChild("Shadows", true)
+		if not Template then
+			return
+		end
 
-	local Setting = Template:Clone()
-	Setting.Name = SettingName
-	SetSettingLabel(Setting, SettingName)
-	Setting.Parent = Template.Parent
+		local Setting = Template:Clone()
+		Setting.Name = SettingName
+		SetSettingLabel(Setting, SettingName)
+		Setting.Parent = Template.Parent
+	elseif SettingName == "Birds" then
+		local Gameplay = SettingsUI:FindFirstChild("Gameplay", true)
+		if not Gameplay then
+			return
+		end
+
+		local Environment = Gameplay:Clone()
+		Environment.Name = "Environment"
+
+		local Title = Environment:FindFirstChild("1 Title")
+		if Title and Title:IsA("TextLabel") then
+			Title.Text = " • Environment"
+		end
+
+		local Setting = Environment:FindFirstChild("LagCompensation")
+		if not Setting then
+			Environment:Destroy()
+			return
+		end
+
+		Setting.Name = SettingName
+		SetSettingLabel(Setting, SettingName)
+		Environment.Parent = Gameplay.Parent
+	end
 end
 
 function SettingsController:LoadSettings()

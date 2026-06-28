@@ -1,9 +1,9 @@
 return {
-	Name = "SamuraiLegplate",
+	Name = "CastleLegplate",
 	Class = "Equipable",
 	Type = "Legs",
 
-	DisplayName = "Samurai Legplate",
+	DisplayName = "Castle Legplate",
 	Description = ``,
 
 	MaxHealthIncrease = 10,
