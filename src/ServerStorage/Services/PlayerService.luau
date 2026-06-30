@@ -27,6 +27,7 @@ local WisdomService
 local WisdomWorldService
 local LoadingService
 local TutorialService
+local CombatTutorialService
 
 function PlayerService:PlayerAdded(Player: Player)
 	if Player:HasTag("Player") then
@@ -223,6 +224,9 @@ end
 function PlayerService:SaveData(Player: Player)
 	KillStreakService:ResetIfLeavingPlayerCombat(Player)
 	pcall(function()
+		CombatTutorialService:HandlePlayerLeaving(Player)
+	end)
+	pcall(function()
 		WisdomWorldService:Cleanup(Player, "PlayerRemoving")
 	end)
 	pcall(function()
@@ -264,6 +268,7 @@ function PlayerService.KnitInit()
 	WisdomWorldService = Knit.GetService("WisdomWorldService")
 	LoadingService = Knit.GetService("LoadingService")
 	TutorialService = Knit.GetService("TutorialService")
+	CombatTutorialService = Knit.GetService("CombatTutorialService")
 end
 
 function PlayerService.KnitStart()

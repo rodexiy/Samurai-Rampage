@@ -5,6 +5,9 @@ local ExecutionService = Knit.CreateService({
 	Name = "ExecutionService",
 	Client = {},
 })
+
+ExecutionService.Executed = Instance.new("BindableEvent")
+
 local HitboxService
 local RenderService
 local QuestService
@@ -30,6 +33,7 @@ function ExecutionService:ExecuteInRange(Attacker: Model)
 
 		RenderService:RenderForAllPlayers("Combat", "Blood", { Character = Character, Attacker = Attacker })
 		Character:SetAttribute("Died", true)
+		ExecutionService.Executed:Fire(Attacker, Character)
 
 		if SkillTreeService:IsSkillUnlocked(Character, "Health Recovery") then
 			Attacker:SetAttribute(

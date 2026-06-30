@@ -23,7 +23,7 @@ return {
 
 		[2] = {
 			npcName = "Mikoto",
-			npcText = "Strike with purpose, hold your guard when danger comes, and roll away when your guard is not enough. Show me each one.",
+			npcText = "We will train in the dojo. Strike when I guard, hold your ground when I strike, and move when the blade demands it.",
 			answers = {
 				[1] = {
 					text = "I am ready.",
@@ -44,7 +44,7 @@ return {
 	PracticeBasicTraining = {
 		[1] = {
 			npcName = "Mikoto",
-			npcText = "Three attacks. One firm block. One evasive roll. Do not rush; make every movement deliberate.",
+			npcText = "Follow the objective. I will change my rhythm as you learn each lesson.",
 			answers = {
 				[1] = { text = "I will keep practicing." },
 			},

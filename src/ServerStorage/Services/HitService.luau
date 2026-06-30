@@ -5,6 +5,8 @@ local HitService = Knit.CreateService({
 	Client = {},
 })
 
+HitService.HitResolved = Instance.new("BindableEvent")
+
 local PostureService
 local DebounceService
 local DamageService
@@ -21,6 +23,14 @@ function HitService:IsInFront(Attacker: Model, Character: Model)
 	local amountForward = Character:GetPivot().LookVector
 		:Dot(Attacker:GetPivot().Position - Character:GetPivot().Position)
 	return amountForward > 0
+end
+
+function HitService:ResolveHitResult(Character: Model, Attacker: Model, Damage: number, Data: { any }, Result: string?)
+	if Result then
+		HitService.HitResolved:Fire(Character, Attacker, Result, Data or {}, Damage)
+	end
+
+	return Result
 end
 
 function HitService:ApplyWeaponHitBuffs(Character: Model, Attacker: Model, Data: { any })
@@ -77,31 +87,40 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 end
 
 function HitService:NormalHit(Character: Model, Attacker: Model, Damage: number, Data: { any })
+	local Result
 	if Character:GetAttribute("DeflectTime") and HitService:IsInFront(Attacker, Character) then
-		return PostureService:Deflected(Character, Attacker, Damage, Data)
+		Result = PostureService:Deflected(Character, Attacker, Damage, Data)
 	elseif Character:GetAttribute("Blocking") and HitService:IsInFront(Attacker, Character) then
-		return PostureService:Blocked(Character, Attacker, Damage, Data)
+		Result = PostureService:Blocked(Character, Attacker, Damage, Data)
 	elseif Character:GetAttribute("RollIFrame") then
-		return PostureService:Dodged(Character, Attacker)
+		Result = PostureService:Dodged(Character, Attacker)
 	else
-		return HitService:Hit(Character, Attacker, Damage, Data)
+		Result = HitService:Hit(Character, Attacker, Damage, Data)
 	end
+
+	return HitService:ResolveHitResult(Character, Attacker, Damage, Data, Result)
 end
 
 function HitService:DodgeOnly(Character: Model, Attacker: Model, Damage: number, Data: { any })
+	local Result
 	if Character:GetAttribute("RollIFrame") then
-		return PostureService:Dodged(Character, Attacker)
+		Result = PostureService:Dodged(Character, Attacker)
 	else
-		return HitService:Hit(Character, Attacker, Damage, Data)
+		Result = HitService:Hit(Character, Attacker, Damage, Data)
 	end
+
+	return HitService:ResolveHitResult(Character, Attacker, Damage, Data, Result)
 end
 
 function HitService:DeflectOnly(Character: Model, Attacker: Model, Damage: number, Data: { any })
+	local Result
 	if Character:GetAttribute("DeflectTime") and HitService:IsInFront(Attacker, Character) then
-		return PostureService:Deflected(Character, Attacker, Damage)
+		Result = PostureService:Deflected(Character, Attacker, Damage, Data)
 	else
-		return HitService:Hit(Character, Attacker, Damage, Data)
+		Result = HitService:Hit(Character, Attacker, Damage, Data)
 	end
+
+	return HitService:ResolveHitResult(Character, Attacker, Damage, Data, Result)
 end
 
 function HitService.KnitInit()

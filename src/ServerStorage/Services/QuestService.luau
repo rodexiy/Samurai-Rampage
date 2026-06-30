@@ -75,12 +75,17 @@ end
 
 function QuestService:RemoveQuest(Player: Player)
 	local PlayerData = DataService:GetData(Player)
+	if not PlayerData then
+		return
+	end
 
 	if PlayerData.Quest then
 		if PlayerData.Quest.TargetName then
 			QuestService:RemoveTarget(Player, PlayerData.Quest.TargetName)
 		end
-		QuestService:RemoveTarget(Player, PlayerData.Quest.Name)
+		if PlayerData.Quest.Name then
+			QuestService:RemoveTarget(Player, PlayerData.Quest.Name)
+		end
 	end
 
 	PlayerData.Quest = {}

@@ -137,6 +137,10 @@ local function BearingFromVector(Direction: Vector3): number
 	return NormalizeAngle(math.deg(math.atan2(Direction.X, -Direction.Z)))
 end
 
+local function FormatDistance(Distance: number): string
+	return string.format("%d M", math.floor(Distance * METERS_PER_STUD))
+end
+
 local Directions = {
 	[0] = "N",
 	[45] = "NE",
@@ -240,6 +244,22 @@ local function CreateTargetMarker(Title: string): Frame
 		ZIndex = 5,
 	}, Marker)
 
+	Create("TextLabel", {
+		Name = "Distance",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 35),
+		Size = UDim2.new(1, 0, 0, 13),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamMedium,
+		Text = "0 M",
+		TextColor3 = GOLD,
+		TextSize = 12,
+		TextStrokeColor3 = Color3.new(0, 0, 0),
+		TextStrokeTransparency = 0.1,
+		Visible = false,
+		ZIndex = 5,
+	}, Marker)
+
 	TargetMarkers[Title] = Marker
 	return Marker
 end
@@ -293,17 +313,19 @@ local function RenderTargets(CameraBearing: number, Origin: Vector3)
 		Marker.Position = UDim2.new(PositionScale, 0, 0, 0)
 
 		if TargetData.Mode == "MissionName" then
-			Marker.Size = UDim2.fromOffset(180, 47)
+			Marker.Size = UDim2.fromOffset(180, 48)
 			Marker.Icon.Visible = true
-			Marker.Icon.Image = TARGET_ICON
+			Marker.Icon.Image = TargetData.IconImage or TARGET_ICON
 			Marker.TextIcon.Visible = false
 			Marker.Icon.Position = UDim2.new(0.5, 0, 0, 0)
-			Marker.Icon.Size = UDim2.fromOffset(24, 24)
-			Marker.Label.Position = UDim2.new(0.5, 0, 0, 25)
-			Marker.Label.Size = UDim2.new(1, 0, 0, 22)
+			Marker.Icon.Size = UDim2.fromOffset(20, 20)
+			Marker.Label.Position = UDim2.new(0.5, 0, 0, 21)
+			Marker.Label.Size = UDim2.new(1, 0, 0, 14)
 			Marker.Label.Text = TargetData.Label or Title
 			Marker.Label.TextColor3 = GOLD
-			Marker.Label.TextSize = 14
+			Marker.Label.TextSize = 12
+			Marker.Distance.Visible = true
+			Marker.Distance.Text = FormatDistance(TargetData.Distance)
 		else
 			Marker.Size = UDim2.fromOffset(90, 47)
 			Marker.Icon.Visible = TargetData.IconText == nil
@@ -317,6 +339,7 @@ local function RenderTargets(CameraBearing: number, Origin: Vector3)
 			Marker.Label.Text = string.format("%d M", math.floor(TargetData.Distance * METERS_PER_STUD))
 			Marker.Label.TextColor3 = GOLD
 			Marker.Label.TextSize = 12
+			Marker.Distance.Visible = false
 		end
 	end
 end

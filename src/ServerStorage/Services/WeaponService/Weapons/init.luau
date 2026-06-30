@@ -142,7 +142,7 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 					Character,
 					Attacker,
 					Damage,
-					{ RayCFrame = RayCFrame, FlingOnLast = true, By = "Weapon" }
+					{ RayCFrame = RayCFrame, FlingOnLast = true, By = "Weapon", Action = "Attack" }
 				)
 
 				if Context == "Hit" then
@@ -174,6 +174,9 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 			HitboxService:CreatePartHitbox(Attacker, {
 				Size = M1Config.HitboxSize,
 				Frames = Frames,
+				Data = {
+					Action = "Attack",
+				},
 			}, function(Character: Model)
 				local CharacterRootPart = Character:FindFirstChild("HumanoidRootPart")
 				local RayCFrame = CharacterRootPart
@@ -189,6 +192,7 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 			HitCharacter(Character, CFrame.new(Hit.Position, Result.Position + -Result.Normal))
 		end, Cancel, {
 			HandHitbox = GetHitboxHand(M1Config),
+			Action = "Attack",
 		})
 	end)
 end
@@ -262,10 +266,15 @@ Weapon.StrongAttack = function(Attacker: Model, Data: { any })
 			local Damage = DamageService:CalculateDamage(Attacker, Character, 0, { "Weapon" }, WeaponSide) * DamageMultiplier
 
 			task.delay(LagCompensationService:GetCompensation(Character), function()
-				HitService:NormalHit(Character, Attacker, Damage, { RayCFrame = RayCFrame, By = "Weapon" })
+				HitService:NormalHit(Character, Attacker, Damage, {
+					RayCFrame = RayCFrame,
+					By = "Weapon",
+					Action = "StrongAttack",
+				})
 			end)
 		end, Cancel, {
 			HandHitbox = GetHitboxHand(M2Config),
+			Action = "StrongAttack",
 		})
 	end)
 end

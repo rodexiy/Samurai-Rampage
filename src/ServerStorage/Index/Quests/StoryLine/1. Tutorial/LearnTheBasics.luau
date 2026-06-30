@@ -4,19 +4,16 @@ local ObjectiveService = Knit.GetService("ObjectiveService")
 local QuestService = Knit.GetService("QuestService")
 local TutorialService = Knit.GetService("TutorialService")
 local LevelService = Knit.GetService("LevelService")
+local CombatTutorialService = Knit.GetService("CombatTutorialService")
 
 local LearnTheBasics = {}
 
 LearnTheBasics.Name = "LearnTheBasics"
 LearnTheBasics.DisplayName = "BASIC TRAINING"
-LearnTheBasics.TargetName = "Talk with Mikoto"
+LearnTheBasics.TargetName = "Mikoto"
 LearnTheBasics.StepTalk = "TalkWithMikoto"
 LearnTheBasics.StepPractice = "PracticeBasics"
 LearnTheBasics.StepReturn = "ReturnToMikoto"
-
-LearnTheBasics.RequiredAttacks = 3
-LearnTheBasics.RequiredBlocks = 1
-LearnTheBasics.RequiredRolls = 1
 
 function LearnTheBasics:GetData(Player: Player)
 	local MissionData = TutorialService:GetMissionData(Player, LearnTheBasics.Name, true)
@@ -25,9 +22,6 @@ function LearnTheBasics:GetData(Player: Player)
 	end
 
 	MissionData.Step = MissionData.Step or LearnTheBasics.StepTalk
-	MissionData.Attacks = MissionData.Attacks or 0
-	MissionData.Blocks = MissionData.Blocks or 0
-	MissionData.Rolls = MissionData.Rolls or 0
 	return MissionData
 end
 
@@ -57,31 +51,35 @@ function LearnTheBasics:ShowTalkObjective(Player: Player, ObjectiveText: string)
 	LearnTheBasics:SetMikotoTarget(Player)
 end
 
-function LearnTheBasics:ShowPracticeObjective(Player: Player, MissionData)
-	ObjectiveService:AddObjective(Player, LearnTheBasics.Name, {
-		{
-			Name = "Practice basic attacks",
-			TargetAmount = LearnTheBasics.RequiredAttacks,
-			CurrentAmount = MissionData.Attacks,
-		},
-		{
-			Name = "Practice blocking",
-			TargetAmount = LearnTheBasics.RequiredBlocks,
-			CurrentAmount = MissionData.Blocks,
-		},
-		{
-			Name = "Practice dodging",
-			TargetAmount = LearnTheBasics.RequiredRolls,
-			CurrentAmount = MissionData.Rolls,
-		},
-	}, LearnTheBasics.DisplayName, false)
-	LearnTheBasics:ClearTargets(Player)
+function LearnTheBasics:ShowTalkMarker(Player: Player)
+	ObjectiveService:ClearObjective(Player, LearnTheBasics.Name)
+	LearnTheBasics:SetMikotoTarget(Player)
 end
 
-function LearnTheBasics:HasFinishedPractice(MissionData): boolean
-	return MissionData.Attacks >= LearnTheBasics.RequiredAttacks
-		and MissionData.Blocks >= LearnTheBasics.RequiredBlocks
-		and MissionData.Rolls >= LearnTheBasics.RequiredRolls
+function LearnTheBasics:ClearTrainingProgress(MissionData)
+	MissionData.CombatTutorialPhase = nil
+	MissionData.CombatTutorialProgress = nil
+end
+
+function LearnTheBasics:ResetAsNeverStarted(Player: Player)
+	local _, PlayerData = TutorialService:GetMissionData(Player, LearnTheBasics.Name)
+	if not PlayerData then
+		return false
+	end
+
+	PlayerData.Story = PlayerData.Story or {}
+	PlayerData.Story[LearnTheBasics.Name] = nil
+
+	if PlayerData.Quest and PlayerData.Quest.Name == LearnTheBasics.Name then
+		QuestService:RemoveQuest(Player)
+	end
+
+	LearnTheBasics:ClearTargets(Player)
+	CombatTutorialService:EndTraining(Player, true)
+	ObjectiveService:ClearObjective(Player, LearnTheBasics.Name)
+	TutorialService:CreateTutorialMission(Player)
+
+	return true
 end
 
 function LearnTheBasics:FinishPractice(Player: Player)
@@ -91,6 +89,8 @@ function LearnTheBasics:FinishPractice(Player: Player)
 	end
 
 	MissionData.Step = LearnTheBasics.StepReturn
+	LearnTheBasics:ClearTrainingProgress(MissionData)
+	CombatTutorialService:EndTraining(Player, true)
 	LearnTheBasics:ShowTalkObjective(Player, "Return to Mikoto")
 	return true
 end
@@ -102,34 +102,18 @@ function LearnTheBasics:StartTraining(Player: Player)
 	end
 
 	MissionData.Step = LearnTheBasics.StepPractice
-	LearnTheBasics:ShowPracticeObjective(Player, MissionData)
-	return true
-end
+	MissionData.CombatTutorialPhase = 1
+	MissionData.CombatTutorialProgress = 0
+	LearnTheBasics:ClearTargets(Player)
 
-function LearnTheBasics:CombatAction(Player: Player, Action: string)
-	local MissionData = LearnTheBasics:GetData(Player)
-	if not MissionData or MissionData.Step ~= LearnTheBasics.StepPractice then
-		return false
+	if CombatTutorialService:StartTraining(Player, true) then
+		return true
 	end
 
-	if Action == "Attack" and MissionData.Attacks < LearnTheBasics.RequiredAttacks then
-		MissionData.Attacks += 1
-		ObjectiveService:UpdateProgress(Player, LearnTheBasics.Name, 1, 1)
-	elseif Action == "Block" and MissionData.Blocks < LearnTheBasics.RequiredBlocks then
-		MissionData.Blocks += 1
-		ObjectiveService:UpdateProgress(Player, LearnTheBasics.Name, 2, 1)
-	elseif Action == "Roll" and MissionData.Rolls < LearnTheBasics.RequiredRolls then
-		MissionData.Rolls += 1
-		ObjectiveService:UpdateProgress(Player, LearnTheBasics.Name, 3, 1)
-	else
-		return false
-	end
-
-	if LearnTheBasics:HasFinishedPractice(MissionData) then
-		LearnTheBasics:FinishPractice(Player)
-	end
-
-	return true
+	MissionData.Step = LearnTheBasics.StepTalk
+	LearnTheBasics:ClearTrainingProgress(MissionData)
+	LearnTheBasics:ShowTalkMarker(Player)
+	return false
 end
 
 function LearnTheBasics:Resume(Player: Player)
@@ -139,15 +123,13 @@ function LearnTheBasics:Resume(Player: Player)
 	end
 
 	if MissionData.Step == LearnTheBasics.StepPractice then
-		if LearnTheBasics:HasFinishedPractice(MissionData) then
-			return LearnTheBasics:FinishPractice(Player)
-		end
-		LearnTheBasics:ShowPracticeObjective(Player, MissionData)
+		LearnTheBasics:ResetAsNeverStarted(Player)
+		return false
 	elseif MissionData.Step == LearnTheBasics.StepReturn then
 		LearnTheBasics:ShowTalkObjective(Player, "Return to Mikoto")
 	else
 		MissionData.Step = LearnTheBasics.StepTalk
-		LearnTheBasics:ShowTalkObjective(Player, "Talk with Mikoto")
+		LearnTheBasics:ShowTalkMarker(Player)
 	end
 
 	return true
@@ -160,6 +142,7 @@ function LearnTheBasics:CompleteQuest(Player: Player)
 	end
 
 	LearnTheBasics:ClearTargets(Player)
+	CombatTutorialService:EndTraining(Player, false)
 	ObjectiveService:ClearObjective(Player, LearnTheBasics.Name, true)
 	LevelService:GiveExp(Player, 100)
 	TutorialService:CompleteMission(Player, LearnTheBasics.Name)
@@ -185,8 +168,8 @@ return {
 		return LearnTheBasics:StartTraining(Player)
 	end,
 
-	CombatAction = function(Player: Player, Action: string)
-		return LearnTheBasics:CombatAction(Player, Action)
+	FinishPractice = function(Player: Player)
+		return LearnTheBasics:FinishPractice(Player)
 	end,
 
 	CompleteQuest = function(Player: Player)
@@ -195,6 +178,7 @@ return {
 
 	Cancel = function(Player: Player)
 		LearnTheBasics:ClearTargets(Player)
+		CombatTutorialService:EndTraining(Player, true)
 		ObjectiveService:ClearObjective(Player, LearnTheBasics.Name)
 		return true
 	end,

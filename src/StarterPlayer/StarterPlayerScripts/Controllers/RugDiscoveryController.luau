@@ -11,6 +11,7 @@ local Player = Players.LocalPlayer
 local COMPASS_DISTANCE = 100
 local PROMPT_DISTANCE = 10
 local TARGET_PREFIX = "UnknownRug:"
+local DISCOVERED_RUG_ICON = "rbxassetid://136206430829037"
 
 local RugService
 local QuestTargetController
@@ -34,19 +35,17 @@ local function IsUnlocked(Rug: Instance): boolean
 	return UnlockedRugs[Rug.Name] == true
 end
 
-local function GetRugIcon(Rug: Instance): string?
-	local RugPart = GetRugPart(Rug)
-	if not RugPart then
-		return nil
+local function GetRugDisplayName(Rug: Instance): string
+	local DisplayName = Rug:GetAttribute("DisplayName")
+	if typeof(DisplayName) == "string" and DisplayName ~= "" then
+		return DisplayName
 	end
 
-	local Icon = RugPart:FindFirstChildWhichIsA("ImageLabel", true)
-		or RugPart:FindFirstChildWhichIsA("ImageButton", true)
-	if Icon and Icon.Image ~= "" then
-		return Icon.Image
-	end
+	return Rug.Name
+end
 
-	return nil
+local function GetRugLabel(Rug: Instance): string
+	return if IsUnlocked(Rug) then GetRugDisplayName(Rug) else "Unknown Rug"
 end
 
 local function TriggerMeditate()
@@ -65,7 +64,7 @@ local function CreateMeditatePrompt(Rug: Instance, RugPart: BasePart)
 	local Prompt = Instance.new("ProximityPrompt")
 	Prompt.Name = "MeditatePrompt"
 	Prompt.ActionText = "Meditate"
-	Prompt.ObjectText = "Unknown Rug"
+	Prompt.ObjectText = GetRugLabel(Rug)
 	Prompt.Style = Enum.ProximityPromptStyle.Custom
 	Prompt.KeyboardKeyCode = Enum.KeyCode.M
 	Prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
@@ -104,9 +103,11 @@ local function AddTarget(Rug: Instance)
 	local Options = {
 		CompassOnly = true,
 		CompassMaxDistance = COMPASS_DISTANCE,
+		CompassLabel = GetRugLabel(Rug),
 	}
 	if IsUnlocked(Rug) then
-		Options.CompassIconImage = GetRugIcon(Rug)
+		Options.CompassMode = "MissionName"
+		Options.CompassIconImage = DISCOVERED_RUG_ICON
 	else
 		Options.CompassIconText = "?"
 	end
@@ -115,9 +116,9 @@ local function AddTarget(Rug: Instance)
 	if Target then
 		TargetsByRug[Rug] = Target
 	end
-	if not IsUnlocked(Rug) then
+	-- if not IsUnlocked(Rug) then
 		CreateMeditatePrompt(Rug, RugPart)
-	end
+	-- end
 end
 
 local function RefreshTargets()
