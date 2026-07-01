@@ -37,6 +37,7 @@ local Godot = {
 			answers = {
 				[1] = {
 					text = "I do not know what to do now.",
+					actionType = "quest",
 					nextDialog = 2,
 					callback = function(Player)
 						if TutorialService:CanStartMission(Player, "TalkWithBlacksmith") then
@@ -64,6 +65,7 @@ local Godot = {
 			answers = {
 				[1] = {
 					text = "All right.",
+					actionType = "quest",
 					callback = function(Player)
 						QuestService:CallQuestFunction(Player, "StartMining")
 					end,
@@ -85,6 +87,7 @@ local Godot = {
 			answers = {
 				[1] = {
 					text = "...",
+					actionType = "quest",
 					callback = function(Player)
 						QuestService:CallQuestFunction(Player, "StartCraftKatana")
 					end,
@@ -105,6 +108,7 @@ local Godot = {
 			answers = {
 				[1] = {
 					text = "...",
+					actionType = "quest",
 					callback = function(Player)
 						QuestService:CallQuestFunction(Player, "CompleteQuest")
 					end,

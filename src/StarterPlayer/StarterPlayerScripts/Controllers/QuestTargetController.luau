@@ -48,6 +48,21 @@ function QuestTargetController:CreateTarget(Title: string, Parent: Instance?, Op
 		if typeof(Options.WorldMaxDistance) == "number" then
 			Target.MaxDistance = Options.WorldMaxDistance
 		end
+		if typeof(Options.WorldStudsOffset) == "Vector3" then
+			Target.StudsOffset = Options.WorldStudsOffset
+		end
+		if typeof(Options.WorldIconImage) == "string" then
+			local TargetIcon = Target:FindFirstChild("TargetIcon")
+			if TargetIcon and TargetIcon:IsA("ImageLabel") then
+				TargetIcon.Image = Options.WorldIconImage
+			end
+		end
+		if typeof(Options.WorldIconColor) == "Color3" then
+			local TargetIcon = Target:FindFirstChild("TargetIcon")
+			if TargetIcon and TargetIcon:IsA("ImageLabel") then
+				TargetIcon.ImageColor3 = Options.WorldIconColor
+			end
+		end
 		if typeof(Options.WorldLabel) == "string" then
 			Target.Info.Text = Options.WorldLabel
 			Target.Info.Visible = true

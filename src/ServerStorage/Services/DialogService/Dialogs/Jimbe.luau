@@ -10,7 +10,7 @@ local Jimbe = {
 			answers = {
 				[1] = {
 					text = "Yeah, I can do that.",
-					actionType = "quest",
+					actionType = "accept",
 
 					callback = function(player)
 						QuestService:GiveQuest(player, "DeliverBox")

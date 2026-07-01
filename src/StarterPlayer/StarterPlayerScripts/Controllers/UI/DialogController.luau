@@ -1,5 +1,6 @@
 local CollectionService = game:GetService("CollectionService")
 local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 local player = game.Players.LocalPlayer
 local Mouse = player:GetMouse()
 local AnswerDB = false
@@ -39,17 +40,26 @@ local WaitTimes = {
 
 local ActionTypes = {
 	["default"] = Color3.fromRGB(255, 255, 255),
+	["normal"] = Color3.fromRGB(255, 255, 255),
 	["deny"] = Color3.fromRGB(255, 41, 41),
+	["reject"] = Color3.fromRGB(255, 41, 41),
 	["quest"] = Color3.fromRGB(255, 204, 1),
+	["mainQuest"] = Color3.fromRGB(255, 204, 1),
+	["story"] = Color3.fromRGB(255, 204, 1),
 	["agree"] = Color3.fromRGB(148, 255, 66),
+	["accept"] = Color3.fromRGB(148, 255, 66),
 	["end"] = Color3.fromRGB(255, 41, 41),
 }
 
 local DEFAULT_ANSWER_TEXT_COLOR = Color3.fromRGB(255, 255, 255)
 local ANSWER_CHARS_PER_LINE = 42
-local ANSWER_MIN_HEIGHT = 0.14
-local ANSWER_LINE_HEIGHT = 0.055
-local ANSWER_MAX_HEIGHT = 0.34
+local ANSWER_MIN_HEIGHT = 58
+local ANSWER_LINE_HEIGHT = 22
+local ANSWER_MAX_HEIGHT = 112
+local ANSWER_TEXT_SIZE = 18
+local ANSWER_HOVER_INFO = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local ANSWER_PRESS_INFO = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local ANSWER_SELECT_INFO = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 local function GetColor(Value, Fallback: Color3): Color3
 	return if typeof(Value) == "Color3" then Value else Fallback
@@ -60,9 +70,106 @@ local function GetAnswerAccentColor(AnswerTable): Color3
 	return GetColor(AnswerTable.color or AnswerTable.accentColor, ActionTypeColor)
 end
 
-local function GetAnswerHeightScale(Text: string): number
+local function GetAnswerHeight(Text: string): number
 	local LineCount = math.max(1, math.ceil(string.len(Text) / ANSWER_CHARS_PER_LINE))
 	return math.clamp(ANSWER_MIN_HEIGHT + ((LineCount - 1) * ANSWER_LINE_HEIGHT), ANSWER_MIN_HEIGHT, ANSWER_MAX_HEIGHT)
+end
+
+local function GetOrCreateAnswerScale(AnswerButton: GuiObject): UIScale
+	local Scale = AnswerButton:FindFirstChild("AnswerScale")
+	if Scale and Scale:IsA("UIScale") then
+		return Scale
+	end
+
+	Scale = Instance.new("UIScale")
+	Scale.Name = "AnswerScale"
+	Scale.Parent = AnswerButton
+	return Scale
+end
+
+local function GetOrCreateCircleGradient(ActionType: GuiObject): UIGradient
+	local Gradient = ActionType:FindFirstChild("CircleGradient")
+	if Gradient and Gradient:IsA("UIGradient") then
+		return Gradient
+	end
+
+	Gradient = Instance.new("UIGradient")
+	Gradient.Name = "CircleGradient"
+	Gradient.Rotation = 90
+	Gradient.Parent = ActionType
+	return Gradient
+end
+
+local function ApplyCircleGradient(ActionType: GuiObject, AccentColor: Color3)
+	local Gradient = GetOrCreateCircleGradient(ActionType)
+	Gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, AccentColor:Lerp(Color3.new(1, 1, 1), 0.42)),
+		ColorSequenceKeypoint.new(0.48, AccentColor),
+		ColorSequenceKeypoint.new(1, AccentColor:Lerp(Color3.new(0, 0, 0), 0.28)),
+	})
+end
+
+local function TweenAnswer(
+	AnswerButton: GuiButton,
+	Scale: UIScale,
+	TextLabel: TextLabel?,
+	ActionType: ImageLabel?,
+	AccentColor: Color3,
+	BaseImageColor: Color3,
+	BaseImageTransparency: number,
+	BaseTextColor: Color3,
+	State: string
+)
+	local TargetScale = 1
+	local TargetImageColor = BaseImageColor
+	local TargetImageTransparency = BaseImageTransparency
+	local TargetTextColor = BaseTextColor
+	local TargetIconTransparency = 0
+	local Info = ANSWER_HOVER_INFO
+
+	if State == "Hover" then
+		TargetScale = 1.025
+		TargetImageColor = BaseImageColor:Lerp(AccentColor, 0.18)
+		TargetImageTransparency = math.max(0, BaseImageTransparency - 0.08)
+		TargetTextColor = BaseTextColor:Lerp(AccentColor, 0.25)
+	elseif State == "Pressed" then
+		TargetScale = 0.975
+		TargetImageColor = BaseImageColor:Lerp(AccentColor, 0.28)
+		TargetImageTransparency = math.max(0, BaseImageTransparency - 0.12)
+		TargetTextColor = AccentColor:Lerp(Color3.new(1, 1, 1), 0.35)
+		Info = ANSWER_PRESS_INFO
+	elseif State == "Selected" then
+		TargetScale = 1.04
+		TargetImageColor = BaseImageColor:Lerp(AccentColor, 0.42)
+		TargetImageTransparency = math.max(0, BaseImageTransparency - 0.16)
+		TargetTextColor = AccentColor:Lerp(Color3.new(1, 1, 1), 0.25)
+		TargetIconTransparency = 0
+		Info = ANSWER_SELECT_INFO
+	end
+
+	TweenService:Create(Scale, Info, { Scale = TargetScale }):Play()
+
+	if AnswerButton:IsA("ImageButton") then
+		TweenService:Create(AnswerButton, Info, {
+			ImageColor3 = TargetImageColor,
+			ImageTransparency = TargetImageTransparency,
+		}):Play()
+	else
+		TweenService:Create(AnswerButton, Info, {
+			BackgroundColor3 = TargetImageColor,
+			BackgroundTransparency = TargetImageTransparency,
+		}):Play()
+	end
+
+	if TextLabel then
+		TweenService:Create(TextLabel, Info, { TextColor3 = TargetTextColor }):Play()
+	end
+
+	if ActionType then
+		TweenService:Create(ActionType, Info, {
+			ImageTransparency = TargetIconTransparency,
+		}):Play()
+	end
 end
 
 local EasyVisuals = require(game.ReplicatedStorage.Assets.Libraries.EasyVisuals)
@@ -188,10 +295,16 @@ function BindAndLoadAnswers(DialogBody)
 		local ActionType = AnswerTemplate:FindFirstChild("ActionType")
 
 		AnswerTemplate.LayoutOrder = answerIndex
-		AnswerTemplate.Size = UDim2.fromScale(1, GetAnswerHeightScale(AnswerText))
+		AnswerTemplate.Size = UDim2.new(1, 0, 0, GetAnswerHeight(AnswerText))
+		AnswerTemplate.AutoButtonColor = false
+
+		local BaseImageColor = AnswerTemplate.ImageColor3
+		local BaseImageTransparency = math.min(AnswerTemplate.ImageTransparency, 0.18)
+		AnswerTemplate.ImageTransparency = BaseImageTransparency
 
 		if AnswerTable.buttonColor or AnswerTable.backgroundColor then
 			local ButtonColor = GetColor(AnswerTable.buttonColor or AnswerTable.backgroundColor, AnswerTemplate.BackgroundColor3)
+			BaseImageColor = ButtonColor
 			AnswerTemplate.BackgroundColor3 = ButtonColor
 			AnswerTemplate.BackgroundTransparency = math.min(AnswerTemplate.BackgroundTransparency, 0.15)
 
@@ -200,24 +313,30 @@ function BindAndLoadAnswers(DialogBody)
 			end
 		end
 
-		local Stroke = AnswerTemplate:FindFirstChildWhichIsA("UIStroke")
-		if Stroke then
-			Stroke.Color = GetColor(AnswerTable.strokeColor, AccentColor)
-		end
+		local Scale = GetOrCreateAnswerScale(AnswerTemplate)
+		local BaseTextColor = GetColor(AnswerTable.textColor, DEFAULT_ANSWER_TEXT_COLOR)
+		local ActiveTextLabel = if TextLabel and TextLabel:IsA("TextLabel") then TextLabel else nil
+		local ActiveActionType = if ActionType and (ActionType:IsA("ImageLabel") or ActionType:IsA("ImageButton"))
+			then ActionType
+			else nil
 
 		if ActionType and (ActionType:IsA("ImageLabel") or ActionType:IsA("ImageButton")) then
-			ActionType.ImageColor3 = AccentColor
+			ActionType.ImageColor3 = Color3.new(1, 1, 1)
+			ActionType.Size = UDim2.fromScale(0.095, 0.48)
+			ApplyCircleGradient(ActionType, AccentColor)
 		end
 
 		if TextLabel and TextLabel:IsA("TextLabel") then
+			TextLabel.Position = UDim2.fromScale(0.57, 0.5)
+			TextLabel.Size = UDim2.fromScale(0.76, 0.68)
 			TextLabel.Text = AnswerText
-			TextLabel.TextColor3 = GetColor(AnswerTable.textColor, DEFAULT_ANSWER_TEXT_COLOR)
+			TextLabel.TextColor3 = BaseTextColor
 			TextLabel.TextScaled = false
 			TextLabel.TextWrapped = true
 			TextLabel.TextTruncate = Enum.TextTruncate.None
 			TextLabel.TextXAlignment = Enum.TextXAlignment.Left
 			TextLabel.TextYAlignment = Enum.TextYAlignment.Center
-			TextLabel.TextSize = math.max(TextLabel.TextSize, 16)
+			TextLabel.TextSize = math.max(TextLabel.TextSize, ANSWER_TEXT_SIZE)
 			TextLabel.LineHeight = 1.05
 
 			if AnswerTable.visual then
@@ -227,6 +346,62 @@ function BindAndLoadAnswers(DialogBody)
 
 		AnswerTemplate.Visible = true
 		AnswerTemplate.Parent = AnswersContent
+
+		AnswerTemplate.MouseEnter:Connect(function()
+			TweenAnswer(
+				AnswerTemplate,
+				Scale,
+				ActiveTextLabel,
+				ActiveActionType,
+				AccentColor,
+				BaseImageColor,
+				BaseImageTransparency,
+				BaseTextColor,
+				"Hover"
+			)
+		end)
+
+		AnswerTemplate.MouseLeave:Connect(function()
+			TweenAnswer(
+				AnswerTemplate,
+				Scale,
+				ActiveTextLabel,
+				ActiveActionType,
+				AccentColor,
+				BaseImageColor,
+				BaseImageTransparency,
+				BaseTextColor,
+				"Default"
+			)
+		end)
+
+		AnswerTemplate.MouseButton1Down:Connect(function()
+			TweenAnswer(
+				AnswerTemplate,
+				Scale,
+				ActiveTextLabel,
+				ActiveActionType,
+				AccentColor,
+				BaseImageColor,
+				BaseImageTransparency,
+				BaseTextColor,
+				"Pressed"
+			)
+		end)
+
+		AnswerTemplate.MouseButton1Up:Connect(function()
+			TweenAnswer(
+				AnswerTemplate,
+				Scale,
+				ActiveTextLabel,
+				ActiveActionType,
+				AccentColor,
+				BaseImageColor,
+				BaseImageTransparency,
+				BaseTextColor,
+				"Hover"
+			)
+		end)
 
 		local AnswerConnection
 		AnswerConnection = AnswerTemplate.Activated:Connect(function(inputObject, clickCount)
@@ -239,20 +414,32 @@ function BindAndLoadAnswers(DialogBody)
 				AnswerConnection = nil
 			end
 
-			task.delay(0.05, function()
+			TweenAnswer(
+				AnswerTemplate,
+				Scale,
+				ActiveTextLabel,
+				ActiveActionType,
+				AccentColor,
+				BaseImageColor,
+				BaseImageTransparency,
+				BaseTextColor,
+				"Selected"
+			)
+
+			task.delay(0.08, function()
+				if AnswerTable.nextDialog then
+					local newDialogBody = DialogService:Answer(answerIndex)
+
+					if newDialogBody then
+						BindAndLoadAnswers(newDialogBody)
+					end
+				else
+					EndDialog()
+					DialogService:Answer(answerIndex)
+				end
+
 				AnswerDB = false
 			end)
-
-			if AnswerTable.nextDialog then
-				local newDialogBody = DialogService:Answer(answerIndex)
-
-				if newDialogBody then
-					BindAndLoadAnswers(newDialogBody)
-				end
-			else
-				EndDialog()
-				DialogService:Answer(answerIndex)
-			end
 		end)
 	end
 end

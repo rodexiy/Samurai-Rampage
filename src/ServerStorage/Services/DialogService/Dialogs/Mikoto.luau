@@ -11,6 +11,7 @@ return {
 			answers = {
 				[1] = {
 					text = "Teach me, sword master.",
+					actionType = "quest",
 					nextDialog = 2,
 					callback = function(Player)
 						if TutorialService:CanStartMission(Player, "LearnTheBasics") then
@@ -27,6 +28,7 @@ return {
 			answers = {
 				[1] = {
 					text = "I am ready.",
+					actionType = "quest",
 					callback = function(Player)
 						QuestService:CallQuestFunction(Player, "StartTraining")
 					end,
@@ -63,6 +65,7 @@ return {
 			answers = {
 				[1] = {
 					text = "Thank you, sword master.",
+					actionType = "quest",
 					callback = function(Player)
 						QuestService:CallQuestFunction(Player, "CompleteQuest")
 					end,

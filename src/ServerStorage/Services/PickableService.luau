@@ -11,6 +11,7 @@ local ItemService
 local InventoryService
 local RenderService
 local DebounceService
+local QuestService
 
 local PICK_ANIMATION_DURATION = 1
 local PICK_PROMPT_NAME = "PickPrompt"
@@ -65,7 +66,10 @@ function PickableService:Pick(Player: Player, Pickable: Model)
 		end
 
 		local Item = ItemService:CreateItem(Pickable.Name, Amount)
-		InventoryService:GiveItemToPlayer(Player, Item)
+		local AmountAdded = InventoryService:GiveItemToPlayer(Player, Item)
+		if AmountAdded > 0 then
+			QuestService:CallQuestFunction(Player, "PickItem", Pickable.Name, AmountAdded, Pickable)
+		end
 		task.spawn(function()
 			RenderService:RenderForPlayer(
 				Player,
@@ -128,6 +132,7 @@ function PickableService.KnitStart()
 	InventoryService = Knit.GetService("InventoryService")
 	RenderService = Knit.GetService("RenderService")
 	DebounceService = Knit.GetService("DebounceService")
+	QuestService = Knit.GetService("QuestService")
 end
 
 return PickableService

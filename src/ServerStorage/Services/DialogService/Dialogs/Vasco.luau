@@ -106,6 +106,7 @@ return {
 			answers = {
 				[1] = {
 					text = "Thank you.",
+					actionType = "quest",
 					callback = function(Player)
 						QuestService:CallQuestFunction(Player, "StartWoodcutting")
 					end,
