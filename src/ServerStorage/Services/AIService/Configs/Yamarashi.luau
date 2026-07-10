@@ -7,9 +7,9 @@ return {
 			AttackDistance = 6,
 			TargetOffset = 3,
 
-			MaintainDistance = 50,
-			DetectionDistanceFromSpawn = 35,
-			MaxDistanceFromSpawn = 100,
+			MaintainDistance = 95,
+			DetectionDistanceFromSpawn = 70,
+			MaxDistanceFromSpawn = 140,
 
 			ActionDistance = 11,
 			ActionChance = 70,
@@ -31,9 +31,9 @@ return {
 			AttackDistance = 6,
 			TargetOffset = 3,
 
-			MaintainDistance = 50,
-			DetectionDistanceFromSpawn = 35,
-			MaxDistanceFromSpawn = 100,
+			MaintainDistance = 95,
+			DetectionDistanceFromSpawn = 70,
+			MaxDistanceFromSpawn = 140,
 
 			ActionDistance = 11,
 			ActionChance = 85,

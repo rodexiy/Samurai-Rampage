@@ -28,6 +28,7 @@ local WisdomWorldService
 local LoadingService
 local TutorialService
 local CombatTutorialService
+local TriggerService
 
 function PlayerService:PlayerAdded(Player: Player)
 	if Player:HasTag("Player") then
@@ -63,6 +64,7 @@ function PlayerService:PlayerAdded(Player: Player)
 		return
 	end
 
+	TriggerService:SendCompletedTriggers(Player)
 	TutorialService:CreateTutorialMission(Player)
 	CharacterService:LoadCharacter(Player)
 end
@@ -215,6 +217,7 @@ function PlayerService:ResetDataAndRestartTutorial(Player: Player)
 	Player:SetAttribute("Bounty", PlayerData.Bounty)
 	Player:SetAttribute("Loaded", true)
 
+	TriggerService:SendCompletedTriggers(Player)
 	TutorialService:CreateTutorialMission(Player)
 	CharacterService:LoadCharacter(Player)
 
@@ -269,6 +272,7 @@ function PlayerService.KnitInit()
 	LoadingService = Knit.GetService("LoadingService")
 	TutorialService = Knit.GetService("TutorialService")
 	CombatTutorialService = Knit.GetService("CombatTutorialService")
+	TriggerService = Knit.GetService("TriggerService")
 end
 
 function PlayerService.KnitStart()

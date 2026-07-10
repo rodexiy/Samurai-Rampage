@@ -5,6 +5,7 @@ return {
 	NPC = "Mikoto",
 	InitialStep = "TalkWithMikoto",
 	Prerequisite = "TalkWithBlacksmith",
+	AutoAssign = true,
 	MarkerDistance = 70,
 	CreatePrompt = true,
 }

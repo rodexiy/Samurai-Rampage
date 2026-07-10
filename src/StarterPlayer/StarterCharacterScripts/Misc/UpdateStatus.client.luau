@@ -17,6 +17,8 @@ local AttributesToUpdate = {
 	"RunningWalkSpeed",
 	"RunSpeedMultiplier",
 	"RunSpeedIncrease",
+	"Weapon",
+	"LeftWeapon",
 	"SwordDamage",
 }
 

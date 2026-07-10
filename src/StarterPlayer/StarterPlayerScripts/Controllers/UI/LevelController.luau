@@ -6,6 +6,7 @@ local LevelController = Knit.CreateController({
 })
 
 local LevelService
+local MenuController
 
 local Player = game.Players.LocalPlayer
 local PlayerGui
@@ -144,6 +145,7 @@ end
 
 function LevelController.KnitInit()
 	LevelService = Knit.GetService("LevelService")
+	MenuController = Knit.GetController("MenuController")
 end
 
 function LevelController.KnitStart()
@@ -157,6 +159,10 @@ function LevelController.KnitStart()
 	ExpBar = Content:WaitForChild("ExpBar")
 	Bar = ExpBar:WaitForChild("Bar")
 	SpecTemplate = Content:WaitForChild("SpecTemplate")
+	local OpenInventory = Content:WaitForChild("OpenInventory")
+	OpenInventory.Activated:Connect(function()
+		MenuController:OpenMenu("Inventory")
+	end)
 
 	for i = 1, MAX_SPECS do
 		local Spec = SpecTemplate:Clone()

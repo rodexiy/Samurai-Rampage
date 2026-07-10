@@ -13,7 +13,6 @@ return {
 
 	CraftingRequirements = {
 		{ { Cloth = 4 } },
-		{ { StrongRope = 2 } },
-		{ { WoodLog = 2 } },
+		{ { StrongRope = 2 } }
 	},
 }

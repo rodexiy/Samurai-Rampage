@@ -7,6 +7,8 @@ local DamageService = Knit.CreateService({
 	Client = {},
 })
 
+local MIN_PLAYER_COMBAT_LEVEL = 10
+
 local PartyService
 local EquipmentService
 local ItemService
@@ -14,6 +16,27 @@ local SkillTreeService
 local ArtifactService
 local ValuesService
 local StanceService
+local DataService
+
+local function GetPlayerLevel(Player: Player): number
+	local PlayerData = DataService:GetData(Player)
+	return (PlayerData and PlayerData.Level) or 0
+end
+
+function DamageService:CanDamage(Character: Model, Attacker: Model?): boolean
+	if not Attacker then
+		return true
+	end
+
+	local CharacterPlayer = Players:GetPlayerFromCharacter(Character)
+	local AttackerPlayer = Players:GetPlayerFromCharacter(Attacker)
+	if not CharacterPlayer or not AttackerPlayer or CharacterPlayer == AttackerPlayer then
+		return true
+	end
+
+	return GetPlayerLevel(CharacterPlayer) >= MIN_PLAYER_COMBAT_LEVEL
+		and GetPlayerLevel(AttackerPlayer) >= MIN_PLAYER_COMBAT_LEVEL
+end
 
 function DamageService:GetMultiplierTotalFromEquipments(Character: Model, MultiplierName: string)
 	local EquipmentTypes = EquipmentService.EquipmentTypes
@@ -106,6 +129,10 @@ function DamageService:DealDamage(Character: Model, Amount: number, Attacker: Mo
 		return
 	end
 
+	if not DamageService:CanDamage(Character, Attacker) then
+		return
+	end
+
 	local AttackerPlayer = Attacker and Players:GetPlayerFromCharacter(Attacker)
 	local AttackerParty = PartyService:GetPlayerParty(AttackerPlayer)
 
@@ -157,6 +184,7 @@ function DamageService.KnitInit()
 	ArtifactService = Knit.GetService("ArtifactService")
 	ValuesService = Knit.GetService("ValuesService")
 	StanceService = Knit.GetService("StanceService")
+	DataService = Knit.GetService("DataService")
 end
 
 function DamageService.KnitStart() end

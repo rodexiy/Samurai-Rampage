@@ -181,7 +181,6 @@ local vault = {
 	keys = { Enum.KeyCode.Space },
 }
 
-DeviceController:BindAction("Vault", vault.callback, "Vault", UDim2.fromScale(0.25, 0.2))
 
 function vault.Start()
 	Character:GetAttributeChangedSignal("Vaulting"):Connect(function()

@@ -18,6 +18,7 @@ local Inventory
 local background
 local Content
 local ItemInfo
+local SlotEquipTooltip
 
 local NotSelectedColor = Color3.fromRGB(140, 140, 140)
 local SelectedColor = Color3.fromRGB(255, 255, 255)
@@ -288,7 +289,11 @@ function InventoryController:Select(Item)
 		and SelectedItemData.Class ~= "Equipable"
 		and SelectedItemData.Class ~= "Weapon"
 	then
+		SlotEquipTooltip.Visible = true
 		HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
+	else
+
+		SlotEquipTooltip.Visible = false
 	end
 end
 
@@ -507,6 +512,7 @@ local AttributesToShow = {
 	["Posture"] = "MaxPosture",
 	["Damage"] = "SwordDamage",
 }
+local NO_WEAPON_SPEED_MULTIPLIER = 1.2
 local bottom
 function InventoryController:UpdateStatus()
 	local Character = Player.Character
@@ -525,6 +531,10 @@ function InventoryController:UpdateStatus()
 				Value = (Character:GetAttribute("RunningWalkSpeed") or 24)
 						* (Character:GetAttribute("RunSpeedMultiplier") or 1)
 					+ (Character:GetAttribute("RunSpeedIncrease") or 0)
+
+				if not Character:GetAttribute("Weapon") and not Character:GetAttribute("LeftWeapon") then
+					Value *= NO_WEAPON_SPEED_MULTIPLIER
+				end
 			end
 
 			if Value then
@@ -562,6 +572,7 @@ function InventoryController.KnitStart()
 	background = Inventory:WaitForChild("background")
 	Content = background:WaitForChild("content")
 	ItemInfo = Inventory:WaitForChild("ItemInfo")
+	SlotEquipTooltip = ItemInfo:WaitForChild(("SlotEquipTooltip"))
 	bottom = Inventory:WaitForChild("bottom")
 
 	InventoryGUI:GetPropertyChangedSignal("Enabled"):Connect(function()

@@ -50,6 +50,10 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 		return
 	end
 
+	if not DamageService:CanDamage(Character, Attacker) then
+		return
+	end
+
 	InCombatService:SetInCombat(Character, true, Attacker)
 
 	SkillService:TryCancelSkillData(Character)
@@ -87,6 +91,10 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 end
 
 function HitService:NormalHit(Character: Model, Attacker: Model, Damage: number, Data: { any })
+	if not DamageService:CanDamage(Character, Attacker) then
+		return
+	end
+
 	local Result
 	if Character:GetAttribute("DeflectTime") and HitService:IsInFront(Attacker, Character) then
 		Result = PostureService:Deflected(Character, Attacker, Damage, Data)
@@ -102,6 +110,10 @@ function HitService:NormalHit(Character: Model, Attacker: Model, Damage: number,
 end
 
 function HitService:DodgeOnly(Character: Model, Attacker: Model, Damage: number, Data: { any })
+	if not DamageService:CanDamage(Character, Attacker) then
+		return
+	end
+
 	local Result
 	if Character:GetAttribute("RollIFrame") then
 		Result = PostureService:Dodged(Character, Attacker)
@@ -113,6 +125,10 @@ function HitService:DodgeOnly(Character: Model, Attacker: Model, Damage: number,
 end
 
 function HitService:DeflectOnly(Character: Model, Attacker: Model, Damage: number, Data: { any })
+	if not DamageService:CanDamage(Character, Attacker) then
+		return
+	end
+
 	local Result
 	if Character:GetAttribute("DeflectTime") and HitService:IsInFront(Attacker, Character) then
 		Result = PostureService:Deflected(Character, Attacker, Damage, Data)

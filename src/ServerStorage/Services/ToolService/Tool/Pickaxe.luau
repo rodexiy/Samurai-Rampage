@@ -9,9 +9,12 @@ local StaminaService = Knit.GetService("StaminaService")
 local ResourceService = Knit.GetService("ResourceService")
 local RenderService = Knit.GetService("RenderService")
 local RealmService = Knit.GetService("RealmService")
+local SoundEffectService = Knit.GetService("SoundEffectService")
 
 local OresParams = OverlapParams.new()
 OresParams.FilterType = Enum.RaycastFilterType.Include
+
+local ORE_MAX_HEALTH_RANGE = { 2, 4 }
 
 function Pickaxe.Activated(Character: Model, Data: { any })
 	local Tool = Character:FindFirstChildWhichIsA("Tool")
@@ -59,19 +62,18 @@ function Pickaxe.Activated(Character: Model, Data: { any })
 	local Player = Players:GetPlayerFromCharacter(Character)
 
 	for _, Ore in Ores do
-		if not Ore:GetAttribute("Health") then
-			if not Ore:GetAttribute("MaxHealth") then
-				Ore:SetAttribute("MaxHealth", math.random(4, 7))
-				Ore:SetAttribute("Health", Ore:GetAttribute("MaxHealth") - 1)
-			end
-		end
-
 		if Ore:GetAttribute("Broken") then
 			continue
 		end
 
 		if not RealmService:HasOwnership(Player, Ore) then
 			continue
+		end
+
+		if not Ore:GetAttribute("Health") then
+			local MaxHealth = math.random(ORE_MAX_HEALTH_RANGE[1], ORE_MAX_HEALTH_RANGE[2])
+			Ore:SetAttribute("MaxHealth", MaxHealth)
+			Ore:SetAttribute("Health", MaxHealth)
 		end
 
 		RenderService:RenderForAllPlayers(
@@ -81,11 +83,14 @@ function Pickaxe.Activated(Character: Model, Data: { any })
 		)
 		RenderService:RenderForAllPlayers("Resource", "Shake", { Character = Character, Resource = Ore })
 
-		if Ore:GetAttribute("Health") <= 0 then
+
+		SoundEffectService:PlayRandomFromFolder("PickaxeHit", true, Ore)
+		local Health = Ore:GetAttribute("Health") - 1
+		Ore:SetAttribute("Health", Health)
+
+		if Health <= 0 then
 			Ore:SetAttribute("Broken", true)
 			ResourceService:BreakResource(Player, Ore)
-		else
-			Ore:SetAttribute("Health", Ore:GetAttribute("Health") - 1)
 		end
 	end
 end

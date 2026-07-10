@@ -16,7 +16,7 @@ local SideQuests = {
 		NPC = "Hanabi",
 		CompletedFlag = "HanabiBandageCompleted",
 		MarkerDistance = 70,
-		CompassDistance = 300,
+		CompassDistance = 1000,
 		PromptName = "HanabiSideQuestPrompt",
 	},
 }

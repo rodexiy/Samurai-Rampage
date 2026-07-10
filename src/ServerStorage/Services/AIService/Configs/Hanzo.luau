@@ -7,9 +7,9 @@ return {
 
 			RunDistance = 10,
 
-			MaintainDistance = 50, -- distancia entre o jogador que passa a ignoralo e para
-			DetectionDistanceFromSpawn = 35, -- raio de detecção do spawn, se entrar ele vai atras, fora disso só detecta com hit e vai até o MaxDistanceFromSpawn
-			MaxDistanceFromSpawn = 100, -- volta andando (*2 da top)
+			MaintainDistance = 95, -- distance where the boss drops the target
+			DetectionDistanceFromSpawn = 70, -- spawn detection radius; hit aggro can chase up to MaxDistanceFromSpawn
+			MaxDistanceFromSpawn = 140, -- starts returning after this distance from spawn
 
 			ActionDistance = 11,
 			ActionChance = 70,
@@ -40,9 +40,9 @@ return {
 			DeflectChance = 70,
 			RollChance = 20,
 
-			MaintainDistance = 50, -- distancia entre o jogador que passa a ignoralo e para
-			DetectionDistanceFromSpawn = 35, -- raio de detecção do spawn, se entrar ele vai atras, fora disso só detecta com hit e vai até o MaxDistanceFromSpawn
-			MaxDistanceFromSpawn = 100, -- volta andando (*2 da top)
+			MaintainDistance = 95, -- distance where the boss drops the target
+			DetectionDistanceFromSpawn = 70, -- spawn detection radius; hit aggro can chase up to MaxDistanceFromSpawn
+			MaxDistanceFromSpawn = 140, -- starts returning after this distance from spawn
 
 			RunSpeed = 18,
 

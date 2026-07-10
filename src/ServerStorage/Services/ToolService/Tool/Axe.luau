@@ -9,9 +9,12 @@ local StaminaService = Knit.GetService("StaminaService")
 local ResourceService = Knit.GetService("ResourceService")
 local RenderService = Knit.GetService("RenderService")
 local RealmService = Knit.GetService("RealmService")
+local SoundEffectService = Knit.GetService("SoundEffectService")
 
 local TreeParams = OverlapParams.new()
 TreeParams.FilterType = Enum.RaycastFilterType.Whitelist
+
+local TREE_MAX_HEALTH = 5
 
 local function GetTreesFolder(): Folder?
 	local Map = workspace:FindFirstChild("Map")
@@ -104,21 +107,23 @@ function Axe.Activated(Character: Model, Data: { any })
 			continue
 		end
 
+		
 		if not Tree:GetAttribute("Health") then
-			local _, Size = Tree:GetBoundingBox()
-			if not Tree:GetAttribute("MaxHealth") then
-				Tree:SetAttribute("MaxHealth", math.max(1, math.floor(Size.Y / 8)))
-				Tree:SetAttribute("Health", Tree:GetAttribute("MaxHealth") - 1)
-			end
+			Tree:SetAttribute("MaxHealth", TREE_MAX_HEALTH)
+			Tree:SetAttribute("Health", TREE_MAX_HEALTH)
 		end
 
 		RenderService:RenderForAllPlayers("Resource", "Shake", { Character = Character, Resource = Tree })
+		SoundEffectService:PlayRandomFromFolder("ChopTree", true, Tree)
+		
+		local Health = Tree:GetAttribute("Health") - 1
+		Tree:SetAttribute("Health", Health)
 
-		if Tree:GetAttribute("Health") <= 0 then
+		if Health <= 0 then
+
 			Tree:SetAttribute("Broken", true)
+			SoundEffectService:PlayRandomFromFolder("FallTree", true, Tree)
 			ResourceService:BreakResource(Player, Tree)
-		else
-			Tree:SetAttribute("Health", Tree:GetAttribute("Health") - 1)
 		end
 	end
 end

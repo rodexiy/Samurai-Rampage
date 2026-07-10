@@ -298,6 +298,13 @@ function CharacterService:BindEvents(Character: Model, Player: Player)
 		end
 	end)
 
+	Character:GetAttributeChangedSignal("Weapon"):Connect(function()
+		CharacterShared:UpdateWalkspeed(Character)
+	end)
+
+	Character:GetAttributeChangedSignal("LeftWeapon"):Connect(function()
+		CharacterShared:UpdateWalkspeed(Character)
+	end)
 end
 
 function CharacterService:SetStates(Character: Model)

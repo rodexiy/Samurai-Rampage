@@ -5,8 +5,8 @@ local QuestService = Knit.GetService("QuestService")
 local SideQuestService = Knit.GetService("SideQuestService")
 
 local QUEST_NAME = "HanabiBandage"
-local HERBS_REQUIRED = 4
-local BANDAGES_REQUIRED = 2
+local HERBS_REQUIRED = 6
+local BANDAGES_REQUIRED = 3
 
 local function GetQuest(Player: Player)
 	local PlayerData = DataService:GetData(Player)

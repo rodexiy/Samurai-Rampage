@@ -16,18 +16,21 @@ local TRAINER_CONFIG = "MikotoCombatTutorial"
 local FALLBACK_TRAINER_MOB = "Bandit"
 local DOJO_BOUNDARY_DISTANCE = 100
 local DOJO_OFFSET = 256
+local TRAINER_ACTIONS_FOLDER = "CombatTutorialActions"
 
 local Phases = {
 	{
 		Key = "Attack",
-		Objective = "Attack Mikoto",
+		Button = "M1",
+		Objective = "Light attack Mikoto",
 		TargetAmount = 3,
 		Mode = "PlayerHitTrainer",
 		Action = "Attack",
 	},
 	{
 		Key = "StrongAttack",
-		Objective = "Use a strong attack on Mikoto",
+		Button = "R",
+		Objective = "Heavy attack Mikoto",
 		TargetAmount = 1,
 		Mode = "PlayerHitTrainer",
 		Action = "StrongAttack",
@@ -35,6 +38,7 @@ local Phases = {
 	},
 	{
 		Key = "Block",
+		Button = "F",
 		Objective = "Block Mikoto's attack",
 		TargetAmount = 1,
 		Mode = "TrainerHitPlayer",
@@ -43,6 +47,7 @@ local Phases = {
 	},
 	{
 		Key = "Parry",
+		Button = "F",
 		Objective = "Parry Mikoto's attack",
 		TargetAmount = 1,
 		Mode = "TrainerHitPlayer",
@@ -51,6 +56,7 @@ local Phases = {
 	},
 	{
 		Key = "Dodge",
+		Button = "Q",
 		Objective = "Dodge Mikoto's attack",
 		TargetAmount = 1,
 		Mode = "TrainerHitPlayer",
@@ -59,6 +65,7 @@ local Phases = {
 	},
 	{
 		Key = "BreakPosture",
+		Button = "M1/R",
 		Objective = "Break Mikoto's posture",
 		TargetAmount = 1,
 		Mode = "TrainerPostureBreak",
@@ -66,7 +73,8 @@ local Phases = {
 	},
 	{
 		Key = "Execute",
-		Objective = "Execute downed Mikoto with a strong attack",
+		Button = "R",
+		Objective = "Execute downed Mikoto",
 		TargetAmount = 1,
 		Mode = "TrainerExecuted",
 		TrainerDowned = true,
@@ -81,7 +89,6 @@ local AIService
 local CharacterService
 local WeaponService
 local PostureService
-local MovementService
 local DebounceService
 local AnimationService
 local HitService
@@ -194,6 +201,43 @@ local function DisconnectSession(Session)
 	table.clear(Session.Connections)
 end
 
+local function GetTrainerAction(Trainer: Model, ActionName: string)
+	local ServerAssets = ServerStorage:FindFirstChild("ServerAssets")
+	local MobActions = ServerAssets and ServerAssets:FindFirstChild("MobActions")
+	local ActionTemplate = MobActions and MobActions:FindFirstChild(ActionName)
+	if not ActionTemplate or not ActionTemplate:IsA("ModuleScript") then
+		warn(`[CombatTutorialService] Missing ServerStorage.ServerAssets.MobActions.{ActionName}.`)
+		return nil
+	end
+
+	local ActionsFolder = Trainer:FindFirstChild(TRAINER_ACTIONS_FOLDER)
+	if not ActionsFolder then
+		ActionsFolder = Instance.new("Folder")
+		ActionsFolder.Name = TRAINER_ACTIONS_FOLDER
+		ActionsFolder.Parent = Trainer
+	end
+
+	local ActionModule = ActionsFolder:FindFirstChild(ActionName)
+	if not ActionModule then
+		ActionModule = ActionTemplate:Clone()
+		ActionModule.Parent = ActionsFolder
+	end
+
+	if not ActionModule:IsA("ModuleScript") then
+		return nil
+	end
+
+	return require(ActionModule)
+end
+
+local function GetPhaseObjective(Phase): string
+	if Phase.Button then
+		return `[{Phase.Button}] {Phase.Objective}`
+	end
+
+	return Phase.Objective
+end
+
 function CombatTutorialService:ShowPhaseObjective(Player: Player)
 	local MissionData = GetMissionData(Player)
 	if not MissionData then
@@ -207,7 +251,7 @@ function CombatTutorialService:ShowPhaseObjective(Player: Player)
 
 	ObjectiveService:AddObjective(Player, MISSION_NAME, {
 		{
-			Name = Phase.Objective,
+			Name = GetPhaseObjective(Phase),
 			TargetAmount = Phase.TargetAmount,
 			CurrentAmount = MissionData.CombatTutorialProgress or 0,
 		},
@@ -267,7 +311,11 @@ function CombatTutorialService:TrainerDodge(Trainer: Model)
 
 	self:StopTrainerBlock(Trainer)
 	DebounceService:RemoveDebounce(Trainer, "RollDebounce")
-	MovementService:Roll(Trainer, "Backward", Trainer:GetPivot())
+
+	local RollAction = GetTrainerAction(Trainer, "Roll")
+	if RollAction then
+		RollAction:Roll("Backward")
+	end
 end
 
 function CombatTutorialService:FaceCombatants(PlayerCharacter: Model, Trainer: Model)
@@ -796,7 +844,6 @@ function CombatTutorialService.KnitInit()
 	CharacterService = Knit.GetService("CharacterService")
 	WeaponService = Knit.GetService("WeaponService")
 	PostureService = Knit.GetService("PostureService")
-	MovementService = Knit.GetService("MovementService")
 	DebounceService = Knit.GetService("DebounceService")
 	AnimationService = Knit.GetService("AnimationService")
 	HitService = Knit.GetService("HitService")

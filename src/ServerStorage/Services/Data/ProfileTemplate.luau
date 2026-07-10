@@ -34,6 +34,7 @@ return {
 	},
 
 	Story = {},
+	CompletedTriggers = {},
 
 	RaceVariant = 1,
 

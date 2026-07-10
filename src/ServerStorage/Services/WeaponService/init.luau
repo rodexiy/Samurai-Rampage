@@ -27,6 +27,7 @@ local WeaponSlots = {
 
 local LeftWeaponSheathCFrame = CFrame.new(-1, 0.025, -1.4) * CFrame.Angles(0, math.rad(90), math.rad(110))
 local LeftSheathCFrame = CFrame.new(0, -0.55, 1.65) * CFrame.Angles(0, math.rad(90), math.rad(110))
+local DefaultHeldWeaponCFrame = CFrame.Angles(0, math.rad(90), math.rad(90))
 
 local function GetCharacterModelScale(Character: Model): number
 	local ModelScale = Character:GetAttribute("ModelScale")
@@ -95,9 +96,30 @@ local function SetWeldEnabled(Model: Model, WeldName: string, Enabled: boolean)
 	end
 end
 
+local function CreateFallbackLeftHandWeld(Weapon: Model): Weld?
+	if not GetWeld(Weapon, "HandWeld") then
+		return nil
+	end
+
+	local LeftHandWeld = Instance.new("Weld")
+	LeftHandWeld.Name = "LeftHandWeld"
+	LeftHandWeld.C0 = DefaultHeldWeaponCFrame
+	LeftHandWeld.C1 = CFrame.new()
+	LeftHandWeld.Part1 = Weapon.PrimaryPart
+	LeftHandWeld.Enabled = false
+	LeftHandWeld.Parent = Weapon
+
+	return LeftHandWeld
+end
+
 local function GetWeaponHandWeld(Weapon: Model, IsLeftWeapon: boolean): (Weld?, boolean)
 	if IsLeftWeapon then
 		local LeftHandWeld = GetWeld(Weapon, "LeftHandWeld")
+		if LeftHandWeld then
+			return LeftHandWeld, true
+		end
+
+		LeftHandWeld = CreateFallbackLeftHandWeld(Weapon)
 		if LeftHandWeld then
 			return LeftHandWeld, true
 		end

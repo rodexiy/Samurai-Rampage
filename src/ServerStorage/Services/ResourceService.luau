@@ -20,7 +20,7 @@ local ResourceTypes = {
 	NormalTree = {
 		Name = "Normal Tree",
 		Rewards = {
-			{ Name = "WoodLog", Amount = { 2, 5 }, Weight = 100 },
+			{ Name = "WoodLog", Amount = { 4, 8 }, Weight = 100 },
 		},
 		RespawnTime = { 5, 10 },
 	},
@@ -36,7 +36,7 @@ local ResourceTypes = {
 	Iron = {
 		Name = "Iron",
 		Rewards = {
-			{ Name = "IronOre", Amount = { 1, 2 }, Weight = 100 },
+			{ Name = "IronOre", Amount = { 2, 4 }, Weight = 100 },
 		},
 		RespawnTime = { 5, 10 },
 	},
@@ -45,6 +45,14 @@ local ResourceTypes = {
 		Name = "Gold",
 		Rewards = {
 			{ Name = "GoldOre", Amount = 1, Weight = 100 },
+		},
+		RespawnTime = { 5, 10 },
+	},
+
+	Sulfur = {
+		Name = "Sulfur",
+		Rewards = {
+			{ Name = "Sulfur", Amount = {1, 2}, Weight = 100 },
 		},
 		RespawnTime = { 5, 10 },
 	},

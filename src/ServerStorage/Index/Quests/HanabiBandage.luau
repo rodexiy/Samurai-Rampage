@@ -15,8 +15,8 @@ local TARGET_HEALING_HERBS = "HanabiHealingHerbs"
 local HANABI_NPC_NAME = "Hanabi"
 local HERB_ITEM_NAME = "HealingHerbs"
 local BANDAGE_ITEM_NAME = "Bandage"
-local HERBS_REQUIRED = 4
-local BANDAGES_REQUIRED = 2
+local HERBS_REQUIRED = 6
+local BANDAGES_REQUIRED = 3
 local GATHER_RADIUS = 100
 
 local function GetHanabi(): Model?

@@ -1,4 +1,24 @@
+local Players = game:GetService("Players")
+
 local Shared = {}
+
+local NO_WEAPON_SPEED_MULTIPLIER = 1.2
+
+local function HasInventoryWeaponEquipped(Character: Model): boolean
+	return Character:GetAttribute("Weapon") ~= nil or Character:GetAttribute("LeftWeapon") ~= nil
+end
+
+local function ApplyNoWeaponSpeedBonus(Character: Model, walkspeed: number): number
+	if not Players:GetPlayerFromCharacter(Character) then
+		return walkspeed
+	end
+
+	if HasInventoryWeaponEquipped(Character) then
+		return walkspeed
+	end
+
+	return walkspeed * NO_WEAPON_SPEED_MULTIPLIER
+end
 
 function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: string?)
 	local humanoid = Character:FindFirstChild("Humanoid")
@@ -61,8 +81,12 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 		Running = function()
 			change(
 				"Running",
-				(Character:GetAttribute("RunningWalkSpeed") or 24) * (Character:GetAttribute("RunSpeedMultiplier") or 1)
-					+ (Character:GetAttribute("RunSpeedIncrease") or 0)
+				ApplyNoWeaponSpeedBonus(
+					Character,
+					(Character:GetAttribute("RunningWalkSpeed") or 24)
+						* (Character:GetAttribute("RunSpeedMultiplier") or 1)
+						+ (Character:GetAttribute("RunSpeedIncrease") or 0)
+				)
 			)
 		end,
 
@@ -72,6 +96,7 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 
 		Default = function()
 			local target = amount or Character:GetAttribute("DefaultWalkSpeed") or humanoid.WalkSpeed
+			target = ApplyNoWeaponSpeedBonus(Character, target)
 			if Character:GetAttribute("IsAI") then
 				humanoid.WalkSpeed = target
 			else

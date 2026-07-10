@@ -25,4 +25,4 @@ UserInputService.InputBegan:Connect(function(inputObject, processing)
 end)
 
 MenuController:SetHudDefaultEnabled()
-DeviceController:BindAction("Inventory", openInventory, "Inventory", UDim2.fromScale(0.1, 0.35))
+--DeviceController:BindAction("Inventory", openInventory, "Inventory", UDim2.fromScale(0.1, 0.35))

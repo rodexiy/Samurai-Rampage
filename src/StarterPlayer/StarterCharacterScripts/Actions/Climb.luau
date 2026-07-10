@@ -5,14 +5,18 @@ local Knit = require(game.ReplicatedStorage.Packages.Knit)
 
 local Player = game.Players.LocalPlayer
 local Character = Player.Character
-local Humanoid = Character:WaitForChild("Humanoid")
+assert(Character, "[Climb] Character was not available.")
 
-local StaminaService = Knit.GetService("StaminaService")
-local MovementService = Knit.GetService("MovementService")
-local DeviceController = Knit.GetController("DeviceController")
-local AnimationController = Knit.GetController("AnimationController")
-local SkillTreeController = Knit.GetController("SkillTreeController")
-local AlertController = Knit.GetController("AlertController")
+local Humanoid = Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid", 5)
+assert(Humanoid, "[Climb] Humanoid was not available.")
+
+local StaminaService
+local MovementService
+local DeviceController
+local AnimationController
+local SkillTreeController
+local AlertController
+local MoveVector
 
 local Validate = require(game.ReplicatedStorage.Shared.Validate)
 
@@ -22,12 +26,12 @@ local AlignPosition
 local AlignOrientation
 
 local ClimbSpeed = 10
+local MaxClimbNormalY = 0.75
+local MaxClimbAngle = math.rad(50)
 
 local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
 
-local Animator = AnimationController:GetAnimator(Character)
-
-local MoveAnimation: AnimationTrack = Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Misc.Climb.Move)
+local MoveAnimation: AnimationTrack
 local SetAutoRotate = require(game.ReplicatedStorage.Shared.Utils.SetAutoRotate)
 
 local function StopClimb(DontApplyForce)
@@ -35,10 +39,14 @@ local function StopClimb(DontApplyForce)
 	Character:SetAttribute("Climbing", false)
 
 	task.spawn(function()
-		MovementService:Climb(false)
+		if MovementService then
+			MovementService:Climb(false)
+		end
 	end)
 
-	MoveAnimation:Stop()
+	if MoveAnimation then
+		MoveAnimation:Stop()
+	end
 
 	Humanoid.PlatformStand = false
 
@@ -46,10 +54,12 @@ local function StopClimb(DontApplyForce)
 
 	if AlignPosition then
 		AlignPosition:Destroy()
+		AlignPosition = nil
 	end
 
 	if AlignOrientation then
 		AlignOrientation:Destroy()
+		AlignOrientation = nil
 	end
 
 	task.defer(function()
@@ -61,41 +71,107 @@ local function StopClimb(DontApplyForce)
 end
 
 local RayParams = RaycastParams.new()
-RayParams.FilterDescendantsInstances = { workspace.Entity, CollectionService:GetTagged("Unclimbable") }
 RayParams.RespectCanCollide = true
 RayParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local OverParams = OverlapParams.new()
-OverParams.FilterDescendantsInstances = { workspace.Entity, CollectionService:GetTagged("Unclimbable") }
 OverParams.FilterType = Enum.RaycastFilterType.Exclude
+
+local function refreshFilters()
+	local Filter = {}
+	local Entity = workspace:FindFirstChild("Entity")
+
+	if Entity then
+		table.insert(Filter, Entity)
+	end
+
+	for _, Instance in CollectionService:GetTagged("Unclimbable") do
+		table.insert(Filter, Instance)
+	end
+
+	RayParams.FilterDescendantsInstances = Filter
+	OverParams.FilterDescendantsInstances = Filter
+end
+
+refreshFilters()
 
 local function GetPosition(ray)
 	return (CFrame.new(ray.Position, ray.Position + ray.Normal) * CFrame.new(0, 0, -1.5)).Position
 end
 
-local MoveVector = require(Player:WaitForChild("PlayerScripts").PlayerModule:WaitForChild("ControlModule"))
-
 local CantMove = false
+local MoveBlockId = 0
+
+local function setupMoveVector()
+	local PlayerScripts = Player:WaitForChild("PlayerScripts", 5)
+	if not PlayerScripts then
+		warn("[Climb] PlayerScripts was not available; falling back to keyboard climb input.")
+		return
+	end
+
+	local PlayerModule = PlayerScripts:WaitForChild("PlayerModule", 5)
+	if not PlayerModule then
+		warn("[Climb] PlayerModule was not available; falling back to keyboard climb input.")
+		return
+	end
+
+	local ControlModule = PlayerModule:WaitForChild("ControlModule", 5)
+	if not ControlModule then
+		warn("[Climb] ControlModule was not available; falling back to keyboard climb input.")
+		return
+	end
+
+	MoveVector = require(ControlModule)
+end
+
+local function getMoveVector()
+	if MoveVector then
+		return MoveVector:GetMoveVector()
+	end
+
+	return Vector3.zero
+end
 
 local function blockMove()
+	MoveBlockId += 1
+	local BlockId = MoveBlockId
+	local Timeout = os.clock() + 0.5
+
 	CantMove = true
 	task.spawn(function()
-		local diffPos
-		local diffRot
-		repeat
-			diffPos = (Character:GetPivot().Position - AlignPosition.Position).Magnitude
-			diffRot = (Character:GetPivot().LookVector - AlignOrientation.CFrame.LookVector).Magnitude
+		while Character:GetAttribute("Climbing") and AlignPosition and AlignOrientation and os.clock() < Timeout do
+			local diffPos = (Character:GetPivot().Position - AlignPosition.Position).Magnitude
+			local diffRot = (Character:GetPivot().LookVector - AlignOrientation.CFrame.LookVector).Magnitude
+
+			if diffPos <= 0.5 and diffRot <= 0.5 then
+				break
+			end
 
 			task.wait()
-		until diffPos <= 0.5 and diffRot <= 0.5
-		CantMove = false
+		end
+
+		if BlockId == MoveBlockId then
+			CantMove = false
+		end
 	end)
 end
 
-local function filterPart(ray)
-	local Part: BasePart = ray.Instance
+local function isTerrain(ray)
+	return ray.Instance == workspace.Terrain or ray.Instance:IsA("Terrain")
+end
 
-	if not Part or Part:HasTag("Unclimbable") then
+local function filterPart(ray)
+	local Part = ray.Instance
+
+	if not Part or CollectionService:HasTag(Part, "Unclimbable") then
+		return false
+	end
+
+	if isTerrain(ray) then
+		return ray.Material ~= Enum.Material.Water and math.abs(ray.Normal.Y) <= MaxClimbNormalY
+	end
+
+	if not Part:IsA("BasePart") then
 		return false
 	end
 
@@ -104,6 +180,25 @@ local function filterPart(ray)
 	local WorldSize = Vector3.new(math.abs(size.X), math.abs(size.Y), math.abs(size.Z))
 
 	return WorldSize.X > 0.35 and WorldSize.Y > 0.35
+end
+
+local function isGroundBelow()
+	local BottomParts = workspace:GetPartBoundsInBox(
+		Character:GetPivot() * CFrame.new(0, -1, 0),
+		Vector3.new(1, 0.5, 1),
+		OverParams
+	)
+	if #BottomParts > 0 then
+		return true
+	end
+
+	local BottomRay = workspace:Raycast(Character:GetPivot().Position, Vector3.new(0, -2, 0), RayParams)
+	return BottomRay and isTerrain(BottomRay) and BottomRay.Normal.Y > MaxClimbNormalY
+end
+
+local function getSurfaceAngle(ray)
+	local Dot = math.clamp(Character:GetPivot().LookVector:Dot(-ray.Normal), -1, 1)
+	return math.acos(Dot)
 end
 
 local Climb = {
@@ -129,6 +224,8 @@ local Climb = {
 			StopClimb(true)
 			return
 		end
+
+		refreshFilters()
 
 		local FindRay = workspace:Raycast(Character:GetPivot().Position, Character:GetPivot().LookVector * 3, RayParams)
 
@@ -178,7 +275,7 @@ local Climb = {
 			end
 		end)
 
-		if not MoveAnimation.IsPlaying then
+		if MoveAnimation and not MoveAnimation.IsPlaying then
 			MoveAnimation:Play()
 		end
 
@@ -198,12 +295,14 @@ local Climb = {
 				return
 			end
 			if Humanoid.MoveDirection.Magnitude == 0 then
-				MoveAnimation:AdjustSpeed(0)
+				if MoveAnimation then
+					MoveAnimation:AdjustSpeed(0)
+				end
 
 				return
 			end
 
-			local Direction = MoveVector:GetMoveVector()
+			local Direction = getMoveVector()
 			local X = Direction.X
 			local Y = -Direction.Z
 
@@ -228,23 +327,28 @@ local Climb = {
 				AnimationSpeed = Y
 			end
 
-			MoveAnimation:AdjustSpeed(AnimationSpeed)
+			if MoveAnimation then
+				MoveAnimation:AdjustSpeed(AnimationSpeed)
+			end
 
-			local vector = Vector2.new(X, Y).Unit
+			local vector = Vector2.new(X, Y)
+			if vector.Magnitude == 0 then
+				if MoveAnimation then
+					MoveAnimation:AdjustSpeed(0)
+				end
 
-			local BottomRay = workspace:GetPartBoundsInBox(
-				Character:GetPivot() * CFrame.new(0, -1, 0),
-				Vector3.new(1, 0.5, 1),
-				OverParams
-			)
-			if #BottomRay > 0 and Y < 0 then
+				return
+			end
+			vector = vector.Unit
+
+			if isGroundBelow() and Y < 0 then
 				StopClimb()
 				return
 			end
 
 			local TopRay = workspace:Raycast(
 				Character:GetPivot().Position,
-				Vector3.new(0, Character:GetPivot().UpVector * 1.5, 0),
+				Character:GetPivot().UpVector * 1.5,
 				RayParams
 			)
 			if TopRay and Y > 0 then
@@ -283,9 +387,9 @@ local Climb = {
 				end
 				local NewCFrame = CFrame.new(FrontRay.Position, FrontRay.Position - FrontRay.Normal)
 
-				local angle = math.abs(math.acos(Character:GetPivot().LookVector:Dot(-FrontRay.Normal)))
+				local angle = getSurfaceAngle(FrontRay)
 
-				if angle > 50 then
+				if angle > MaxClimbAngle then
 					StopClimb()
 					return
 				end
@@ -335,9 +439,21 @@ local Climb = {
 	keys = { Enum.KeyCode.G },
 }
 
-DeviceController:BindAction("Climb", Climb.callback, "Climb", UDim2.fromScale(0.1, 0.2))
-
 function Climb.Start()
+	StaminaService = Knit.GetService("StaminaService")
+	MovementService = Knit.GetService("MovementService")
+	DeviceController = Knit.GetController("DeviceController")
+	AnimationController = Knit.GetController("AnimationController")
+	SkillTreeController = Knit.GetController("SkillTreeController")
+	AlertController = Knit.GetController("AlertController")
+
+	local Animator = AnimationController:GetAnimator(Character)
+	MoveAnimation = Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Misc.Climb.Move)
+
+	task.spawn(setupMoveVector)
+
+	DeviceController:BindAction("Climb", Climb.callback, "Climb", UDim2.fromScale(0.1, 0.2))
+
 	Character:GetAttributeChangedSignal("Climbing"):Connect(function()
 		if not Character:GetAttribute("Climbing") then
 			StopClimb()
