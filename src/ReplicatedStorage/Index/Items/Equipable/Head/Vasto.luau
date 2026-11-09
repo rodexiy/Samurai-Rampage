@@ -1,4 +1,4 @@
-return {
+ return {
 	Name = "Vasto",
 	Class = "Equipable",
 	Type = "Head",

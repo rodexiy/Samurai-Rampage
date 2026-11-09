@@ -170,6 +170,9 @@ function DamageService:DealDamage(Character: Model, Amount: number, Attacker: Mo
 	end
 end
 function DamageService.Client:FallDamage(Player: Player, Velocity: number)
+	if Velocity < 0 then
+		return
+	end
 	local Character = Player.Character
 	if Character then
 		self.Server:DealDamage(Character, Velocity / 4)
