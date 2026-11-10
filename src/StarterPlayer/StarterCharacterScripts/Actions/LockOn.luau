@@ -1,25 +1,27 @@
-local ContextActionService = game:GetService("ContextActionService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-local Player = game.Players.LocalPlayer
-local Character = Player.Character
-local Humanoid = Character:WaitForChild("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Player = Players.LocalPlayer
+local Character = Player.Character :: Model
+local Humanoid = Character:WaitForChild("Humanoid") :: Humanoid
+local RootPart = Character.PrimaryPart
+assert(RootPart, "Character must have a PrimaryPart")
 
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
+local Collector = require(ReplicatedStorage.Shared.Collector)
 local Connections = Collector.new()
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 local DeviceController = Knit.GetController("DeviceController")
+local CameraController = Knit.GetController("CameraController")
 
-function getClosestEnemy()
+local function getClosestEnemy(): (Model?, { Model })
 	local dist = math.huge
 	local closestEnemy
 	local EnemiesInArea = {}
 
-	for i, enemy in ipairs(game.Workspace.Entity:GetChildren()) do
-		if enemy ~= Character then
+	for _, enemy in workspace.Entity:GetChildren() do
+		if enemy:IsA("Model") and enemy ~= Character and not enemy:GetAttribute("Died") and not enemy:GetAttribute("Downed") then
 			local Primary = enemy.PrimaryPart
 			if not Primary then
 				continue
@@ -36,17 +38,25 @@ function getClosestEnemy()
 	end
 
 	if closestEnemy == nil then
-		return false
+		return nil, EnemiesInArea
 	end
 	return closestEnemy, EnemiesInArea
 end
 local Camera = workspace.CurrentCamera
 local LockOn = {}
-local enemyLocked
+local enemyLocked: Model? = nil
+local PreviousMouseBehavior = Enum.MouseBehavior.Default
+local PreviousMouseIconEnabled = true
+local PreviousMouseLocked: boolean? = nil
+local SmoothedCameraPosition = Vector3.zero
+local SmoothedFocus = Vector3.zero
+local CombatZoomDistance = 8
+local SmoothedZoomDistance = 8
+local Unlock: () -> ()
 
 local ChangeDb = false
-function ChangeTarget()
-	local Delta = -UserInputService:GetMouseDelta().X
+local function ChangeTarget()
+	local Delta = UserInputService:GetMouseDelta().X
 
 	if ChangeDb then
 		return
@@ -54,9 +64,11 @@ function ChangeTarget()
 	if math.abs(Delta) > 10 then
 		local _, Enemies = getClosestEnemy()
 		local CameraPosition = Camera.CFrame.Position
-		if not Enemies then
+		if not enemyLocked or not enemyLocked.PrimaryPart then
 			return
 		end
+		local CurrentDirection = Camera.CFrame:VectorToObjectSpace(enemyLocked.PrimaryPart.Position - CameraPosition)
+		local CurrentAngle = math.atan2(CurrentDirection.X, -CurrentDirection.Z)
 		local ClosestToAngle = math.huge
 		local ClosestEnemy
 
@@ -65,21 +77,20 @@ function ChangeTarget()
 				continue
 			end
 
-			local EnemyCFrame = Enemy:GetPivot()
-			local EnemyPosition = EnemyCFrame.Position
+			local EnemyDirection = Camera.CFrame:VectorToObjectSpace(Enemy:GetPivot().Position - CameraPosition)
+			local Angle = math.atan2(EnemyDirection.X, -EnemyDirection.Z) - CurrentAngle
+			Angle = math.atan2(math.sin(Angle), math.cos(Angle))
 
-			local _, angle = CFrame.new(CameraPosition, Vector3.new(EnemyPosition.X, CameraPosition.Y, EnemyPosition.Z))
-				:ToOrientation()
-
-			if angle < ClosestToAngle then
-				ClosestToAngle = angle
+			if Angle * Delta > 0 and math.abs(Angle) < ClosestToAngle then
+				ClosestToAngle = math.abs(Angle)
 				ClosestEnemy = Enemy
 			end
 		end
 
 		if ClosestEnemy then
+			local PreviousZoom = CombatZoomDistance
 			Unlock()
-			LockOn.callback(Enum.UserInputState.Begin)
+			LockOn.callback(Enum.UserInputState.Begin, nil, ClosestEnemy, PreviousZoom)
 			ChangeDb = true
 			task.delay(0.15, function()
 				ChangeDb = false
@@ -88,7 +99,7 @@ function ChangeTarget()
 	end
 end
 
-function Unlock()
+Unlock = function()
 	RunService:UnbindFromRenderStep("LockCameraRenderStep")
 	Character:SetAttribute("LockedOnEnemy", false)
 
@@ -97,9 +108,14 @@ function Unlock()
 	if not enemyLocked then
 		return
 	end
-	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-	Camera.CameraType = Enum.CameraType.Custom
-	UserInputService.MouseIconEnabled = true
+	Player:SetAttribute("MouseLocked", PreviousMouseLocked)
+	UserInputService.MouseBehavior = PreviousMouseBehavior
+	UserInputService.MouseIconEnabled = PreviousMouseIconEnabled
+	if not Character:GetAttribute("CameraCutscene") then
+		CameraController:SetCombatZoomDistance(CombatZoomDistance)
+		Camera.CameraType = Enum.CameraType.Custom
+		CameraController:BlendFromCurrentCamera()
+	end
 
 	local highlight = enemyLocked:FindFirstChild("LockHighlight")
 
@@ -107,27 +123,33 @@ function Unlock()
 		highlight:Destroy()
 	end
 
-	local billboard = enemyLocked.PrimaryPart:FindFirstChild("LockBillboard")
+	local PrimaryPart = enemyLocked.PrimaryPart
+	local billboard = PrimaryPart and PrimaryPart:FindFirstChild("LockBillboard")
 
 	if billboard then
 		billboard:Destroy()
 	end
+
+	enemyLocked = nil
 end
 
-local CameraPosition = Vector3.new(0, 3.5, 10)
-local Params = RaycastParams.new()
-Params.FilterType = Enum.RaycastFilterType.Exclude
-
-LockOn.callback = function(inputState)
+LockOn.callback = function(inputState: Enum.UserInputState, _Input: InputObject?, TargetOverride: Model?, ZoomOverride: number?)
 	if inputState ~= Enum.UserInputState.Begin then
 		return
 	end
 
 	local LockStatus = {
 		[true] = function()
-			local ClosestEnemy = getClosestEnemy()
+			Camera = workspace.CurrentCamera
+			if not Camera or Camera.CameraType ~= Enum.CameraType.Custom
+				or Character:GetAttribute("RealmTeleporting") or Character:GetAttribute("CameraCutscene")
+			then
+				return
+			end
 
-			if not ClosestEnemy then
+			local ClosestEnemy = TargetOverride or getClosestEnemy()
+
+			if not ClosestEnemy or not ClosestEnemy.PrimaryPart or not ClosestEnemy.Parent then
 				return
 			end
 
@@ -148,6 +170,21 @@ LockOn.callback = function(inputState)
 			end
 
 			enemyLocked = ClosestEnemy
+			PreviousMouseBehavior = UserInputService.MouseBehavior
+			PreviousMouseIconEnabled = UserInputService.MouseIconEnabled
+			PreviousMouseLocked = Player:GetAttribute("MouseLocked")
+			SmoothedCameraPosition = Camera.CFrame.Position
+			SmoothedFocus = Camera.Focus.Position
+			CombatZoomDistance = ZoomOverride or CameraController:GetCombatZoomDistance()
+			SmoothedZoomDistance = CombatZoomDistance
+			Connections:Add(UserInputService.InputChanged:Connect(function(Input: InputObject, GameProcessed: boolean)
+				if GameProcessed or Input.UserInputType ~= Enum.UserInputType.MouseWheel then
+					return
+				end
+
+				local Minimum, Maximum = CameraController:GetCombatZoomLimits()
+				CombatZoomDistance = math.clamp(CombatZoomDistance - Input.Position.Z * 1.25, Minimum, Maximum)
+			end))
 			Connections:Add(enemyLocked:GetAttributeChangedSignal("Died"):Connect(function()
 				Unlock()
 			end))
@@ -169,35 +206,62 @@ LockOn.callback = function(inputState)
 			Camera.CameraType = Enum.CameraType.Scriptable
 			UserInputService.MouseIconEnabled = false
 
-			RunService:BindToRenderStep("LockCameraRenderStep", Enum.RenderPriority.Camera.Value + 1, function(dt)
-				if Character:GetAttribute("Died") or enemyLocked:GetAttribute("Downed") then
+			RunService:BindToRenderStep("LockCameraRenderStep", Enum.RenderPriority.Camera.Value + 1, function(dt: number)
+				if not Character.Parent or not enemyLocked or not enemyLocked.Parent or not enemyLocked.PrimaryPart
+					or Character:GetAttribute("Died") or Character:GetAttribute("Meditating")
+					or Character:GetAttribute("RealmTeleporting")
+					or Character:GetAttribute("CameraCutscene")
+					or enemyLocked:GetAttribute("Died") or enemyLocked:GetAttribute("Downed")
+					or workspace.CurrentCamera ~= Camera
+				then
 					Unlock()
 					return
 				end
 
 				ChangeTarget()
+				if not enemyLocked or not enemyLocked.PrimaryPart then
+					return
+				end
 
 				UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 
-				Params.FilterDescendantsInstances = { Workspace.Entity }
-
-				local Lookat1 = CFrame.new(Character.Torso.CFrame.Position, enemyLocked.PrimaryPart.CFrame.Position)
-
-				local Offseted = Lookat1 * CFrame.new(4.5, 3, 7.85)
-
-				local PossiblePosition = Vector3.new(Offseted.X, Character.Torso.CFrame.Position.Y + 4.5, Offseted.Z)
-
-				local PossibleDirection = (PossiblePosition - Character.Torso.CFrame.Position).Unit
-
-				local Distance = (PossiblePosition - Character.Torso.CFrame.Position).Magnitude
-				local ray = workspace:Raycast(Character.Torso.CFrame.Position, PossibleDirection * Distance, Params)
-				if ray then
-					PossiblePosition = ray.Position
+				local PlayerFocus = RootPart.Position + Vector3.new(0, 1.2, 0)
+				local EnemyFocus = enemyLocked.PrimaryPart.Position + Vector3.new(0, 1, 0)
+				local Difference = EnemyFocus - PlayerFocus
+				if Difference.Magnitude > 65 then
+					Unlock()
+					return
 				end
 
-				local CameraCFrame = CFrame.new(PossiblePosition, enemyLocked.PrimaryPart.CFrame.Position)
+				local FlatDirection = Difference * Vector3.new(1, 0, 1)
+				if FlatDirection.Magnitude < 0.001 then
+					return
+				end
 
-				Camera.CFrame = Camera.CFrame:Lerp(CameraCFrame, 0.2 * (60 * dt))
+				local Facing = CFrame.lookAt(PlayerFocus, PlayerFocus + FlatDirection)
+				local Alpha = 1 - math.exp(-10 * math.max(dt, 0))
+				SmoothedZoomDistance += (CombatZoomDistance - SmoothedZoomDistance) * Alpha
+				local DesiredPosition = (Facing * CFrame.new(2.15 * CameraController:GetShoulderSide(), 1.8, SmoothedZoomDistance)).Position
+				DesiredPosition = CameraController:GetCollisionSafePosition(PlayerFocus, DesiredPosition)
+				SmoothedCameraPosition = CameraController:GetCollisionSafePosition(
+					PlayerFocus,
+					SmoothedCameraPosition:Lerp(DesiredPosition, Alpha)
+				)
+				SmoothedFocus = SmoothedFocus:Lerp(PlayerFocus:Lerp(EnemyFocus, 0.45), Alpha)
+				if (SmoothedFocus - SmoothedCameraPosition).Magnitude > 0.001 then
+					Camera.CFrame = CFrame.lookAt(SmoothedCameraPosition, SmoothedFocus)
+					Camera.Focus = CFrame.new(SmoothedFocus)
+				end
+
+				if Humanoid.AutoRotate and not Character:GetAttribute("Ragdoll")
+					and not Character:GetAttribute("PostureBreak") and not Character:GetAttribute("HeavyDeflect")
+					and not Character:GetAttribute("Climbing")
+				then
+					RootPart.CFrame = RootPart.CFrame:Lerp(
+						CFrame.lookAt(RootPart.Position, RootPart.Position + FlatDirection),
+						1 - math.exp(-15 * math.max(dt, 0))
+					)
+				end
 			end)
 		end,
 
@@ -215,6 +279,22 @@ LockOn.keys = { Enum.KeyCode.T }
 
 DeviceController:BindAction("LockOn", LockOn.callback, "LockOn", UDim2.fromScale(0.175, 0.2))
 
-function LockOn.Start() end
+function LockOn.Start()
+	Character:GetAttributeChangedSignal("CameraCutscene"):Connect(function()
+		if Character:GetAttribute("CameraCutscene") then
+			Unlock()
+		end
+	end)
+
+	local RemovingConnection: RBXScriptConnection? = nil
+	RemovingConnection = Player.CharacterRemoving:Connect(function(RemovingCharacter: Model)
+		if RemovingCharacter == Character then
+			Unlock()
+			if RemovingConnection then
+				RemovingConnection:Disconnect()
+			end
+		end
+	end)
+end
 
 return LockOn

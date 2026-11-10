@@ -1,15 +1,15 @@
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local Combat = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
-local BloodEngine = require(game.ReplicatedStorage.Assets.Libraries.BloodEngine)
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local BloodEngine = require(ReplicatedStorage.Assets.Libraries.BloodEngine)
 
-local LightningBolt = require(game.ReplicatedStorage.Assets.Libraries.LightningBolt)
-local LightningSparks = require(game.ReplicatedStorage.Assets.Libraries.LightningBolt.LightningSparks)
+local LightningBolt = require(ReplicatedStorage.Assets.Libraries.LightningBolt)
+local LightningSparks = require(ReplicatedStorage.Assets.Libraries.LightningBolt.LightningSparks)
 
 local RenderController = Knit.GetController("RenderController")
 local SoundEffectController = Knit.GetController("SoundEffectController")
@@ -224,7 +224,6 @@ function Combat.Deflect(Data)
 	Debris:AddItem(VFX, 1)
 end
 
-local Camera = workspace.CurrentCamera
 function Combat.HeavyDeflect(Data)
 	local CharacterToRender = Data.Character
 
@@ -236,31 +235,8 @@ function Combat.HeavyDeflect(Data)
 	Debris:AddItem(VFX, 1.5)
 
 	RenderController:ExecuteForCharacter(CharacterToRender, function()
-		RunService:BindToRenderStep("HeavyDeflect", Enum.RenderPriority.Camera.Value + 2, function(dt)
-			Camera.CameraType = Enum.CameraType.Scriptable
-			Camera.CFrame = Camera.CFrame:Lerp(
-				CharacterToRender.HumanoidRootPart:GetPivot()
-					* CFrame.new(4.5, 0.5, 7.5)
-					* CFrame.Angles(0, math.rad(15), 0),
-				5 * dt
-			)
-		end)
-
-		TweenService
-			:Create(Camera, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), { FieldOfView = 55 })
-			:Play()
-
-		task.wait(0.7)
-
-		TweenService
-			:Create(Camera, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), { FieldOfView = 75 })
-			:Play()
-
-		task.wait(0.1)
-		RunService:UnbindFromRenderStep("HeavyDeflect")
-		if not CharacterToRender:GetAttribute("LockedOnEnemy") then
-			Camera.CameraType = Enum.CameraType.Custom
-		end
+		CameraController:ShakeOnce(2.5, 8, 0.03, 0.25)
+		CameraController:PulseFieldOfView(-4, 0.12)
 	end)
 end
 

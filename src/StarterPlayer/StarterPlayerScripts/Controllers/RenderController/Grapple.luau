@@ -1,11 +1,13 @@
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Grapple = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local SharedConstants = require(ReplicatedStorage.Shared.Constants)
 
 local RenderController = Knit.GetController("RenderController")
 
-local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
+local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
 
 local function Curve(t, P0, P1, P2)
 	local A = P0:Lerp(P1, t)
@@ -40,7 +42,7 @@ function Grapple.Grapple(RenderData: { any })
 		TweenService:Create(
 			Camera,
 			TweenInfo.new(Distance / 200, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
-			{ FieldOfView = 60 }
+			{ FieldOfView = SharedConstants.DEFAULT_FIELD_OF_VIEW - 15 }
 		):Play()
 	end)
 
@@ -70,7 +72,7 @@ function Grapple.Grapple(RenderData: { any })
 				TweenService:Create(
 					Camera,
 					TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
-					{ FieldOfView = 85 }
+					{ FieldOfView = SharedConstants.DEFAULT_FIELD_OF_VIEW + 10 }
 				):Play()
 			end
 
@@ -87,7 +89,7 @@ function Grapple.Grapple(RenderData: { any })
 				:Create(
 					Camera,
 					TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.In),
-					{ FieldOfView = 75 }
+					{ FieldOfView = SharedConstants.DEFAULT_FIELD_OF_VIEW }
 				)
 				:Play()
 

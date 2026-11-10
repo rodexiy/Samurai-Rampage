@@ -30,7 +30,7 @@ function ScreenParticleController:EmitParticle(ParticleName: string, Duration: n
 
 	local ViewportSize = Camera.ViewportSize
 	local AspectRatio = ViewportSize.X / ViewportSize.Y
-	local FOV = math.rad(75)
+	local FOV = math.rad(Camera.FieldOfView)
 
 	-- Distance from camera to projection plane
 	local Distance = 1 -- Arbitrary distance for calculations

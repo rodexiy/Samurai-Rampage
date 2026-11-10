@@ -1,6 +1,8 @@
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local SharedConstants = require(ReplicatedStorage.Shared.Constants)
 
 local Player = game.Players.LocalPlayer
 local Character = Player.Character
@@ -11,8 +13,8 @@ local AnimationController
 local DeviceController
 local SkillTreeController
 
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
-local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
+local Validate = require(ReplicatedStorage.Shared.Validate)
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
 local FovTween
 local Camera = workspace.CurrentCamera
@@ -31,7 +33,7 @@ function TweenIn()
 		return
 	end
 
-	FovTween = TweenService:Create(Camera, FovInfo, { FieldOfView = 70 })
+	FovTween = TweenService:Create(Camera, FovInfo, { FieldOfView = SharedConstants.DEFAULT_FIELD_OF_VIEW - 5 })
 	FovTween:Play()
 end
 
@@ -45,7 +47,7 @@ function TweenOut()
 		return
 	end
 
-	FovTween = TweenService:Create(Camera, FovInfo, { FieldOfView = 75 })
+	FovTween = TweenService:Create(Camera, FovInfo, { FieldOfView = SharedConstants.DEFAULT_FIELD_OF_VIEW })
 	FovTween:Play()
 end
 

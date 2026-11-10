@@ -1,8 +1,9 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
-local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
 local Trigger = {}
 
@@ -57,7 +58,7 @@ end
 
 local function StopPlayer(Character: Model)
 	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-	local RootPart = Character:FindFirstChild("HumanoidRootPart")
+	local RootPart = Character.PrimaryPart
 	local WasSkillLocked = Character:GetAttribute("SkillLockMovement") == true
 	local WasAutoRotate = Humanoid and Humanoid.AutoRotate
 
@@ -102,12 +103,6 @@ end
 
 local function FocusCamera(CameraPart: BasePart, ShrinePosition: Vector3)
 	local Camera = GetCurrentCamera()
-	local OriginalState = {
-		CameraType = Camera.CameraType,
-		CameraSubject = Camera.CameraSubject,
-		FieldOfView = Camera.FieldOfView,
-		CFrame = Camera.CFrame,
-	}
 
 	local CameraCFrame = Instance.new("CFrameValue")
 	CameraCFrame.Value = Camera.CFrame
@@ -149,7 +144,6 @@ local function FocusCamera(CameraPart: BasePart, ShrinePosition: Vector3)
 	TurnTween.Completed:Wait()
 	task.wait(FOCUS_DURATION)
 
-	RestoreCamera(Camera, OriginalState)
 	CameraCFrame:Destroy()
 end
 
@@ -178,10 +172,22 @@ function Trigger.Enter(TriggerController, TriggerInstance: Instance)
 	end
 
 	local ResumePlayer = StopPlayer(Character)
+	local Camera = GetCurrentCamera()
+	local OriginalState = {
+		CameraType = if Character:GetAttribute("LockedOnEnemy") then Enum.CameraType.Custom else Camera.CameraType,
+		CameraSubject = Camera.CameraSubject,
+		FieldOfView = Camera.FieldOfView,
+		CFrame = Camera.CFrame,
+	}
+	local WasCutscene = Character:GetAttribute("CameraCutscene")
+	Character:SetAttribute("CameraCutscene", true)
+
 	local Success, Result = pcall(function()
 		FocusCamera(CameraPart, ShrinePosition)
 	end)
 
+	RestoreCamera(Camera, OriginalState)
+	Character:SetAttribute("CameraCutscene", WasCutscene)
 	ResumePlayer()
 
 	if not Success then

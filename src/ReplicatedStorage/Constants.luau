@@ -1,3 +1,4 @@
 return {
+	DEFAULT_FIELD_OF_VIEW = 70,
 	PRISON_BOUNTY = 0,
 }

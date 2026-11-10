@@ -1,7 +1,9 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local SharedConstants = require(ReplicatedStorage.Shared.Constants)
 
 local RealmController = Knit.CreateController({
 	Name = "RealmController",
@@ -17,9 +19,9 @@ local Meditate
 local FastTravelBackground
 local MentalRealmButton
 
-local TeleportCharacter = require(game.ReplicatedStorage.Shared.Utils.TeleportCharacter)
+local TeleportCharacter = require(ReplicatedStorage.Shared.Utils.TeleportCharacter)
 local TileTransition =
-	require(game.ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Libraries"):WaitForChild("TileTransition"))
+	require(ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Libraries"):WaitForChild("TileTransition"))
 
 local Debounce = false
 
@@ -49,7 +51,7 @@ function RealmController:Travel()
 	task.wait(0.5)
 	RealmService:Teleport()
 	task.wait(0.5)
-	TweenService:Create(Camera, Info, { FieldOfView = 75 }):Play()
+	TweenService:Create(Camera, Info, { FieldOfView = SharedConstants.DEFAULT_FIELD_OF_VIEW }):Play()
 
 	if Character then
 		Character:SetAttribute("RealmTeleporting", false)
