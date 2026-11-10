@@ -1,4 +1,8 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local WeatherController = Knit.CreateController({
 	Name = "WeatherController",
@@ -6,9 +10,6 @@ local WeatherController = Knit.CreateController({
 
 local RenderController
 
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local Workspace = game:GetService("Workspace")
 local currentHumidity
 local currentWeather
 
@@ -16,109 +17,181 @@ local Camera = workspace.CurrentCamera
 
 local Effect
 
-local CharactersToAdd = game.Players:GetPlayers()
-local BreathEffects = {}
+local BREATH_CHECK_INTERVAL = 0.25
+local BREATH_RENDER_DISTANCE = 150
 
-function WeatherController:RemoveBreathEffect(character)
-	if BreathEffects[character] then
-		BreathEffects[character]:Destroy()
-		BreathEffects[character] = nil
+type BreathData = {
+	Effect: Model,
+	NextEmission: number,
+}
+
+local BreathEffects: { [Model]: BreathData } = {}
+local BreathConnection: RBXScriptConnection? = nil
+
+local function stopBreathSchedulerIfEmpty()
+	if next(BreathEffects) == nil and BreathConnection then
+		BreathConnection:Disconnect()
+		BreathConnection = nil
 	end
 end
 
-function WeatherController:AddBreathEffect(Character)
-	if BreathEffects[Character] or workspace:GetAttribute("Season") ~= "Winter" then
+function WeatherController:RemoveBreathEffect(Character: Model?)
+	if not Character then
 		return
 	end
-	local Effect = game.ReplicatedStorage.Assets.VFX.Weather.Breath:Clone()
-	BreathEffects[Character] = Effect
 
-	local Head = Character:WaitForChild("Head", 5)
-	if not Head then
-		return
+	local Data = BreathEffects[Character]
+	if Data then
+		BreathEffects[Character] = nil
+		Data.Effect:Destroy()
 	end
-	local Weld = Instance.new("WeldConstraint")
-	Weld.Part0 = Head
 
-	Weld.Part1 = Effect.PrimaryPart
-	Weld.Parent = Effect
-	Effect:PivotTo(Character:WaitForChild("Head"):GetPivot())
-	Effect.Parent = Character
+	stopBreathSchedulerIfEmpty()
+end
 
-	task.spawn(function()
-		while Effect do
-			task.wait(math.random(250, 600) / 100)
+local function updateBreathEffects()
+	local Now = os.clock()
+	local CurrentCamera = workspace.CurrentCamera
 
-			if Effect then
-				RenderController:EmitParticles(Effect)
+	for Character, Data in BreathEffects do
+		if not Data.Effect:IsDescendantOf(workspace) or Character:GetAttribute("Died") then
+			WeatherController:RemoveBreathEffect(Character)
+			continue
+		end
+
+		if Now < Data.NextEmission then
+			continue
+		end
+
+		Data.NextEmission = Now + math.random(250, 600) / 100
+		local Head = Data.Effect.PrimaryPart
+		if CurrentCamera and Head then
+			local Offset = Head.Position - CurrentCamera.CFrame.Position
+			if Offset:Dot(Offset) <= BREATH_RENDER_DISTANCE * BREATH_RENDER_DISTANCE then
+				RenderController:EmitParticles(Data.Effect)
 			end
 		end
+	end
+end
+
+local function startBreathScheduler()
+	if BreathConnection then
+		return
+	end
+
+	local Elapsed = 0
+	BreathConnection = RunService.Heartbeat:Connect(function(DeltaTime: number)
+		Elapsed += DeltaTime
+		if Elapsed < BREATH_CHECK_INTERVAL then
+			return
+		end
+
+		Elapsed %= BREATH_CHECK_INTERVAL
+		updateBreathEffects()
 	end)
 end
 
-function BindPlayer(player)
-	player.CharacterAdded:Connect(function(character)
-		character:GetAttributeChangedSignal("Died"):Connect(function()
-			if character:GetAttribute("Died") then
-				WeatherController:RemoveBreathEffect(character)
-			end
-		end)
+function WeatherController:AddBreathEffect(Character: Model)
+	local Existing = BreathEffects[Character]
+	if Existing then
+		if Existing.Effect:IsDescendantOf(Character) then
+			return
+		end
 
-		table.insert(CharactersToAdd, player)
-		WeatherController:AddBreathEffect(character)
+		WeatherController:RemoveBreathEffect(Character)
+	end
+
+	if workspace:GetAttribute("Season") ~= "Winter" then
+		return
+	end
+
+	local Head = Character:WaitForChild("Head", 5) :: BasePart?
+	if not Head or not Head:IsA("BasePart") or not Character:IsDescendantOf(workspace) then
+		return
+	end
+
+	-- Waiting for the head can overlap another request, a death, or a season change.
+	if BreathEffects[Character] or Character:GetAttribute("Died") or workspace:GetAttribute("Season") ~= "Winter" then
+		return
+	end
+
+	local BreathEffect = ReplicatedStorage.Assets.VFX.Weather.Breath:Clone() :: Model
+	if not BreathEffect.PrimaryPart then
+		BreathEffect:Destroy()
+		return
+	end
+
+	local Weld = Instance.new("WeldConstraint")
+	Weld.Part0 = Head
+	Weld.Part1 = BreathEffect.PrimaryPart
+	Weld.Parent = BreathEffect
+
+	BreathEffect:PivotTo(Head.CFrame)
+	BreathEffect.Parent = Character
+	BreathEffects[Character] = {
+		Effect = BreathEffect,
+		NextEmission = os.clock() + math.random(250, 600) / 100,
+	}
+
+	BreathEffect.Destroying:Connect(function()
+		local Data = BreathEffects[Character]
+		if Data and Data.Effect == BreathEffect then
+			BreathEffects[Character] = nil
+			stopBreathSchedulerIfEmpty()
+		end
 	end)
+
+	startBreathScheduler()
 end
 
-game.Players.PlayerAdded:Connect(function(player)
-	BindPlayer(player)
-end)
+local function bindCharacter(Character: Model)
+	Character:GetAttributeChangedSignal("Died"):Connect(function()
+		if Character:GetAttribute("Died") then
+			WeatherController:RemoveBreathEffect(Character)
+		end
+	end)
 
-for _, player in game.Players:GetPlayers() do
-	BindPlayer(player)
+	WeatherController:AddBreathEffect(Character)
 end
 
-game.Players.PlayerRemoving:Connect(function(player)
-	WeatherController:RemoveBreathEffect(player.Character)
-	CharactersToAdd[player] = nil
-end)
+local function bindPlayer(Player: Player)
+	Player.CharacterAdded:Connect(bindCharacter)
+	Player.CharacterRemoving:Connect(function(Character: Model)
+		WeatherController:RemoveBreathEffect(Character)
+	end)
+
+	if Player.Character then
+		task.spawn(bindCharacter, Player.Character)
+	end
+end
 
 function WeatherController:AddWinterEffect()
-	for _, player in CharactersToAdd do
+	for _, player in Players:GetPlayers() do
 		local character = player.Character
 		if character then
-			WeatherController:AddBreathEffect(character)
+			task.spawn(function()
+				WeatherController:AddBreathEffect(character)
+			end)
 		end
 	end
 
 	local NPCs = workspace:FindFirstChild("NPCs")
 	if NPCs then
 		for _, NPC in NPCs:GetChildren() do
-			WeatherController:AddBreathEffect(NPC)
+			if NPC:IsA("Model") then
+				task.spawn(function()
+					WeatherController:AddBreathEffect(NPC)
+				end)
+			end
 		end
 	end
 end
 
 function WeatherController:RemoveWinterEffect()
-	for Index, BreathEffect in BreathEffects do
-		BreathEffect:Destroy()
-		BreathEffects[Index] = nil
-	end
-
-	local NPCs = workspace:FindFirstChild("NPCs")
-	if NPCs then
-		for _, NPC in NPCs:GetChildren() do
-			WeatherController:RemoveBreathEffect(NPC)
-		end
+	for Character in BreathEffects do
+		WeatherController:RemoveBreathEffect(Character)
 	end
 end
-
-workspace:GetAttributeChangedSignal("Season"):Connect(function()
-	if workspace:GetAttribute("Season") == "Winter" then
-		WeatherController:AddWinterEffect()
-	else
-		WeatherController:RemoveWinterEffect()
-	end
-end)
 
 local function bindClear()
 	if currentWeather == "Clear" then
@@ -143,9 +216,9 @@ local function bindEffect()
 	end
 
 	if workspace:GetAttribute("Season") == "Winter" then
-		Effect = game.ReplicatedStorage.Assets.VFX.Weather.Snow:Clone()
+		Effect = ReplicatedStorage.Assets.VFX.Weather.Snow:Clone()
 	else
-		Effect = game.ReplicatedStorage.Assets.VFX.Weather.Rain:Clone()
+		Effect = ReplicatedStorage.Assets.VFX.Weather.Rain:Clone()
 	end
 
 	for _, v in Effect:GetDescendants() do
@@ -204,8 +277,25 @@ function WeatherController.KnitInit()
 end
 
 function WeatherController.KnitStart()
+	Players.PlayerAdded:Connect(bindPlayer)
+	Players.PlayerRemoving:Connect(function(Player: Player)
+		WeatherController:RemoveBreathEffect(Player.Character)
+	end)
+
+	for _, Player in Players:GetPlayers() do
+		bindPlayer(Player)
+	end
+
+	workspace:GetAttributeChangedSignal("Season"):Connect(function()
+		if workspace:GetAttribute("Season") == "Winter" then
+			WeatherController:AddWinterEffect()
+		else
+			WeatherController:RemoveWinterEffect()
+		end
+	end)
+
 	task.spawn(function()
-		local counter = Workspace.DistributedGameTime + workspace:GetAttribute("WeatherRandomFactor")
+		local counter = workspace.DistributedGameTime + workspace:GetAttribute("WeatherRandomFactor")
 		while true do
 			counter += 0.01
 			local noise = math.noise(counter, 0, 0) * 1.5

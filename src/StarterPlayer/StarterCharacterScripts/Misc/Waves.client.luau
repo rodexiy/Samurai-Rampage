@@ -2,19 +2,19 @@ local Players = game:GetService("Players")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
 
 local GRID_SIZE = 512
 local RECENTER_INTERVAL = 0.25
 local VISIBILITY_CHECK_INTERVAL = 0.1
 
 local player = Players.LocalPlayer
-local character = script.Parent.Parent.Parent
-local rootPart = character:WaitForChild("HumanoidRootPart")
+local character = script.Parent.Parent.Parent :: Model
+local rootPart = character.PrimaryPart
+assert(rootPart, "Character must have a PrimaryPart")
 local WaveFunction = require(ReplicatedStorage.Shared.WaveFunction)
 
-local ocean = ReplicatedFirst:WaitForChild("Ocean"):Clone()
-local highQuality = ocean:WaitForChild("HighQuality")
+local ocean = (ReplicatedFirst:WaitForChild("Ocean") :: Model):Clone()
+local highQuality = ocean:WaitForChild("HighQuality") :: BasePart
 assert(highQuality:IsA("BasePart"), "Ocean.HighQuality must be a BasePart")
 
 local function getGridCenter(): Vector3
@@ -24,7 +24,7 @@ end
 
 local currentGridCenter = getGridCenter()
 ocean:PivotTo(CFrame.new(currentGridCenter))
-ocean.Parent = Workspace
+ocean.Parent = workspace
 
 type BoneData = {
 	Bone: Bone,
@@ -32,18 +32,30 @@ type BoneData = {
 }
 
 local bones: { BoneData } = {}
-for _, descendant in highQuality:GetDescendants() do
-	if descendant:IsA("Bone") then
-		table.insert(bones, {
-			Bone = descendant,
-			RestPosition = highQuality.CFrame:PointToObjectSpace(descendant.WorldPosition),
-		})
-	end
+for _, descendant in highQuality:QueryDescendants("Bone") do
+	local bone = descendant :: Bone
+	table.insert(bones, {
+		Bone = bone,
+		RestPosition = highQuality.CFrame:PointToObjectSpace(bone.WorldPosition),
+	})
 end
 
 if #bones == 0 then
 	warn("Ocean.HighQuality has no Bones; use a skinned MeshPart with Bone descendants for Gerstner deformation")
 end
+
+local function createWaveSampler(): (number) -> { Vector3 }
+	local positions: { Vector3 } = table.create(#bones)
+	local surfaceCFrame = highQuality.CFrame
+
+	for index, boneData in bones do
+		positions[index] = surfaceCFrame:PointToWorldSpace(boneData.RestPosition)
+	end
+
+	return WaveFunction:CreateDisplacementSampler(positions)
+end
+
+local sampleWaves = createWaveSampler()
 
 local function pointIsOnScreen(camera: Camera, point: Vector3): boolean
 	local viewportPoint, inFront = camera:WorldToViewportPoint(point)
@@ -76,8 +88,8 @@ local function rayHitsSurface(camera: Camera, screenX: number, screenY: number):
 end
 
 local function isHighQualityVisible(): boolean
-	local camera = Workspace.CurrentCamera
-	if not camera or highQuality.Transparency >= 1 or not highQuality:IsDescendantOf(Workspace) then
+	local camera = workspace.CurrentCamera
+	if not camera or highQuality.Transparency >= 1 or not highQuality:IsDescendantOf(workspace) then
 		return false
 	end
 
@@ -142,7 +154,7 @@ local function cleanup()
 	ocean:Destroy()
 end
 
-renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
+renderConnection = RunService.RenderStepped:Connect(function(deltaTime: number)
 	recenterElapsed += deltaTime
 	if recenterElapsed >= RECENTER_INTERVAL then
 		recenterElapsed = 0
@@ -150,6 +162,8 @@ renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
 		if nextGridCenter ~= currentGridCenter then
 			currentGridCenter = nextGridCenter
 			ocean:PivotTo(CFrame.new(currentGridCenter))
+			sampleWaves = createWaveSampler()
+			visibilityElapsed = VISIBILITY_CHECK_INTERVAL
 		end
 	end
 
@@ -167,18 +181,18 @@ renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
 		return
 	end
 
-	local serverTime = Workspace:GetServerTimeNow()
-	for _, boneData in bones do
-		local samplePosition = highQuality.CFrame:PointToWorldSpace(boneData.RestPosition)
-		local worldDisplacement = WaveFunction:GetDisplacement(samplePosition, serverTime)
-		boneData.Bone.Transform = CFrame.new(highQuality.CFrame:VectorToObjectSpace(worldDisplacement))
+	local displacements = sampleWaves(workspace:GetServerTimeNow())
+	local surfaceCFrame = highQuality.CFrame
+
+	for index, boneData in bones do
+		boneData.Bone.Transform = CFrame.new(surfaceCFrame:VectorToObjectSpace(displacements[index]))
 	end
 end)
 
 wavesChangedConnection = player:GetAttributeChangedSignal("Waves"):Connect(updateWavesSetting)
 updateWavesSetting()
 
-removingConnection = player.CharacterRemoving:Connect(function(removingCharacter)
+removingConnection = player.CharacterRemoving:Connect(function(removingCharacter: Model)
 	if removingCharacter == character then
 		cleanup()
 	end

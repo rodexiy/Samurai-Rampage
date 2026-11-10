@@ -143,6 +143,59 @@ function WaveFunction:GetDisplacement(position: Vector3, serverTime: number): Ve
 	return Vector3.new(x, y, z)
 end
 
+-- Cache spatial phases for fixed sample positions; only the time phase changes each frame.
+function WaveFunction:CreateDisplacementSampler(positions: { Vector3 }): (number) -> { Vector3 }
+	local samplePositions = table.clone(positions)
+	local spatialSines: { { number } } = {}
+	local spatialCosines: { { number } } = {}
+	local timeSines: { number } = table.create(#WAVES, 0)
+	local timeCosines: { number } = table.create(#WAVES, 0)
+	local displacements: { Vector3 } = table.create(#samplePositions, Vector3.zero)
+
+	for index, position in samplePositions do
+		local sines: { number } = {}
+		local cosines: { number } = {}
+
+		for waveIndex, wave in WAVES do
+			local phase = wave.K * (wave.DirectionX * position.X + wave.DirectionZ * position.Z)
+			sines[waveIndex] = math.sin(phase)
+			cosines[waveIndex] = math.cos(phase)
+		end
+
+		spatialSines[index] = sines
+		spatialCosines[index] = cosines
+	end
+
+	-- The returned array is reused. Callers should consume it before sampling again.
+	return function(serverTime: number): { Vector3 }
+		for waveIndex, wave in WAVES do
+			local phase = wave.K * wave.Speed * serverTime * gravityScale
+			timeSines[waveIndex] = math.sin(phase)
+			timeCosines[waveIndex] = math.cos(phase)
+		end
+
+		for index, position in samplePositions do
+			local sines = spatialSines[index]
+			local cosines = spatialCosines[index]
+			local x, y, z = 0, 0, 0
+
+			for waveIndex, wave in WAVES do
+				local sine = sines[waveIndex] * timeCosines[waveIndex] - cosines[waveIndex] * timeSines[waveIndex]
+				local cosine = cosines[waveIndex] * timeCosines[waveIndex] + sines[waveIndex] * timeSines[waveIndex]
+				local horizontal = wave.Amplitude * cosine
+
+				x += wave.DirectionX * horizontal
+				y += wave.Amplitude * sine
+				z += wave.DirectionZ * horizontal
+			end
+
+			displacements[index] = Vector3.new(x, y * WAVE_HEIGHT_SCALE, z) * getIntensity(position)
+		end
+
+		return displacements
+	end
+end
+
 function WaveFunction:GetGerstner(position: Vector3, serverTime: number): CFrame
 	return CFrame.new(self:GetDisplacement(position, serverTime))
 end
