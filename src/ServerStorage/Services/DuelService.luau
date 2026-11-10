@@ -1,5 +1,6 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local DuelService = Knit.CreateService({
 	Name = "DuelService",
@@ -10,13 +11,11 @@ local MobService
 local AlertService
 local MissionBoardService
 local AIService
-local ArtifactService
-local LevelService
-local DataService
+local StatService
 
 local MAX_DUEL_MODS = 20
 
-local NameGenerator = require(game.ReplicatedStorage.Shared.Utils.NameGenerator)
+local NameGenerator = require(ReplicatedStorage.Shared.Utils.NameGenerator)
 
 local DojosFolder = Instance.new("Folder")
 DojosFolder.Name = "Dojos"
@@ -28,8 +27,8 @@ DuelMobFolder.Parent = workspace
 
 local Dojos = {}
 
-local TeleportCharacter = require(game.ReplicatedStorage.Shared.Utils.TeleportCharacter)
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
+local TeleportCharacter = require(ReplicatedStorage.Shared.Utils.TeleportCharacter)
+local Collector = require(ReplicatedStorage.Shared.Collector)
 
 function DuelService:CreateConfig(Level: number)
 	local Health = math.clamp(100 * math.max(1, (Level / 10) / 2), 100, 400)
@@ -79,7 +78,7 @@ function DuelService:CreateDuelMob(): Model
 	Prompt.Name = "ChallengePrompt"
 
 	local Billboard = game.ReplicatedStorage.Assets.Billboards.DuelLevel:Clone()
-	Billboard.Level.Text = tostring(MOB_LEVEL) .. "+"
+	Billboard.Level.Text = "DIFFICULTY " .. tostring(MOB_LEVEL)
 	Billboard.Parent = Mob
 
 	local SpawnCFrame = CFrame.new(MissionBoardService:GetRandomPointInDuelSpawn())
@@ -97,16 +96,6 @@ function DuelService:Challenge(Player: Player, Mob: Model)
 		return
 	end
 
-	local PlayerData = DataService:GetData(Player)
-
-	if PlayerData.Level < Mob:GetAttribute("MobLevel") then
-		AlertService:AlertPlayer(
-			Player,
-			"You need to be level " .. Mob:GetAttribute("MobLevel") .. " or higher to challenge this enemy.",
-			"Error"
-		)
-		return
-	end
 
 	local OriginalCFrame = Character:GetPivot()
 
@@ -161,7 +150,7 @@ function DuelService:Challenge(Player: Player, Mob: Model)
 		Player:SetAttribute("InCombat", false)
 		Mob:SetAttribute("InCombat", false)
 		Player:SetAttribute("InDojo", false)
-		LevelService:GiveExp(Player, Mob:GetAttribute("MobLevel") * 150)
+		StatService:GiveRewardXP(Player, Mob:GetAttribute("MobLevel") * 150, "Combat")
 		Player:RequestStreamAroundAsync(Dojo.Spawns.Player.Position, 5)
 
 		Character.HumanoidRootPart.Anchored = true
@@ -213,19 +202,17 @@ function DuelService:Challenge(Player: Player, Mob: Model)
 end
 
 function DuelService.KnitInit()
-	DataService = Knit.GetService("DataService")
 	MobService = Knit.GetService("MobService")
 	AlertService = Knit.GetService("AlertService")
 	MissionBoardService = Knit.GetService("MissionBoardService")
 	AIService = Knit.GetService("AIService")
-	ArtifactService = Knit.GetService("ArtifactService")
-	LevelService = Knit.GetService("LevelService")
+	StatService = Knit.GetService("StatService")
 end
 
 function DuelService.KnitStart()
 	local DuelSpawns = game.ServerStorage:FindFirstChild("DuelSpawns")
 	if DuelSpawns then
-		for i = 1, MAX_DUEL_MODS do
+		for _ = 1, MAX_DUEL_MODS do
 			DuelService:CreateDuelMob()
 		end
 	end

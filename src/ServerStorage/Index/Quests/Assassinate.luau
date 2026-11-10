@@ -1,14 +1,15 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 local DataService = Knit.GetService("DataService")
 local TetsuService = Knit.GetService("TetsuService")
 local QuestService = Knit.GetService("QuestService")
-local LevelService = Knit.GetService("LevelService")
+local StatService = Knit.GetService("StatService")
 local AlertService = Knit.GetService("AlertService")
 local ObjectiveService = Knit.GetService("ObjectiveService")
 
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
+local Collector = require(ReplicatedStorage.Shared.Collector)
 
 local function GetTarget(Player: Player): Model | false
 	local InDistance = {}
@@ -100,7 +101,7 @@ return {
 
 	CompleteQuest = function(Player: Player)
 		TetsuService:AddTetsu(Player, 150)
-		LevelService:GiveExp(Player, 300)
+		StatService:GiveRewardXP(Player, 300, "Combat")
 		ObjectiveService:ClearObjectives(Player, true)
 	end,
 }

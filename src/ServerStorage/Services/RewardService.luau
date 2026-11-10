@@ -1,5 +1,6 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local RewardService = Knit.CreateService({
 	Name = "RewardService",
@@ -8,15 +9,14 @@ local RewardService = Knit.CreateService({
 
 local MobService
 local TetsuService
-local LevelService
+local StatService
 local ItemService
 local InventoryService
 local ArtifactService
 local FloorDropService
-local StanceService
 
 function RewardService:GetRandomRewardFromWeight(Rewards: { any }, LuckBoost: number?)
-	local LuckBoost = LuckBoost or 0
+	LuckBoost = LuckBoost or 0
 	local totalWeight = 0
 	for _, reward in Rewards do
 		totalWeight = totalWeight + reward.Weight * (1 + LuckBoost / 100)
@@ -39,12 +39,12 @@ function RewardService:GetRandomRewardFromWeight(Rewards: { any }, LuckBoost: nu
 end
 
 function RewardService:GetPlayersFromDamageValues(Enemy: Model, min: number?)
-	local min = min or 5
+	min = min or 5
 	local PlayersDamage = {}
 	local PlayersToReturn = {}
 
 	local TotalDamage = 0
-	for UserId, Damage in Enemy.DamageFolder:GetChildren() do
+	for _, Damage in Enemy.DamageFolder:GetChildren() do
 		TotalDamage += Damage.value
 	end
 
@@ -97,9 +97,9 @@ function RewardService:GiveRewards(Character: Model, Position: Vector3)
 		return
 	end
 
-	local Players = RewardService:GetPlayersFromDamageValues(Character)
+	local Recipients = RewardService:GetPlayersFromDamageValues(Character)
 
-	for Player, Percentage in Players do
+	for Player, Percentage in Recipients do
 		if Percentage < 5 then
 			continue
 		end
@@ -134,19 +134,18 @@ function RewardService:GiveRewards(Character: Model, Position: Vector3)
 		end
 
 		RewardService:GiveTetsuReward(Player, MobData.Rewards.Tetsu)
-		LevelService:GiveExp(Player, Exp)
+		StatService:GiveRewardXP(Player, Exp, "Combat")
 	end
 end
 
 function RewardService.KnitInit()
 	TetsuService = Knit.GetService("TetsuService")
-	LevelService = Knit.GetService("LevelService")
+	StatService = Knit.GetService("StatService")
 	MobService = Knit.GetService("MobService")
 	ItemService = Knit.GetService("ItemService")
 	InventoryService = Knit.GetService("InventoryService")
 	ArtifactService = Knit.GetService("ArtifactService")
 	FloorDropService = Knit.GetService("FloorDropService")
-	StanceService = Knit.GetService("StanceService")
 end
 
 function RewardService.KnitStart() end

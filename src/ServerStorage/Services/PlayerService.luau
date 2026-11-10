@@ -1,7 +1,6 @@
-local BadgeService = game:GetService("BadgeService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 local PlayerService = Knit.CreateService({
 	Name = "PlayerService",
 	Client = {},
@@ -9,7 +8,6 @@ local PlayerService = Knit.CreateService({
 
 local DataService
 local CharacterService
-local ValuesService
 local ItemService
 local InventoryService
 local GamepassService
@@ -21,7 +19,6 @@ local PlaceService
 local SkillTreeService
 local MissionBoardService
 local PrisonService
-local RealmService
 local KillStreakService
 local WisdomService
 local WisdomWorldService
@@ -29,6 +26,7 @@ local LoadingService
 local TutorialService
 local CombatTutorialService
 local TriggerService
+local StatService
 
 function PlayerService:PlayerAdded(Player: Player)
 	if Player:HasTag("Player") then
@@ -48,6 +46,7 @@ function PlayerService:PlayerAdded(Player: Player)
 
 	local PlayerData = DataService:GetData(Player)
 
+	StatService:LoadPlayer(Player)
 	KillStreakService:LoadPlayer(Player)
 	SettingsService:LoadSettings(Player)
 
@@ -69,21 +68,6 @@ function PlayerService:PlayerAdded(Player: Player)
 	CharacterService:LoadCharacter(Player)
 end
 
-local CommonKimonos = {
-	"BeigeKimono",
-	"BlueKimono",
-	"GreenKimono",
-	"RedKimono",
-	"DarkKimono",
-}
-
-local RareKimonos = {
-	"CaptainPinkKimono",
-	"DemonGirlKimono",
-	"LightningMasterKimono",
-	"MoonKimono",
-	"SunflowerKimono",
-}
 
 local function ClearPlayerTools(Player: Player)
 	local Backpack = Player:FindFirstChildOfClass("Backpack")
@@ -124,7 +108,7 @@ function PlayerService:CheckFirstJoin(Player: Player)
 	if not success then
 		warn(err)
 	end
-	local success, err = pcall(function()
+	success, err = pcall(function()
 		QuestService:RemoveQuest(Player)
 	end)
 	if not success then
@@ -206,6 +190,7 @@ function PlayerService:ResetDataAndRestartTutorial(Player: Player)
 
 	self:CheckFirstJoin(Player)
 
+	StatService:LoadPlayer(Player)
 	KillStreakService:LoadPlayer(Player)
 	SettingsService:LoadSettings(Player)
 	GamepassService:LoadAttributes(Player)
@@ -273,20 +258,21 @@ function PlayerService.KnitInit()
 	TutorialService = Knit.GetService("TutorialService")
 	CombatTutorialService = Knit.GetService("CombatTutorialService")
 	TriggerService = Knit.GetService("TriggerService")
+	StatService = Knit.GetService("StatService")
 end
 
 function PlayerService.KnitStart()
-	game.Players.PlayerAdded:Connect(function(player)
+	Players.PlayerAdded:Connect(function(player)
 		task.spawn(function()
 			PlayerService:PlayerAdded(player)
 		end)
 	end)
 
-	game.Players.PlayerRemoving:Connect(function(player)
+	Players.PlayerRemoving:Connect(function(player)
 		PlayerService:SaveData(player)
 	end)
 
-	for _, player in game.Players:GetPlayers() do
+	for _, player in Players:GetPlayers() do
 		task.spawn(function()
 			PlayerService:PlayerAdded(player)
 		end)

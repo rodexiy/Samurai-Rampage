@@ -4,8 +4,9 @@ return {
 
 	OtherSkills = {},
 
-	Level = 1,
-	Exp = 0,
+	Stats = {},
+	StatProgressionVersion = 0,
+	LegacySkillPointCredits = 0,
 	Tetsu = 0,
 	Wisdom = 0,
 	KillStreak = 0,

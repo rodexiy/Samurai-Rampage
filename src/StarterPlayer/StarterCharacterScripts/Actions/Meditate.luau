@@ -1,7 +1,7 @@
-local ContextActionService = game:GetService("ContextActionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Meditate = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local Player = game.Players.LocalPlayer
 local Character = Player.Character
@@ -10,13 +10,14 @@ local Params = RaycastParams.new()
 Params.FilterDescendantsInstances = { workspace:WaitForChild("Entity") }
 Params.FilterType = Enum.RaycastFilterType.Exclude
 
-local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
 local Animation = game.ReplicatedStorage.Assets.Animations.Misc.Meditate
 local AnimationController = Knit.GetController("AnimationController")
 local MenuController = Knit.GetController("MenuController")
 local DeviceController = Knit.GetController("DeviceController")
 local RugService = Knit.GetService("RugService")
+local StatService = Knit.GetService("StatService")
 local FastTravelController = Knit.GetController("FastTravelController")
 
 local MAX_RUG_DISTANCE = 10
@@ -50,6 +51,7 @@ function Meditate.Stop()
 		return
 	end
 	Character:SetAttribute("Meditating", false)
+	StatService.SetMeditating:Fire(false)
 
 	CharacterShared:UpdateBoth(Character)
 	AnimationController:StopAnimationFind(Character, "Meditate")
@@ -91,6 +93,7 @@ function Meditate.callback(inputState)
 	AnimationController:PlayAnimation(Character, Animation)
 	MenuController:OpenMenu("Meditate")
 	Character:SetAttribute("Meditating", true)
+	StatService.SetMeditating:Fire(true)
 	RugService:UnlockRug(Player)
 	CharacterShared:UpdateBoth(Character)
 end

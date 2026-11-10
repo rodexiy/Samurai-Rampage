@@ -1,8 +1,9 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local DataService = Knit.GetService("DataService")
 local TetsuService = Knit.GetService("TetsuService")
-local LevelService = Knit.GetService("LevelService")
+local StatService = Knit.GetService("StatService")
 local ObjectiveService = Knit.GetService("ObjectiveService")
 local QuestService = Knit.GetService("QuestService")
 local InventoryService = Knit.GetService("InventoryService")
@@ -37,7 +38,6 @@ local COAL_REQUIRED = 10
 local WOOD_REQUIRED = 5
 local KATANA_NAME = "BasicKatana"
 local BEGINNER_STANCE = "Beginner"
-local MIN_LEVEL_AFTER_KATANA = 2
 
 local function GetTargetPosition(Target: Instance?): Vector3?
 	if not Target then
@@ -295,24 +295,6 @@ local function GiveAndEquipBeginnerStance(Player: Player)
 	StanceService:EquipStance(Player, BEGINNER_STANCE)
 end
 
-local function EnsureMinimumLevel(Player: Player, MinimumLevel: number)
-	local PlayerData = DataService:GetData(Player)
-	if not PlayerData then
-		return
-	end
-
-	while PlayerData.Level < MinimumLevel do
-		local PreviousLevel = PlayerData.Level
-		local ExpNeeded = LevelService:GetRemainExpToLevelUp(PlayerData.Level, PlayerData.Exp)
-		LevelService:GiveExp(Player, math.max(0, math.ceil(ExpNeeded)))
-
-		PlayerData = DataService:GetData(Player)
-		if not PlayerData or PlayerData.Level <= PreviousLevel then
-			break
-		end
-	end
-end
-
 local function HasFinishedMining(StoryData): boolean
 	return StoryData.IronOre >= IRON_REQUIRED and StoryData.Coal >= COAL_REQUIRED
 end
@@ -352,7 +334,7 @@ local function FinishCraftKatana(Player: Player)
 	StoryData.CraftedKatana = true
 	StoryData.Step = STEP_TALK_GODOT_AFTER_KATANA
 	GiveAndEquipBeginnerStance(Player)
-	EnsureMinimumLevel(Player, MIN_LEVEL_AFTER_KATANA)
+
 	AddReturnToGodotObjective(Player)
 	return true
 end
@@ -494,16 +476,13 @@ local function Resume(Player: Player)
 			return FinishWood(Player)
 		end
 		AddWoodObjective(Player, StoryData)
-	elseif StoryData.Step == STEP_RETURN_TO_GODOT then
+	elseif StoryData.Step == STEP_RETURN_TO_GODOT or StoryData.Step == STEP_TALK_GODOT_AFTER_KATANA then
 		AddReturnToGodotObjective(Player)
 	elseif StoryData.Step == STEP_CRAFT_KATANA then
 		if InventoryService:GetPlayerItemByName(Player, KATANA_NAME) then
 			return FinishCraftKatana(Player)
 		end
 		AddCraftKatanaObjective(Player)
-	elseif StoryData.Step == STEP_TALK_GODOT_AFTER_KATANA then
-		EnsureMinimumLevel(Player, MIN_LEVEL_AFTER_KATANA)
-		AddReturnToGodotObjective(Player)
 	elseif StoryData.Step == STEP_COMPLETED then
 		StoryData.Completed = true
 		return false
@@ -563,8 +542,8 @@ return {
 		GiveAndEquipBeginnerStance(Player)
 		ClearTargets(Player)
 		TetsuService:AddTetsu(Player, 150)
-		LevelService:GiveExp(Player, 300)
-		EnsureMinimumLevel(Player, MIN_LEVEL_AFTER_KATANA)
+		StatService:GiveRewardXP(Player, 300, "Gathering")
+
 		ObjectiveService:ClearObjective(Player, OBJECTIVE_NAME, true)
 		TutorialService:CompleteMission(Player, OBJECTIVE_NAME)
 		return true

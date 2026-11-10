@@ -1,6 +1,6 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local SkillTreeService = Knit.CreateService({
 	Name = "SkillTreeService",
@@ -15,8 +15,8 @@ local ItemService
 local ValuesService
 
 local AllNodes = {}
-local SkillTrees = require(game.ReplicatedStorage.Shared.Index.SkillTrees)
-local LevelFunctions = require(game.ReplicatedStorage.Shared.LevelFunctions)
+local SkillTrees = require(ReplicatedStorage.Shared.Index.SkillTrees)
+local StatService
 
 local DataService
 
@@ -79,7 +79,7 @@ end
 function SkillTreeService:ResetSkillTree(Player: Player)
 	local PlayerData = DataService:GetData(Player)
 	PlayerData.UnlockedNodes = {}
-	PlayerData.FreePoints = LevelFunctions:GetPlayerFreePointsFromLevel(PlayerData.Level)
+	PlayerData.FreePoints = StatService:GetEarnedSkillPoints(Player)
 
 	local PlayerSkills = {}
 	for _, Item in PlayerData.Inventory do
@@ -101,7 +101,8 @@ end
 function SkillTreeService:LoadAttributes(Player: Player)
 	local PlayerData = DataService:GetData(Player)
 
-	local UnlockedNodes = Player:FindFirstChild("UnlockedNodes") or Instance.new("Folder", Player)
+	local UnlockedNodes = Player:FindFirstChild("UnlockedNodes") or Instance.new("Folder")
+	UnlockedNodes.Parent = Player
 	UnlockedNodes.Name = "UnlockedNodes"
 
 	UnlockedNodes:ClearAllChildren()
@@ -132,11 +133,13 @@ function SkillTreeService:LoadAttributes(Player: Player)
 		end
 	end
 
-	PlayerData.FreePoints = LevelFunctions:GetPlayerFreePointsFromLevel(PlayerData.Level) - SpentPoints
-
-	if PlayerData.FreePoints < 0 then
-		self:ResetSkillTree(Player)
+	if PlayerData.LegacyProgression and PlayerData.LegacyProgression.MigrateSkills then
+		local ExistingPoints = math.max(0, PlayerData.LegacyProgression.FreePoints or 0)
+		PlayerData.LegacySkillPointCredits = math.max(0, SpentPoints + ExistingPoints - StatService:GetEarnedSkillPoints(Player))
+		PlayerData.LegacyProgression.MigrateSkills = false
 	end
+
+	PlayerData.FreePoints = math.max(0, StatService:GetEarnedSkillPoints(Player) - SpentPoints)
 
 	Player:SetAttribute("FreePoints", PlayerData.FreePoints)
 	for _, Attribute in OtherAttributes do
@@ -289,6 +292,7 @@ function SkillTreeService.KnitInit()
 	InventoryService = Knit.GetService("InventoryService")
 	ItemService = Knit.GetService("ItemService")
 	ValuesService = Knit.GetService("ValuesService")
+	StatService = Knit.GetService("StatService")
 end
 
 function SkillTreeService.KnitStart()

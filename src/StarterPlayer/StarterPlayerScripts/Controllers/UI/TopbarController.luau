@@ -163,9 +163,7 @@ function TopBarController:BindTopbar()
 
 		local StoreIconImage = Store.widget:FindFirstChild("IconImage", true)
 
-		if StoreIconImage then
-			EasyVisuals.new(StoreIconImage, "Gold", 0.35, 0.75, true)
-		end
+
 	end
 
 	if isPlayerAdmin(game.Players.LocalPlayer) then
@@ -179,9 +177,7 @@ function TopBarController:BindTopbar()
 		end)
 
 		local CmdIconImage = Cmd.widget:FindFirstChild("IconImage", true)
-		if CmdIconImage then
-			EasyVisuals.new(CmdIconImage, "Death", 0.35, 0.75, true)
-		end
+
 	end
 end
 

@@ -1,41 +1,22 @@
-local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local DamageService = Knit.CreateService({
 	Name = "DamageService",
 	Client = {},
 })
 
-local MIN_PLAYER_COMBAT_LEVEL = 10
-
 local PartyService
 local EquipmentService
 local ItemService
-local SkillTreeService
-local ArtifactService
 local ValuesService
 local StanceService
-local DataService
+local StatService
+local Progression = require(ReplicatedStorage.Shared.StatProgression)
 
-local function GetPlayerLevel(Player: Player): number
-	local PlayerData = DataService:GetData(Player)
-	return (PlayerData and PlayerData.Level) or 0
-end
-
-function DamageService:CanDamage(Character: Model, Attacker: Model?): boolean
-	if not Attacker then
-		return true
-	end
-
-	local CharacterPlayer = Players:GetPlayerFromCharacter(Character)
-	local AttackerPlayer = Players:GetPlayerFromCharacter(Attacker)
-	if not CharacterPlayer or not AttackerPlayer or CharacterPlayer == AttackerPlayer then
-		return true
-	end
-
-	return GetPlayerLevel(CharacterPlayer) >= MIN_PLAYER_COMBAT_LEVEL
-		and GetPlayerLevel(AttackerPlayer) >= MIN_PLAYER_COMBAT_LEVEL
+function DamageService:CanDamage(Character: Model, _Attacker: Model?): boolean
+	return not Character:GetAttribute("Died") and not Character:GetAttribute("ForceField")
 end
 
 function DamageService:GetMultiplierTotalFromEquipments(Character: Model, MultiplierName: string)
@@ -76,6 +57,7 @@ function DamageService:CalculateDamage(
 			local StanceData = StanceService:GetStance(Attacker:GetAttribute("Stance")) or {}
 			local SwordBaseDamage = StanceData.BaseDamage or 0
 			SwordBaseDamage += ValuesService:GetWeaponAdditionalStat(Attacker, WeaponSide, "AdditionalDamage")
+			SwordBaseDamage += StatService:GetLevel(Attacker, "Strength") * Progression.Bonuses.Strength.WeaponDamage
 
 			BaseDamage += SwordBaseDamage
 			NodeIncrease = ValuesService:GetAmountUnlockedNodesMatch(Attacker, "Kendo Proficiency")
@@ -85,6 +67,11 @@ function DamageService:CalculateDamage(
 
 		local Resistance = DamageService:GetMultiplierTotalFromEquipments(Enemy, Multiplier .. "Resistance")
 		local Strength = DamageService:GetMultiplierTotalFromEquipments(Attacker, Multiplier .. "Strength")
+		if Multiplier == "Weapon" then
+			Resistance += StatService:GetLevel(Enemy, "Resistance") * Progression.Bonuses.Resistance.WeaponResistance
+		elseif Multiplier == "Artifact" then
+			Strength += StatService:GetLevel(Attacker, "Spirit") * Progression.Bonuses.Spirit.ArtifactStrength
+		end
 		TotalStrength += (Strength / 100)
 		TotalResistance += (Resistance / 100)
 	end
@@ -121,6 +108,10 @@ function DamageService:IncrementDamage(Character: Model, Damage: number, Attacke
 end
 
 function DamageService:DealDamage(Character: Model, Amount: number, Attacker: Model)
+	if typeof(Amount) ~= "number" or Amount ~= Amount or Amount <= 0 or Amount == math.huge then
+		return
+	end
+
 	if
 		Character:GetAttribute("ForceField")
 		or Character:GetAttribute("InLabor")
@@ -143,13 +134,15 @@ function DamageService:DealDamage(Character: Model, Amount: number, Attacker: Mo
 		end
 	end
 
-	local RemainingDamage = Character:GetAttribute("Health") - Amount
+	local PreviousHealth = Character:GetAttribute("Health")
+	local RemainingDamage = PreviousHealth - Amount
 	Character:SetAttribute(
 		"Health",
 		math.clamp(Character:GetAttribute("Health") - Amount, 0, Character:GetAttribute("MaxHealth"))
 	)
 
 	DamageService:IncrementDamage(Character, Amount, Attacker)
+	StatService:RecordDamage(Character, Attacker, math.min(Amount, PreviousHealth))
 
 	if Character:GetAttribute("Health") <= 0 and not Character:GetAttribute("Downed") then
 		if Character:GetAttribute("IsAI") then
@@ -183,11 +176,9 @@ function DamageService.KnitInit()
 	PartyService = Knit.GetService("PartyService")
 	EquipmentService = Knit.GetService("EquipmentService")
 	ItemService = Knit.GetService("ItemService")
-	SkillTreeService = Knit.GetService("SkillTreeService")
-	ArtifactService = Knit.GetService("ArtifactService")
 	ValuesService = Knit.GetService("ValuesService")
 	StanceService = Knit.GetService("StanceService")
-	DataService = Knit.GetService("DataService")
+	StatService = Knit.GetService("StatService")
 end
 
 function DamageService.KnitStart() end

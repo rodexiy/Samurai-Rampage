@@ -1,5 +1,6 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local SkillService = Knit.CreateService({
 	Name = "SkillService",
@@ -7,11 +8,12 @@ local SkillService = Knit.CreateService({
 })
 
 local InventoryService
-local AlertService
 local ItemService
 local RaceService
 local ArtifactService
 local DataService
+local StatService
+local Progression = require(ReplicatedStorage.Shared.StatProgression)
 
 local Skills = {}
 local SkillDatas = {}
@@ -22,7 +24,7 @@ function SkillService:GetAttackOverwrite(Character: Model)
 end
 
 function SkillService:GetGroundInMousePosition(MousePosition: Vector3, AmountDown: number)
-	local AmountDown = AmountDown or 10
+	AmountDown = AmountDown or 10
 	local Params = RaycastParams.new()
 	Params.FilterType = Enum.RaycastFilterType.Exclude
 	Params.FilterDescendantsInstances = { workspace.Entity, workspace.FaceHeadFolder }
@@ -35,7 +37,7 @@ function SkillService:GetGroundInMousePosition(MousePosition: Vector3, AmountDow
 end
 
 function SkillService:GetPositionInRange(Reference: Vector3, MousePosition: Vector3, MaxDistance: number)
-	local MaxDistance = MaxDistance or 80
+	MaxDistance = MaxDistance or 80
 	local Distance = math.min((Reference - MousePosition).Magnitude, MaxDistance)
 
 	return (CFrame.new(Reference, MousePosition) * CFrame.new(0, 0, -Distance)).Position
@@ -68,7 +70,6 @@ function SkillService:UseSkill(Character: Model, SkillName: string, Data: { any 
 
 	if not Character:GetAttribute("IsAI") then
 		local _Player = Players:GetPlayerFromCharacter(Character)
-		local SkillData = ItemService:GetItemData(SkillName)
 		if _Player and not InventoryService:GetPlayerItemByName(_Player, SkillName) then
 			return
 		end
@@ -121,6 +122,14 @@ end
 
 function SkillService:SetSkillData(Character: Model, skillName: string, state: string)
 	local SkillData = SkillService:GetSkillsDataForCharacter(Character)
+	if state and not SkillData[skillName] then
+		local Player = Players:GetPlayerFromCharacter(Character)
+		local Item = ItemService:GetItemData(skillName)
+		if Player and Item and Item.Type == "Artifact" then
+			StatService:GiveXP(Player, "Spirit", Progression.Training.ArtifactSkill)
+		end
+	end
+
 	SkillData[skillName] = state
 	Character:SetAttribute("SkillState", state)
 	return SkillData[skillName]
@@ -210,15 +219,15 @@ function SkillService:LoadSkills(Player: Player)
 	end
 end
 
-local MousePositionUpdater = game.ReplicatedStorage.Assets.Public.MousePositionUpdater :: UnreliableRemoteEvent
+local MousePositionUpdater = ReplicatedStorage.Assets.Public.MousePositionUpdater :: UnreliableRemoteEvent
 
 function SkillService.KnitInit()
 	DataService = Knit.GetService("DataService")
 	InventoryService = Knit.GetService("InventoryService")
-	AlertService = Knit.GetService("AlertService")
 	ItemService = Knit.GetService("ItemService")
 	RaceService = Knit.GetService("RaceService")
 	ArtifactService = Knit.GetService("ArtifactService")
+	StatService = Knit.GetService("StatService")
 end
 
 function SkillService.KnitStart()

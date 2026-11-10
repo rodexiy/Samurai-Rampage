@@ -1,6 +1,6 @@
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 
 for _, ui in game.ReplicatedStorage.Assets.UIS:GetChildren() do
@@ -16,12 +16,10 @@ for _, ui in game.ReplicatedStorage.Assets.UIS:GetChildren() do
 end
 
 task.spawn(function()
-	local StarterGui = game:GetService("StarterGui")
-
 	repeat
 		local success = pcall(function()
 			StarterGui:SetCore("ResetButtonCallback", false)
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, true)
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
 
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
@@ -38,9 +36,6 @@ for _, v in script:GetDescendants() do
 		require(v)
 	end
 end
-
-local Camera = workspace.CurrentCamera
--- Camera.FieldOfView = 75
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Cmdr = require(ReplicatedStorage:WaitForChild("CmdrClient"))

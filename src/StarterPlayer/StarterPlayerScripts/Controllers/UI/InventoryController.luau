@@ -1,614 +1,594 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local Items = require(ReplicatedStorage.Shared.Index.Items)
+
+type ItemData = { [string]: any }
 
 local InventoryController = Knit.CreateController({
 	Name = "InventoryController",
 })
 
-local StanceService
+local Player = Players.LocalPlayer
 local InventoryService
+local StanceService
 local HotbarController
+local MenuController
+local ViewportRotationController
+local StatsController
 
-local Player = game.Players.LocalPlayer
-local PlayerGui
-local Menu
-local InventoryGUI
-local Inventory
+local DISPLAY_DISTANCE_SCALE = 0.8
 
-local background
-local Content
-local ItemInfo
-local SlotEquipTooltip
-
-local NotSelectedColor = Color3.fromRGB(140, 140, 140)
-local SelectedColor = Color3.fromRGB(255, 255, 255)
+local MainMenu: ScreenGui
+local Inventory: Frame
+local Templates: Frame
+local Tabs: GuiObject
+local Content: ScrollingFrame
+local ContentLayout: UIListLayout
+local ItemInfo: Frame
+local Description: TextLabel
+local ItemName: TextLabel
+local BasicStats: Frame
+local Display: Frame
+local EquipButton: ImageButton
+local EquipLeftButton: ImageButton
 
 local CurrentTab = "Items"
-
-local Items = require(game.ReplicatedStorage.Shared.Index.Items)
-
-local SelectedItem = nil
-local SelectedItemData = nil
-
+local SelectedItem: ImageButton? = nil
+local SelectedItemData: ItemData? = nil
+local RenderRevision = 0
 local EquippedVisuals = {}
+local SelectedVisuals = {}
 
-function InventoryController:ClearContent()
-	for _, Visual in EquippedVisuals do
+local RarityColors = {
+	Common = Color3.fromRGB(230, 230, 230),
+	Uncommon = Color3.fromRGB(110, 220, 120),
+	Rare = Color3.fromRGB(90, 160, 255),
+	Epic = Color3.fromRGB(190, 110, 255),
+	Legendary = Color3.fromRGB(255, 200, 70),
+	Mythic = Color3.fromRGB(255, 100, 100),
+}
+
+local TabNames = { Items = true, Skills = true, Stances = true, Stats = true }
+
+local function ClearVisuals(Visuals: { any })
+	for _, Visual in Visuals do
 		Visual:Destroy()
-		Visual[_] = nil
 	end
 
-	for _, Button in Content:GetChildren() do
-		if Button:IsA("ImageButton") then
-			Button:Destroy()
+	table.clear(Visuals)
+end
+
+local function CreateOutline(Button: GuiObject, Color: Color3, Thickness: number): UIStroke
+	local Outline = Instance.new("UIStroke")
+	Outline.Name = "InventoryOutline"
+	Outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	Outline.Color = Color
+	Outline.Thickness = Thickness
+	Outline.Parent = Button
+
+	return Outline
+end
+
+local function ClearViewport(Viewport: ViewportFrame)
+	for _, Child in Viewport:GetChildren() do
+		if Child:IsA("WorldModel") or Child:IsA("Model") or Child:IsA("BasePart") then
+			Child:Destroy()
 		end
 	end
 end
 
-local EasyVisuals = require(game.ReplicatedStorage.Assets.Libraries.EasyVisuals)
-
-local SelectedVisuals = {}
-
-local Rigs = game.ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Rigs")
-
-function InventoryController:ConfigureViewport(Template)
-	local Viewport: ViewportFrame = Template:FindFirstChildWhichIsA("ViewportFrame")
-	if not Viewport then
+local function FitViewportCamera(Viewport: ViewportFrame, Model: Model, Distance: number?, DistanceScale: number?)
+	local Camera = Viewport.CurrentCamera
+	if not Camera then
 		return
+	end
+
+	local Bounds, Size = Model:GetBoundingBox()
+	local AspectRatio = if Viewport.AbsoluteSize.Y > 0 then Viewport.AbsoluteSize.X / Viewport.AbsoluteSize.Y else 1
+	local VerticalAngle = math.rad(Camera.FieldOfView) / 2
+	local HorizontalAngle = math.atan(math.tan(VerticalAngle) * AspectRatio)
+	local Radius = Size.Magnitude / 2
+	local CameraDistance = Distance or math.max(1.1, Radius / math.sin(math.min(VerticalAngle, HorizontalAngle)) * 1.1)
+	CameraDistance *= DistanceScale or 1
+
+	Camera.CFrame = CFrame.new(Bounds.Position + Vector3.new(0, 0, CameraDistance))
+end
+
+local function GetItemData(Item: ItemData): ItemData
+	local Data = table.clone(Items[Item.Name] or {})
+	for Key, Value in Item do
+		Data[Key] = Value
+	end
+
+	return Data
+end
+
+local function SetButtonText(Button: ImageButton, Text: string)
+	local Label = Button:FindFirstChildWhichIsA("TextLabel")
+	if Label then
+		Label.Text = Text
+	end
+end
+
+function InventoryController:IsOpen(): boolean
+	return MainMenu ~= nil and MainMenu.Enabled
+end
+
+function InventoryController:CanAssignToHotbar(): boolean
+	return self:IsOpen()
+		and SelectedItemData ~= nil
+		and SelectedItemData.Class ~= "Weapon"
+		and SelectedItemData.Class ~= "Equipable"
+		and SelectedItemData.Class ~= "Stance"
+end
+
+function InventoryController:RefreshHotbar()
+	if HotbarController then
+		HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
+	end
+end
+
+function InventoryController:Unselect()
+	ClearVisuals(SelectedVisuals)
+	SelectedItem = nil
+	SelectedItemData = nil
+
+	if ItemInfo then
+		ItemInfo.Visible = false
+		Description.Visible = false
+
+		local Viewport = Display:FindFirstChildWhichIsA("ViewportFrame")
+		if Viewport then
+			ViewportRotationController:StopRotation(Viewport)
+			ClearViewport(Viewport)
+		end
+	end
+
+	self:RefreshHotbar()
+end
+
+function InventoryController:ClearContent()
+	RenderRevision += 1
+	self:Unselect()
+	ClearVisuals(EquippedVisuals)
+
+	if not Content then
+		return
+	end
+
+	for _, Child in Content:GetChildren() do
+		if Child:IsA("GuiObject") then
+			Child:Destroy()
+		end
+	end
+end
+
+function InventoryController:ConfigureViewport(Template: GuiObject): ViewportFrame?
+	local Viewport = Template:FindFirstChildWhichIsA("ViewportFrame")
+	if not Viewport then
+		return nil
 	end
 
 	local Camera = Viewport:FindFirstChildWhichIsA("Camera")
 	if not Camera then
 		Camera = Instance.new("Camera")
 		Camera.Parent = Viewport
-		Viewport.CurrentCamera = Camera
 	end
 
-	Camera.CFrame = CFrame.new(0, 0, 0)
+	Camera.CFrame = CFrame.new()
 	Camera.CameraType = Enum.CameraType.Scriptable
+	Viewport.CurrentCamera = Camera
 
 	return Viewport
 end
 
-function InventoryController:LoadStanceViewport(Viewport, Stance)
-	local Rig = Rigs[Stance.WeaponType .. "Visualizer"]:Clone()
-	Rig:PivotTo(workspace.CurrentCamera.CFrame * CFrame.new(0, 0, 64))
-	local Humanoid = Rig:WaitForChild("Humanoid")
-	local Animator = Humanoid:WaitForChild("Animator")
-	Rig.PrimaryPart.Anchored = true
+function InventoryController:AddModelToViewport(Viewport: ViewportFrame, Item: ItemData, DistanceScale: number?)
+	ClearViewport(Viewport)
+
+	local Source = ReplicatedStorage.Assets.Tools:FindFirstChild(Item.Name)
+		or ReplicatedStorage.Assets.Equipables:FindFirstChild(Item.Name, true)
+	local Weapon = ReplicatedStorage.Assets.Weapons:FindFirstChild(Item.Name)
+	if not Source and Weapon then
+		Source = Weapon:FindFirstChild("Weapon")
+	end
+
+	if not Source then
+		return
+	end
+
+	local Clone = Source:Clone()
+	local Model: Model
+	if Clone:IsA("Model") then
+		Model = Clone
+	else
+		Model = Instance.new("Model")
+		Clone.Parent = Model
+	end
+
+	for _, Script in Model:QueryDescendants("LuaSourceContainer") do
+		Script:Destroy()
+	end
+
+	Model:RemoveTag("SmartBone")
+	for _, Part in Model:QueryDescendants("BasePart") do
+		Part:RemoveTag("SmartBone")
+		Part.Anchored = true
+		Part.CanCollide = false
+	end
+
+	local _, BoundingSize = Model:GetBoundingBox()
+	local LargestDimension = math.max(BoundingSize.X, BoundingSize.Y, BoundingSize.Z)
+	local Offset = Source:GetAttribute("InventoryOffset") or CFrame.new()
+	local Distance = Source:GetAttribute("InventoryDistance") or math.clamp(LargestDimension * 1.8, 1.1, 2.5)
+	local Rotation = CFrame.Angles(0, 0, math.rad(45))
+	if Item.Class == "Equipable" then
+		Distance = Source:GetAttribute("InventoryDistance") or 5
+		Rotation = CFrame.new()
+	end
+
+	Model:PivotTo(CFrame.new(0, 0, -Distance) * Rotation * Offset)
+	Model.Parent = Viewport
+
+	FitViewportCamera(Viewport, Model, Source:GetAttribute("InventoryDistance"), DistanceScale)
+end
+
+function InventoryController:LoadStanceViewport(Viewport: ViewportFrame, Stance: ItemData)
+	ClearViewport(Viewport)
+
+	local Source = ReplicatedStorage.Assets.Rigs:FindFirstChild((Stance.WeaponType or "Katana") .. "Visualizer")
+	local Animations = ReplicatedStorage.Assets.Animations.Stances:FindFirstChild(Stance.Name)
+	local Idle = Animations and Animations:FindFirstChild("Idle") :: Animation?
+	if not Source or not Source:IsA("Model") then
+		return
+	end
+
+	local Rig = Source:Clone()
+	local Humanoid = Rig:FindFirstChildWhichIsA("Humanoid")
+	local Animator = Humanoid and Humanoid:FindFirstChildWhichIsA("Animator")
+	if Rig.PrimaryPart then
+		Rig.PrimaryPart.Anchored = true
+	end
+
+	for _, Script in Rig:QueryDescendants("LuaSourceContainer") do
+		Script:Destroy()
+	end
 
 	local WorldModel = Instance.new("WorldModel")
 	WorldModel.Parent = Viewport
-
-	Rig.Parent = workspace
-
-	local Track: AnimationTrack =
-		Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Stances[Stance.Name].Idle)
-	Track:Play(0, 10)
-
 	Rig.Parent = WorldModel
 	Rig:PivotTo(CFrame.new(0, 0, -5) * CFrame.Angles(0, math.rad(205), 0))
-end
-function InventoryController:LoadStances()
-	local Stances = StanceService:GetPlayerStances()
-	self:ClearContent()
 
-	for _, Stance in Stances do
-		task.spawn(function()
-			local Template = Inventory.StanceTemplate:Clone()
-			Template.Name = Stance.Name
-			Template.StanceName.Text = Stance.DisplayName or Stance.Name
-
-			local Viewport = self:ConfigureViewport(Template)
-			InventoryController:LoadStanceViewport(Viewport, Stance)
-			if Stance.Equipped then
-				local Rarity = Stance.Rarity or "Common"
-				table.insert(EquippedVisuals, EasyVisuals.new(Template.StanceName, Rarity, 0.35, 1))
-				table.insert(EquippedVisuals, EasyVisuals.new(Template, Rarity .. "Outline", 50, 1))
-			end
-
-			Template.Activated:Connect(function()
-				SelectedItemData = Stance
-				self:Select(Template)
-				StanceService:EquipStance(Stance.Name)
-			end)
-
-			Template.Visible = true
-			Template.Parent = Content
-		end)
+	if Animator and Idle then
+		Animator:LoadAnimation(Idle):Play(0, 10)
 	end
 end
 
-function ClearSelectedVisuals()
-	for _, Visual in SelectedVisuals do
-		local found = false
-		for _, EquippedVisual in EquippedVisuals do
-			if Visual.UIInstance == EquippedVisual.UIInstance then
-				found = true
-				break
-			end
-		end
-
-		if found then
-			continue
-		end
-		Visual:Destroy()
-		Visual[_] = nil
-	end
-end
-
-function InventoryController:Unselect()
-	ClearSelectedVisuals()
-
-	for _, Attribute in ItemInfo.ItemStats:GetChildren() do
-		if Attribute:IsA("TextLabel") then
-			Attribute:Destroy()
-		end
+function InventoryController:Select(Button: ImageButton, Data: ItemData?)
+	local Item = Data or SelectedItemData
+	if not Item then
+		return
 	end
 
-	SelectedItem = nil
-	SelectedItemData = nil
-	ItemInfo.Visible = false
-	HotbarController:LoadHotbar(true)
-end
+	self:Unselect()
+	SelectedItem = Button
+	SelectedItemData = Item
 
-local ShowAttributes = {
-	["MaxHealthIncrease"] = {
-		DisplayName = "Health",
-		Color = Color3.fromRGB(82, 255, 0),
-	},
-	["MaxStaminaIncrease"] = {
-		DisplayName = "Stamina",
-		Color = Color3.fromRGB(0, 148, 255),
-	},
-	["RunspeedIncrease"] = {
-		DisplayName = "Run Speed",
-		Color = Color3.fromRGB(255, 242, 0),
-	},
+	ItemName.Text = Item.DisplayName or Item.Name
+	BasicStats.Amount.Text = tostring(Item.Stack or 1) .. "x"
+	BasicStats.Amount.Visible = Item.Class ~= "Stance"
+	BasicStats.ItemType.Text = Item.Type or Item.WeaponType or Item.Class or ""
+	BasicStats.Rarity.Text = Item.Rarity or "Common"
+	Description.Text = Item.Description or ""
+	Description.Visible = Description.Text ~= ""
 
-	["BaseDamage"] = {
-		DisplayName = "Damage",
-		Color = Color3.fromRGB(237, 70, 70),
-	},
-	["BaseStaminaCost"] = {
-		DisplayName = "Stamina Cost",
-		Color = Color3.fromRGB(0, 148, 255),
-	},
+	local Rarity = Item.Rarity or "Common"
+	local RarityColor = RarityColors[Rarity] or RarityColors.Common
+	table.insert(SelectedVisuals, CreateOutline(Button, Color3.fromRGB(255, 238, 0), 2))
+	BasicStats.Rarity.TextColor3 = RarityColor
 
-	["AdditionalDamage"] = {
-		DisplayName = "Damage",
-		Color = Color3.fromRGB(237, 70, 70),
-	},
-	["AdditionalStaminaCost"] = {
-		DisplayName = "Stamina Cost",
-		Color = Color3.fromRGB(0, 148, 255),
-	},
-}
-function InventoryController:ShowSelectedItemInfo(SelectedItem)
-	local ItemData = Items[SelectedItem.Name] or SelectedItem
-	for _, Attribute in ItemInfo.ItemStats:GetChildren() do
-		if Attribute:IsA("TextLabel") then
-			Attribute:Destroy()
+	local Viewport = self:ConfigureViewport(Display)
+	if Viewport then
+		local Placeholder = Display:FindFirstChildWhichIsA("ImageLabel")
+		if Placeholder then
+			Placeholder.Visible = false
+		end
+
+		if Item.Class == "Stance" then
+			self:LoadStanceViewport(Viewport, Item)
+		else
+			self:AddModelToViewport(Viewport, Item, DISPLAY_DISTANCE_SCALE)
 		end
 	end
 
-	local amountOfAttributes = 0
-
-	for Attribute, DisplayData in ShowAttributes do
-		local value = ItemData[Attribute]
-
-		if value then
-			local Template = ItemInfo.StatusTemplate:Clone()
-			local Sign = if value > 0 then "+" else ""
-			Template.Text = DisplayData.DisplayName .. ": " .. Sign .. tostring(value)
-
-			if value > 0 then
-				Template.TextColor3 = DisplayData.Color
-			else
-				Template.TextColor3 = Color3.fromRGB(237, 70, 70)
-			end
-			Template.Visible = true
-			Template.Parent = ItemInfo.ItemStats
-			amountOfAttributes += 1
-		end
+	EquipButton.Visible = Item.Class == "Equipable"
+		or Item.Class == "Weapon"
+		or Item.Class == "Stance"
+		or self:CanAssignToHotbar()
+	EquipLeftButton.Visible = Item.Class == "Weapon" and (Item.CanEquipLeft == true or Item.EquippedLeft == true)
+	SetButtonText(EquipButton, if Item.Equipped then "UNEQUIP" else "EQUIP")
+	if Item.Class == "Stance" and Item.Equipped then
+		SetButtonText(EquipButton, "EQUIPPED")
 	end
-
-	if amountOfAttributes == 0 then
-		ItemInfo.ItemStats.Visible = false
-		ItemInfo.ItemStatsTitle.Visible = false
-	else
-		ItemInfo.ItemStats.Visible = true
-		ItemInfo.ItemStatsTitle.Visible = true
-
-		ItemInfo.ItemStats.Size = UDim2.fromScale(0.864, amountOfAttributes * 0.1)
-	end
-end
-
-local ItemTools = game.ReplicatedStorage.Assets.Tools
-local Equipables = game.ReplicatedStorage.Assets.Equipables
-local Weapons = game.ReplicatedStorage.Assets.Weapons
-function InventoryController:Select(Item)
-	SelectedItem = Item
-
-	ClearSelectedVisuals()
-
-	InventoryController:ShowSelectedItemInfo(SelectedItemData)
-
-	ItemInfo.ItemName.Text = SelectedItemData.DisplayName or SelectedItemData.Name
-	ItemInfo.ItemDescription.Text = SelectedItemData.Description or ""
-	ItemInfo.ItemType.Text = SelectedItemData.Type or ""
-	ItemInfo.ItemRarity.Text = SelectedItemData.Rarity or "Common"
-
-	local Rarity = SelectedItemData.Rarity or "Common"
-	table.insert(SelectedVisuals, EasyVisuals.new(SelectedItem, Rarity .. "Outline", 50, 1))
-	table.insert(SelectedVisuals, EasyVisuals.new(ItemInfo, Rarity .. "Outline", 50, 2))
-	table.insert(SelectedVisuals, EasyVisuals.new(ItemInfo.ItemRarity, Rarity, 0.35, 1))
-
-	for _, Model in ItemInfo.ViewportFrame:GetChildren() do
-		if not Model:IsA("Camera") then
-			Model:Destroy()
-		end
-	end
-
-	if SelectedItemData.Class == "Stance" then
-		local Viewport = self:ConfigureViewport(ItemInfo)
-		self:LoadStanceViewport(Viewport, SelectedItemData)
-
-		for _, EquippedVisual in EquippedVisuals do
-			EquippedVisual:Destroy()
-		end
-		table.clear(EquippedVisuals)
-	else
-		self:AddModelToViewport(ItemInfo.ViewportFrame, SelectedItemData)
-	end
-
-	if SelectedItemData.Equipped then
-		ItemInfo.EquipButton.Text = "Unequip"
-	else
-		ItemInfo.EquipButton.Text = "Equip"
-	end
-
-	ItemInfo.EquipButton.Visible = SelectedItemData.Class == "Equipable" or SelectedItemData.Class == "Weapon"
-	local EquipLeftButton = ItemInfo:FindFirstChild("EquipLeftButton")
-	if EquipLeftButton then
-		local ShowLeftButton = SelectedItemData.Class == "Weapon"
-			and (SelectedItemData.CanEquipLeft or SelectedItemData.EquippedLeft)
-
-		EquipLeftButton.Visible = ShowLeftButton
-		if EquipLeftButton:IsA("TextButton") then
-			EquipLeftButton.Text = if SelectedItemData.EquippedLeft then "Unequip Left" else "Equip Left"
-		end
-	end
-
-	ItemInfo.Vanity.Visible = SelectedItemData.Class == "Equipable"
+	SetButtonText(EquipLeftButton, if Item.EquippedLeft then "UNEQUIP LEFT" else "EQUIP LEFT")
 
 	ItemInfo.Visible = true
-
-	if
-		SelectedItemData.Class ~= "Stance"
-		and SelectedItemData.Class ~= "Equipable"
-		and SelectedItemData.Class ~= "Weapon"
-	then
-		SlotEquipTooltip.Visible = true
-		HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
-	else
-
-		SlotEquipTooltip.Visible = false
-	end
+	self:RefreshHotbar()
 end
 
-function InventoryController:GetSelected()
+function InventoryController:GetSelected(): ImageButton?
 	return SelectedItem
 end
 
 function InventoryController:EquipItem()
-	ItemInfo.Visible = false
-	InventoryService:EquipUnequipItem(SelectedItem:GetAttribute("Name"))
+	local Item = SelectedItemData
+	if not Item then
+		return
+	end
+
+	if Item.Class == "Stance" then
+		if not Item.Equipped then
+			StanceService:EquipStance(Item.Name)
+			self:UpdateContent()
+		end
+	elseif Item.Class == "Weapon" or Item.Class == "Equipable" then
+		InventoryService:EquipUnequipItem(Item.Name)
+	elseif self:CanAssignToHotbar() then
+		HotbarController:BeginSlotSelection(Item.Name)
+	end
 end
 
 function InventoryController:EquipLeftItem()
-	ItemInfo.Visible = false
-	InventoryService:EquipUnequipLeftItem(SelectedItem:GetAttribute("Name"))
+	local Item = SelectedItemData
+	if Item and Item.Class == "Weapon" and (Item.CanEquipLeft or Item.EquippedLeft) then
+		InventoryService:EquipUnequipLeftItem(Item.Name)
+	end
 end
 
-function InventoryController:AddModelToViewport(Viewport: ViewportFrame, Item: { any })
-	local Model = ItemTools:FindFirstChild(Item.Name) or Equipables:FindFirstChild(Item.Name, true)
-	if not Model then
-		Model = Weapons:FindFirstChild(Item.Name)
-		if Model then
-			Model = Model.Weapon
-		end
+function InventoryController:CreateEntry(Item: ItemData, TemplateName: string, Index: number): ImageButton
+	local Template = Templates:FindFirstChild(TemplateName .. "Wrapper") :: Frame
+	local Wrapper = Template:Clone()
+	local Button = Wrapper:FindFirstChild(TemplateName) :: ImageButton
+	Wrapper.Name = Item.Name
+	Wrapper.LayoutOrder = Index + (if Item.Equipped or Item.EquippedLeft then 0 else 1000)
+
+	Button.Name = Item.Name
+	Button:SetAttribute("Name", Item.Name)
+	Button:SetAttribute("ItemClass", Item.Class)
+	Button:SetAttribute("ItemType", Item.Type)
+	Button:SetAttribute("Rarity", Item.Rarity or "Common")
+
+	local Label = Button:FindFirstChild("ItemName") or Button:FindFirstChild("StanceName")
+	if Label and Label:IsA("TextLabel") then
+		Label.Text = Item.DisplayName or Item.Name
 	end
 
-	if not Model then
-		return
-	end
-	Model = Model:Clone()
-
-	for _, Part in Model:GetDescendants() do
-		Part:RemoveTag("SmartBone")
+	local Amount = Button:FindFirstChild("Amount") :: TextLabel?
+	if Amount then
+		Amount.Visible = (Item.Stack or 1) > 1
+		Amount.Text = tostring(Item.Stack or 1) .. "x"
 	end
 
-	local InventoryOffset = Model:GetAttribute("InventoryOffset") or CFrame.new()
-	local _, BoundingSize = Model:GetBoundingBox()
-	local LargestDimension = math.max(BoundingSize.X, BoundingSize.Y, BoundingSize.Z)
-	if Item.Class == "Equipable" then
-		Model:PivotTo(CFrame.new(0, 0, -5) * InventoryOffset)
-	else
-		local InventoryDistance = Model:GetAttribute("InventoryDistance")
-			or math.clamp(LargestDimension * 1.8, 1.1, 2.5)
-		Model:PivotTo(
-			CFrame.new(0, 0, -InventoryDistance) * CFrame.Angles(0, 0, math.rad(45)) * InventoryOffset
-		)
-	end
-
-	for _, Part in Model:GetDescendants() do
-		if Part:IsA("BasePart") then
-			Part.Anchored = true
-		end
-	end
-	Model.Parent = Viewport
-end
-function InventoryController:LoadItems()
-	local Items = InventoryService:GetInventory(Player)
-	self:ClearContent()
-
-	for _, Item in Items do
-		if Item.Class == "Skill" then
-			continue
-		end
-		if Item.Hidden then
-			continue
-		end
-
-		local Template = Inventory.ItemTemplate:Clone()
-		Template.Name = Item.Name
-		Template:SetAttribute("Name", Item.Name)
-		Template:SetAttribute("ItemClass", Item.Class)
-		Template:SetAttribute("ItemType", Item.Type)
-		Template:SetAttribute("Rarity", Item.Rarity)
-		Template.ItemName.Text = Item.DisplayName
-
-		Template.Amount.Visible = Item.Stack > 1
-		Template.Amount.Text = tostring(Item.Stack) .. "x"
-
-		local _Tool = HotbarController:GetToolByNameFromPlayer(Template:GetAttribute("Name"))
-		if _Tool then
-			if _Tool:GetAttribute("HotbarIndex") and _Tool:GetAttribute("Class") ~= "Artifact" then
-				Template.EquipIndex.Text = "[" .. tostring(_Tool:GetAttribute("HotbarIndex")) .. "]"
-				Template.Name = tostring(_Tool:GetAttribute("HotbarIndex")) .. _Tool.Name
+	local EquipIndex = Button:FindFirstChild("EquipIndex") :: TextLabel?
+	if EquipIndex then
+		EquipIndex.Text = ""
+		if Item.Class == "Weapon" then
+			if Item.Equipped and Item.EquippedLeft then
+				EquipIndex.Text = "[R/L]"
+			elseif Item.Equipped then
+				EquipIndex.Text = "[R]"
+			elseif Item.EquippedLeft then
+				EquipIndex.Text = "[L]"
+			end
+		elseif Item.Equipped then
+			EquipIndex.Text = "[E]"
+		else
+			local Tool = HotbarController:GetToolByNameFromPlayer(Item.Name)
+			local HotbarIndex = Tool and Tool:GetAttribute("HotbarIndex")
+			if HotbarIndex ~= nil and Tool:GetAttribute("Class") ~= "Artifact" then
+				EquipIndex.Text = "[" .. tostring(HotbarIndex) .. "]"
 			end
 		end
+	end
 
-		if Item.Class == "Equipable" or Item.Class == "Weapon" then
-			if Item.Equipped or Item.EquippedLeft then
-				if Item.Class == "Weapon" then
-					if Item.Equipped and Item.EquippedLeft then
-						Template.EquipIndex.Text = "[R/L]"
-					elseif Item.Equipped then
-						Template.EquipIndex.Text = "[R]"
-					else
-						Template.EquipIndex.Text = "[L]"
-					end
-				else
-					Template.EquipIndex.Text = "[E]"
-				end
-				Template.Name = "1" .. Item.Name
+	if Item.Equipped or Item.EquippedLeft then
+		local Rarity = Item.Rarity or "Common"
+		table.insert(EquippedVisuals, CreateOutline(Button, RarityColors[Rarity] or RarityColors.Common, 1))
+	end
 
-				local Rarity = Item.Rarity or "Common"
-				if Rarity ~= "Common" then
-					table.insert(EquippedVisuals, EasyVisuals.new(Template.ItemName, Rarity, 0.35, 1))
-					table.insert(EquippedVisuals, EasyVisuals.new(Template, Rarity .. "Outline", 50, 1))
-				end
-			end
-		end
-
-		local Viewport = self:ConfigureViewport(Template)
-		if Viewport then
+	local Viewport = self:ConfigureViewport(Button)
+	if Viewport then
+		if Item.Class == "Stance" then
+			self:LoadStanceViewport(Viewport, Item)
+		else
 			self:AddModelToViewport(Viewport, Item)
 		end
-
-		Template.Activated:Connect(function()
-			if SelectedItem ~= Template then
-				self:Unselect()
-				SelectedItemData = Item
-				self:Select(Template)
-			else
-				self:Unselect()
-			end
-		end)
-
-		Template.Visible = true
-		Template.Parent = Content
 	end
+
+	Button.Activated:Connect(function()
+		if SelectedItem == Button then
+			self:Unselect()
+		else
+			self:Select(Button, Item)
+		end
+	end)
+
+	Button.Visible = true
+	Wrapper.Visible = true
+	Wrapper.Parent = Content
+
+	return Button
 end
 
-function InventoryController:LoadSkills()
-	local Skills = InventoryService:GetInventory(Player)
-	self:ClearContent()
-
-	for _, Skill in Skills do
-		if Skill.Class ~= "Skill" then
-			continue
-		end
-
-		local Template = Inventory.SkillTemplate:Clone()
-		Template.Name = Skill.Name
-		Template.ItemName.Text = Skill.DisplayName
-
-		local _Tool = HotbarController:GetToolByNameFromPlayer(Skill.Name)
-		if _Tool then
-			if _Tool:GetAttribute("HotbarIndex") then
-				Template.EquipIndex.Text = "[" .. tostring(_Tool:GetAttribute("HotbarIndex")) .. "]"
-
-				local Rarity = Skill.Rarity or "Common"
-				table.insert(EquippedVisuals, EasyVisuals.new(Template.ItemName, Rarity, 0.35, 1))
-				table.insert(EquippedVisuals, EasyVisuals.new(Template, Rarity .. "Outline", 50, 1))
-			end
-		end
-
-		Template.Activated:Connect(function()
-			if SelectedItem ~= Template then
-				self:Unselect()
-				SelectedItemData = Skill
-				self:Select(Template)
-			else
-				self:Unselect()
-			end
-		end)
-
-		Template.Visible = true
-		Template.Parent = Content
+function InventoryController:UpdateStatus()
+	if StatsController then
+		StatsController:RefreshOtherStats()
 	end
 end
 
 function InventoryController:UpdateContent()
-	local UnSelectedTabColor = Color3.new(1, 1, 1)
-	local SelectedTabColor = Color3.new(1, 0.933333, 0)
-	local Ti = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	if CurrentTab == "Stances" then
-		self:LoadStances()
-	elseif CurrentTab == "Items" then
-		self:LoadItems()
-	elseif CurrentTab == "Skills" then
-		self:LoadSkills()
+	if not self:IsOpen() or not Content then
+		return
 	end
 
-	for i, v in pairs(Inventory.Tabs:GetChildren()) do
-		if v:IsA("TextButton") then
-			if v.Name == CurrentTab or v.Text == CurrentTab then
-				local Tween = TweenService:Create(v, Ti, { TextColor3 = SelectedTabColor })
-				Tween:Play()
-			else
-				local Tween = TweenService:Create(v, Ti, { TextColor3 = UnSelectedTabColor })
-				Tween:Play()
+	local SelectedName = SelectedItemData and SelectedItemData.Name
+	self:ClearContent()
+	local Revision = RenderRevision
+	local Tab = CurrentTab
+	Inventory.Visible = Tab ~= "Stats"
+	StatsController:SetVisible(Tab == "Stats")
+
+	Content.CanvasPosition = Vector2.zero
+	ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	ContentLayout.FillDirection = Enum.FillDirection.Horizontal
+	ContentLayout.Wraps = true
+
+	for _, Button in Tabs:GetChildren() do
+		if Button:IsA("TextButton") then
+			TweenService:Create(Button, TweenInfo.new(0.2), {
+				TextColor3 = if Button.Name == Tab then Color3.fromRGB(255, 238, 0) else Color3.new(1, 1, 1),
+			}):Play()
+		end
+	end
+
+	if Tab == "Stats" then
+		return
+	end
+
+	local Entries = if Tab == "Stances" then StanceService:GetPlayerStances() else InventoryService:GetInventory()
+	if Revision ~= RenderRevision or Tab ~= CurrentTab or not self:IsOpen() then
+		return
+	end
+
+	if Tab == "Stances" and not SelectedName then
+		for _, Entry in Entries do
+			if Entry.Equipped then
+				SelectedName = Entry.Name
+				break
 			end
+		end
+	end
+
+	for Index, Entry in Entries do
+		local Item = GetItemData(Entry)
+		if Item.Hidden or (Tab == "Skills" and Item.Class ~= "Skill") or (Tab == "Items" and Item.Class == "Skill") then
+			continue
+		end
+
+		local TemplateName = if Tab == "Stances" then "StanceTemplate" elseif Tab == "Skills" then "SkillTemplate" else "ItemTemplate"
+		local Button = self:CreateEntry(Item, TemplateName, Index)
+		if Item.Name == SelectedName then
+			self:Select(Button, Item)
 		end
 	end
 end
 
 function InventoryController:ChangeTab(TabName: string)
-	if CurrentTab == TabName then
+	if not TabNames[TabName] or CurrentTab == TabName then
 		return
 	end
+
 	self:Unselect()
 	CurrentTab = TabName
-
 	self:UpdateContent()
 end
 
-local AttributesToColor = {
-	["Health"] = Color3.fromRGB(82, 255, 0),
-	["Stamina"] = Color3.fromRGB(47, 99, 211),
-	["Posture"] = Color3.fromRGB(255, 170, 0),
-	["Run Speed"] = Color3.fromRGB(255, 242, 0),
-	["Damage"] = Color3.fromRGB(211, 0, 0),
-}
-
-local AttributesToShow = {
-	["Run Speed"] = "",
-	["Health"] = "MaxHealth",
-	["Stamina"] = "MaxStamina",
-	["Posture"] = "MaxPosture",
-	["Damage"] = "SwordDamage",
-}
-local NO_WEAPON_SPEED_MULTIPLIER = 1.2
-local bottom
-function InventoryController:UpdateStatus()
-	local Character = Player.Character
-
-	for _, Template in bottom:GetChildren() do
-		if Template:IsA("TextLabel") then
-			Template:Destroy()
-		end
-	end
-
-	if Character then
-		for Display, Attribute in AttributesToShow do
-			local Value = Character:GetAttribute(Attribute)
-
-			if Display == "Run Speed" then
-				Value = (Character:GetAttribute("RunningWalkSpeed") or 24)
-						* (Character:GetAttribute("RunSpeedMultiplier") or 1)
-					+ (Character:GetAttribute("RunSpeedIncrease") or 0)
-
-				if not Character:GetAttribute("Weapon") and not Character:GetAttribute("LeftWeapon") then
-					Value *= NO_WEAPON_SPEED_MULTIPLIER
-				end
-			end
-
-			if Value then
-				local Template = Inventory.StatusTemplate:Clone()
-				Template.TextColor3 = AttributesToColor[Display] or Color3.fromRGB(255, 255, 255)
-
-				local formatted = string.format("%.1f", Value)
-				local splitted = formatted:split(".")
-
-				if splitted[2] == "0" then
-					Template.Text = Display .. ": " .. splitted[1]
-				else
-					Template.Text = Display .. ": " .. formatted
-				end
-
-				Template.Parent = bottom
-				Template.Visible = true
-			end
-		end
-	end
-end
-
-function InventoryController:KnitInit()
-	StanceService = Knit.GetService("StanceService")
+function InventoryController.KnitInit()
 	InventoryService = Knit.GetService("InventoryService")
+	StanceService = Knit.GetService("StanceService")
 	HotbarController = Knit.GetController("HotbarController")
+	MenuController = Knit.GetController("MenuController")
+	ViewportRotationController = Knit.GetController("ViewportRotationController")
+	StatsController = Knit.GetController("StatsController")
 end
 
 function InventoryController.KnitStart()
-	PlayerGui = Player:WaitForChild("PlayerGui")
-	Menu = PlayerGui:WaitForChild("Menu")
-	InventoryGUI = Menu:WaitForChild("Inventory")
-	Inventory = InventoryGUI:WaitForChild("Inventory")
+	local PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
+	local Menus = PlayerGui:WaitForChild("Menu") :: ScreenGui
+	MainMenu = (PlayerGui:FindFirstChild("MainMenu") or Menus:WaitForChild("MainMenu")) :: ScreenGui
+	local CloseButton = MainMenu:WaitForChild("Close") :: ImageButton
+	Inventory = MainMenu:WaitForChild("Inventory") :: Frame
+	Templates = Inventory:WaitForChild("Templates") :: Frame
+	Tabs = MainMenu:WaitForChild("Tabs") :: GuiObject
+	local Background = Inventory:WaitForChild("Background") :: Frame
+	Content = Background:WaitForChild("Content") :: ScrollingFrame
+	ContentLayout = Content:FindFirstChildWhichIsA("UIListLayout") :: UIListLayout
+	ItemInfo = Inventory:WaitForChild("ItemInfo") :: Frame
+	Description = Inventory:WaitForChild("Description") :: TextLabel
+	ItemName = ItemInfo:WaitForChild("TextLabel") :: TextLabel
+	BasicStats = ItemInfo:WaitForChild("BasicStats") :: Frame
+	Display = ItemInfo:WaitForChild("Display") :: Frame
+	local Viewport = Display:FindFirstChildWhichIsA("ViewportFrame")
+	if Viewport then
+		ViewportRotationController:BindViewport(Viewport)
+	end
 
-	background = Inventory:WaitForChild("background")
-	Content = background:WaitForChild("content")
-	ItemInfo = Inventory:WaitForChild("ItemInfo")
-	SlotEquipTooltip = ItemInfo:WaitForChild(("SlotEquipTooltip"))
-	bottom = Inventory:WaitForChild("bottom")
+	local Buttons = ItemInfo:WaitForChild("Buttons") :: Frame
+	EquipButton = Buttons:WaitForChild("Equip") :: ImageButton
+	EquipLeftButton = Buttons:WaitForChild("EquipLeft") :: ImageButton
 
-	InventoryGUI:GetPropertyChangedSignal("Enabled"):Connect(function()
-		InventoryController:Unselect()
-		if not InventoryGUI.Enabled then
-			InventoryController:ClearContent()
+	Templates.Visible = false
+	MainMenu.Enabled = false
+	Inventory.Visible = true
+	StatsController:SetVisible(false)
+	Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	InventoryController:ClearContent()
+
+	for _, Button in Tabs:GetChildren() do
+		if Button:IsA("TextButton") then
+			Button:SetAttribute("callback", nil)
+			Button.Activated:Connect(function()
+				InventoryController:ChangeTab(Button.Name)
+			end)
+		end
+	end
+
+	CloseButton:SetAttribute("callback", nil)
+	CloseButton.Activated:Connect(function()
+		MenuController:CloseAllMenus()
+	end)
+
+	EquipButton:SetAttribute("callback", nil)
+	EquipLeftButton:SetAttribute("callback", nil)
+	EquipButton.Activated:Connect(function()
+		InventoryController:EquipItem()
+	end)
+	EquipLeftButton.Activated:Connect(function()
+		InventoryController:EquipLeftItem()
+	end)
+
+	MainMenu:GetPropertyChangedSignal("Enabled"):Connect(function()
+		if MainMenu.Enabled then
+			HotbarController:CancelSlotSelection()
+			MenuController:SetHudFocus(true)
+			HotbarController:UpdateVisibility()
+			InventoryController:UpdateContent()
 		else
+			InventoryController:ClearContent()
+
+			if not HotbarController:IsSelectingSlot() then
+				MenuController:SetHudFocus(false)
+			end
+
+			HotbarController:UpdateVisibility()
+		end
+	end)
+
+	InventoryService.InventoryUpdated:Connect(function()
+		if CurrentTab ~= "Stances" and CurrentTab ~= "Stats" then
 			InventoryController:UpdateContent()
 		end
-		HotbarController:LoadHotbar(InventoryGUI.Enabled)
 	end)
-
-	InventoryService.InventoryUpdated:Connect(function(Inventory)
-		if not InventoryGUI.Enabled then
-			return
-		end
-
+	InventoryService.HotbarUpdated:Connect(function()
 		InventoryController:UpdateContent()
 	end)
-
-	StanceService.UpdateUI:Connect(function(Data)
-		if not InventoryGUI.Enabled then
-			return
-		end
-
+	StanceService.UpdateUI:Connect(function()
 		if CurrentTab == "Stances" then
 			InventoryController:UpdateContent()
 		end
 	end)
-
-	InventoryController:UpdateStatus()
-
-	local EquipLeftButton = ItemInfo:FindFirstChild("EquipLeftButton")
-	if EquipLeftButton then
-		EquipLeftButton:SetAttribute("callback", "EquipLeft")
-	end
 end
 
 return InventoryController

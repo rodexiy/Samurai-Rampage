@@ -1,4 +1,5 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local JournalController = Knit.CreateController({
 	Name = "JournalController",
@@ -6,7 +7,7 @@ local JournalController = Knit.CreateController({
 
 local Player = game.Players.LocalPlayer
 
-local LevelService
+local StatService
 local MenuController
 
 local Journal
@@ -20,30 +21,30 @@ local ActivityTemplate
 
 local Chapters = {
 	{
-		MinLevel = 1,
-		MaxLevel = 3,
+		MinAttribute = 0,
+		MaxAttribute = 1,
 		Title = "Samurai Initiation",
 		Subtitle = "Learn the fundamentals before facing the wider world.",
 		Steps = {
 			"Practice attacking, blocking, and breaking enemy posture.",
 			"Defeat bandits and learn when to heal.",
-			"Reach level 4 to begin taking village contracts.",
+			"Train each attribute through its own activities.",
 		},
 	},
 	{
-		MinLevel = 4,
-		MaxLevel = 6,
+		MinAttribute = 2,
+		MaxAttribute = 3,
 		Title = "Village Work",
 		Subtitle = "Build experience through contracts and gathering.",
 		Steps = {
 			"Visit the Mission Board and accept a contract.",
 			"Use an Axe for wood contracts and a Pickaxe for ore contracts.",
-			"Complete contracts until you reach level 7.",
+			"Use different contracts to train different attributes.",
 		},
 	},
 	{
-		MinLevel = 7,
-		MaxLevel = 10,
+		MinAttribute = 4,
+		MaxAttribute = 5,
 		Title = "Path of the Warrior",
 		Subtitle = "Turn experience into strength and prepare for greater enemies.",
 		Steps = {
@@ -53,8 +54,8 @@ local Chapters = {
 		},
 	},
 	{
-		MinLevel = 11,
-		MaxLevel = 15,
+		MinAttribute = 6,
+		MaxAttribute = 7,
 		Title = "Supernatural Threat",
 		Subtitle = "Seek artifacts and survive the dangers beyond ordinary bandits.",
 		Steps = {
@@ -64,8 +65,8 @@ local Chapters = {
 		},
 	},
 	{
-		MinLevel = 16,
-		MaxLevel = math.huge,
+		MinAttribute = 8,
+		MaxAttribute = math.huge,
 		Title = "Mastery",
 		Subtitle = "Choose your own challenges and pursue rare rewards.",
 		Steps = {
@@ -95,7 +96,7 @@ local Activities = {
 	},
 	{
 		Title = "Skill Tree",
-		Description = "Leveling grants skill points. Spend them to unlock stronger combat and movement options.",
+		Description = "Attribute levels grant shared skill points. Spend them to unlock stronger combat and movement options.",
 	},
 }
 
@@ -116,9 +117,9 @@ local function ClearCards(Content: Instance, Template: Frame)
 	end
 end
 
-function JournalController:GetChapter(Level: number)
+function JournalController:GetChapter(HighestAttribute: number): { [string]: any }
 	for _, Chapter in Chapters do
-		if Level >= Chapter.MinLevel and Level <= Chapter.MaxLevel then
+		if HighestAttribute >= Chapter.MinAttribute and HighestAttribute <= Chapter.MaxAttribute then
 			return Chapter
 		end
 	end
@@ -126,15 +127,18 @@ function JournalController:GetChapter(Level: number)
 	return Chapters[#Chapters]
 end
 
-function JournalController:Refresh()
+function JournalController:Refresh(Progress: { [string]: any }?)
 	if not Journal then
 		return
 	end
 
-	local _, Level = LevelService:GetExpLevel()
-	local Chapter = self:GetChapter(Level)
+	local Highest = 0
+	for _, Stat in Progress or StatService:GetProgress() do
+		Highest = math.max(Highest, Stat.Level)
+	end
+	local Chapter = self:GetChapter(Highest)
 
-	LevelText.Text = "LEVEL " .. Level
+	LevelText.Text = "TRAINING"
 	ChapterTitle.Text = Chapter.Title
 	ChapterSubtitle.Text = Chapter.Subtitle
 
@@ -193,7 +197,7 @@ function JournalController:BindUI()
 end
 
 function JournalController.KnitInit()
-	LevelService = Knit.GetService("LevelService")
+	StatService = Knit.GetService("StatService")
 	MenuController = Knit.GetController("MenuController")
 end
 
@@ -201,8 +205,10 @@ function JournalController.KnitStart()
 	JournalController:BindUI()
 	JournalController:Refresh()
 
-	LevelService.ExpUpdated:Connect(function()
-		JournalController:Refresh()
+	StatService.ProgressUpdated:Connect(function(Progress: { [string]: any })
+		if Journal.Enabled then
+			JournalController:Refresh(Progress)
+		end
 	end)
 
 	Player:GetAttributeChangedSignal("HasQuest"):Connect(function()

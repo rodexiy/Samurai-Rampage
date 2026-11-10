@@ -1,4 +1,8 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local Collector = require(ReplicatedStorage.Shared.Collector)
+local Connections = Collector.new()
+local ActivePromptConnections = Collector.new()
 
 local CarryService
 local LoadedServices = false
@@ -10,6 +14,7 @@ end)
 
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
+local OwnerCharacter = Player.Character
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -22,12 +27,12 @@ local PlayerGui = Player:WaitForChild("PlayerGui")
 local Hud = PlayerGui:WaitForChild("Hud")
 local ProximityPromptUI = Hud:WaitForChild("ProximityPrompt")
 local PromptLabel = ProximityPromptUI:WaitForChild("TextLabel")
-local WorldPromptUI = game.ReplicatedStorage.Assets.Billboards.PickablePrompt:Clone()
+local WorldPromptUI = ReplicatedStorage.Assets.Billboards.PickablePrompt:Clone()
 WorldPromptUI.Name = "WorldPickablePrompt"
 WorldPromptUI.Enabled = false
 WorldPromptUI.Parent = PlayerGui
 
-local SCREEN_PROMPT_POSITION = UDim2.new(0.5, 0, 0.9, 0)
+local SCREEN_PROMPT_POSITION = UDim2.fromScale(0.5, 0.9)
 
 local RARITY_COLORS = {
 	Common = {
@@ -56,9 +61,8 @@ local function GetRarityColors(Prompt: ProximityPrompt)
 	return RARITY_COLORS[Prompt:GetAttribute("Rarity") or "Common"] or RARITY_COLORS.Common
 end
 
-local PromptScale = PromptLabel:WaitForChild("PromptScale")
+local PromptScale = PromptLabel:FindFirstChildWhichIsA("UIScale")
 local KeyBadge = PromptLabel:WaitForChild("KeyBadge")
-local KeyStroke = KeyBadge:WaitForChild("KeyStroke")
 local KeyLabel = KeyBadge:WaitForChild("KeyLabel")
 local Content = PromptLabel:WaitForChild("Content")
 local ActionLabel = Content:WaitForChild("ActionLabel")
@@ -67,9 +71,8 @@ local ObjectGradient = ObjectLabel:WaitForChild("ObjectGradient")
 local RarityLabel = Content:WaitForChild("RarityLabel")
 
 local WorldPromptLabel = WorldPromptUI:WaitForChild("TextLabel")
-local WorldPromptScale = WorldPromptLabel:WaitForChild("PromptScale")
+local WorldPromptScale = WorldPromptLabel:FindFirstChildWhichIsA("UIScale")
 local WorldKeyBadge = WorldPromptLabel:WaitForChild("KeyBadge")
-local WorldKeyStroke = WorldKeyBadge:WaitForChild("KeyStroke")
 local WorldKeyLabel = WorldKeyBadge:WaitForChild("KeyLabel")
 local WorldContent = WorldPromptLabel:WaitForChild("Content")
 local WorldActionLabel = WorldContent:WaitForChild("ActionLabel")
@@ -80,8 +83,8 @@ local WorldRarityLabel = WorldContent:WaitForChild("RarityLabel")
 
 
 
-local DestroyingCache = {}
-local CurrentPrompt = nil
+local PromptHighlights: { [ProximityPrompt]: Highlight } = {}
+local CurrentPrompt: ProximityPrompt? = nil
 local PromptBeams = {}
 
 local BEAM_NAME = "PromptBeam"
@@ -103,8 +106,11 @@ local function StopHeldPrompt()
 		return
 	end
 
-	HeldPrompt:InputHoldEnd()
+	local Prompt = HeldPrompt
 	HeldPrompt = nil
+	if Prompt.Parent then
+		Prompt:InputHoldEnd()
+	end
 end
 
 local function ApplyPromptAppearance(Prompt: ProximityPrompt, Key: string)
@@ -117,7 +123,6 @@ local function ApplyPromptAppearance(Prompt: ProximityPrompt, Key: string)
 	local ActiveActionLabel = if IsPickable then WorldActionLabel else ActionLabel
 	local ActiveObjectLabel = if IsPickable then WorldObjectLabel else ObjectLabel
 	local ActiveRarityLabel = if IsPickable then WorldRarityLabel else RarityLabel
-	local ActiveKeyStroke = if IsPickable then WorldKeyStroke else KeyStroke
 	local ActiveObjectGradient = if IsPickable then WorldObjectGradient else ObjectGradient
 
 	if DisplayName == "" and Prompt.Parent then
@@ -132,14 +137,15 @@ local function ApplyPromptAppearance(Prompt: ProximityPrompt, Key: string)
 	ActiveRarityLabel.Visible = IsPickable or Prompt:GetAttribute("Rarity") ~= nil
 
 	local RarityGradient = ColorSequence.new(Colors.Primary, Colors.Secondary)
-	ActiveKeyStroke.Color = Colors.Primary
 	ActiveObjectGradient.Color = RarityGradient
 
 	ResetHoldProgress()
-	ActivePromptScale.Scale = 0.92
-	TweenService:Create(ActivePromptScale, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Scale = 1,
-	}):Play()
+	if ActivePromptScale then
+		ActivePromptScale.Scale = 0.92
+		TweenService:Create(ActivePromptScale, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Scale = 1,
+		}):Play()
+	end
 end
 
 local function GetPromptModel(Prompt: ProximityPrompt)
@@ -156,12 +162,7 @@ local function GetPromptHighlightParent(Prompt: ProximityPrompt): Instance?
 end
 
 local function GetPromptHighlight(Prompt: ProximityPrompt): Highlight?
-	local HighlightParent = GetPromptHighlightParent(Prompt)
-	if not HighlightParent then
-		return nil
-	end
-
-	return HighlightParent:FindFirstChild("PromptHighlight") :: Highlight?
+	return PromptHighlights[Prompt]
 end
 
 local function GetPromptTargetPart(Prompt: ProximityPrompt): BasePart?
@@ -179,7 +180,6 @@ local function GetPromptTargetPart(Prompt: ProximityPrompt): BasePart?
 	end
 
 	if Parent:IsA("Model") then
-		print("aqui")
 		return Parent.PrimaryPart or Parent:FindFirstChildWhichIsA("BasePart", true)
 	end
 
@@ -232,27 +232,38 @@ local function DestroyPromptBeam(Prompt: ProximityPrompt)
 	end
 end
 
-local function DestroyPromptHighlight(Prompt: ProximityPrompt)
+local function DestroyPromptHighlight(Prompt: ProximityPrompt, Fade: boolean?)
 	local PromptHighlight = GetPromptHighlight(Prompt)
 	if not PromptHighlight then
 		return
 	end
 
-	if DestroyingCache[PromptHighlight] then
-		DestroyingCache[PromptHighlight]:Disconnect()
-		DestroyingCache[PromptHighlight] = nil
-	end
+	PromptHighlights[Prompt] = nil
 
-	PromptHighlight:Destroy()
+	if Fade and PromptHighlight.Parent then
+		local Tween = TweenService:Create(
+			PromptHighlight,
+			TweenInfo.new(0.25),
+			{ FillTransparency = 1, OutlineTransparency = 1 }
+		)
+		Tween.Completed:Once(function()
+			PromptHighlight:Destroy()
+		end)
+		Tween:Play()
+	else
+		PromptHighlight:Destroy()
+	end
 end
 
-local function HideActivePrompt()
+local function HideActivePrompt(Fade: boolean?)
+	ActivePromptConnections:DisconnectAll()
+	local Prompt = CurrentPrompt
+	CurrentPrompt = nil
 	StopHeldPrompt()
 
-	if CurrentPrompt then
-		DestroyPromptBeam(CurrentPrompt)
-		DestroyPromptHighlight(CurrentPrompt)
-		CurrentPrompt = nil
+	if Prompt then
+		DestroyPromptBeam(Prompt)
+		DestroyPromptHighlight(Prompt, Fade)
 	end
 
 	ResetHoldProgress()
@@ -263,7 +274,7 @@ local function CreatePromptBeam(Prompt: ProximityPrompt)
 	DestroyPromptBeam(Prompt)
 
 	local Character = Player.Character
-	local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+	local RootPart = Character and Character.PrimaryPart
 	local TargetPart = GetPromptTargetPart(Prompt)
 	if not RootPart or not TargetPart then
 		return
@@ -304,15 +315,35 @@ local function CreatePromptBeam(Prompt: ProximityPrompt)
 	}
 end
 
-Player:GetAttributeChangedSignal("InDialog"):Connect(function()
+Connections:Add(Player:GetAttributeChangedSignal("InDialog"):Connect(function()
 	if IsPromptSuppressed() then
 		HideActivePrompt()
 	end
-end)
+end))
 
-ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inputType)
+Connections:Add(ProximityPromptUI:GetPropertyChangedSignal("Enabled"):Connect(function()
+	if ProximityPromptUI.Enabled then
+		local Prompt = CurrentPrompt
+		if not Prompt or not Prompt.Enabled or not Prompt:IsDescendantOf(workspace)
+			or IsPromptSuppressed() or WorldPromptUI.Adornee ~= nil then
+			ProximityPromptUI.Enabled = false
+		end
+	end
+end))
+
+Connections:Add(ProximityPromptService:GetPropertyChangedSignal("Enabled"):Connect(function()
+	if not ProximityPromptService.Enabled then
+		HideActivePrompt()
+	end
+end))
+
+Connections:Add(ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt)
 	if IsPromptSuppressed() then
 		HideActivePrompt()
+		return
+	end
+
+	if not prompt.Enabled or not prompt:IsDescendantOf(workspace) or not ProximityPromptService.Enabled then
 		return
 	end
 
@@ -330,10 +361,7 @@ ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inp
 		Key = prompt.KeyboardKeyCode.Name
 	end
 
-	local ExistingPromptHighlight = GetPromptHighlight(prompt)
-	if ExistingPromptHighlight then
-		ExistingPromptHighlight:Destroy()
-	end
+	HideActivePrompt()
 
 	CurrentPrompt = prompt
 	ShowPromptUI(prompt)
@@ -352,51 +380,58 @@ ProximityPromptService.PromptShown:Connect(function(prompt: ProximityPrompt, inp
 			PromptHighlight.Adornee = prompt.Parent
 		end
 		PromptHighlight.Parent = HighlightParent
-
-		DestroyingCache[PromptHighlight] = prompt.Destroying:Once(function()
-			PromptHighlight:Destroy()
-			DestroyPromptBeam(prompt)
-			if CurrentPrompt == prompt then
-				CurrentPrompt = nil
-				HidePromptUI()
-				ResetHoldProgress()
-			end
-		end)
+		PromptHighlights[prompt] = PromptHighlight
 	end
-end)
 
-ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt: ProximityPrompt)
+	ActivePromptConnections:Add(prompt.Destroying:Once(function()
+		if CurrentPrompt == prompt then
+			HideActivePrompt()
+		end
+	end))
+	ActivePromptConnections:Add(prompt.AncestryChanged:Connect(function()
+		if CurrentPrompt == prompt and not prompt:IsDescendantOf(workspace) then
+			HideActivePrompt()
+		end
+	end))
+	ActivePromptConnections:Add(prompt:GetPropertyChangedSignal("Enabled"):Connect(function()
+		if CurrentPrompt == prompt and not prompt.Enabled then
+			HideActivePrompt(true)
+		end
+	end))
+end))
+
+Connections:Add(ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt: ProximityPrompt)
 	if prompt ~= CurrentPrompt or prompt.HoldDuration <= 0 then
 		return
 	end
 
 	ResetHoldProgress()
-end)
+end))
 
-ProximityPromptService.PromptButtonHoldEnded:Connect(function(prompt: ProximityPrompt)
+Connections:Add(ProximityPromptService.PromptButtonHoldEnded:Connect(function(prompt: ProximityPrompt)
 	if prompt == CurrentPrompt then
 		ResetHoldProgress()
 	end
-end)
+end))
 
-ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
+Connections:Add(ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
 	if prompt == CurrentPrompt then
 		ResetHoldProgress()
 	end
-end)
+end))
 
 local Camera = workspace.CurrentCamera
-CarryService.Carry:Connect(function()
+Connections:Add(CarryService.Carry:Connect(function()
 	local PromptHighlight = Player.Character:FindFirstChild("Carried").Value:FindFirstChild("PromptHighlight")
 	if PromptHighlight then
 		PromptHighlight:Destroy()
 	end
 
-	workspace.CurrentCamera.CameraSubject = Player.Character:FindFirstChild("Carried").Value.PrimaryPart
+	Camera.CameraSubject = Player.Character:FindFirstChild("Carried").Value.PrimaryPart
 
 	local CONN
 
-	CONN = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+	CONN = UserInputService.InputBegan:Connect(function(input: InputObject)
 		if input.KeyCode == Enum.KeyCode.C then
 			CarryService.Release:Fire()
 			CONN:Disconnect()
@@ -416,75 +451,63 @@ CarryService.Carry:Connect(function()
 			end
 		end
 	end)
-end)
+	Connections:Add(CONN)
+end))
 
 local function EndButtonHold()
 	StopHeldPrompt()
 end
 
 local function BindPromptButton(Button: TextButton)
-	Button.MouseButton1Down:Connect(function()
+	Connections:Add(Button.MouseButton1Down:Connect(function()
 		if not CurrentPrompt or HeldPrompt then
 			return
 		end
 
 		HeldPrompt = CurrentPrompt
 		HeldPrompt:InputHoldBegin()
-	end)
+	end))
 
-	Button.MouseButton1Up:Connect(EndButtonHold)
-	Button.Destroying:Connect(EndButtonHold)
+	Connections:Add(Button.MouseButton1Up:Connect(EndButtonHold))
+	Connections:Add(Button.Destroying:Connect(EndButtonHold))
 end
 
 BindPromptButton(PromptLabel)
 BindPromptButton(WorldPromptLabel)
 
-UserInputService.InputEnded:Connect(function(Input)
+Connections:Add(UserInputService.InputEnded:Connect(function(Input: InputObject)
 	if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
 		EndButtonHold()
 	end
-end)
+end))
 
-ProximityPromptService.PromptHidden:Connect(function(prompt)
-	local Model = GetPromptModel(prompt)
-	if not Model then
-		DestroyPromptBeam(prompt)
+Connections:Add(ProximityPromptService.PromptHidden:Connect(function(prompt: ProximityPrompt)
+	if CurrentPrompt == prompt then
+		HideActivePrompt(true)
 		return
 	end
 
 	DestroyPromptBeam(prompt)
-	local PromptHighlight = GetPromptHighlight(prompt)
+	DestroyPromptHighlight(prompt, true)
+end))
 
-	if PromptHighlight then
-		local HighlightTween =
-			TweenService:Create(PromptHighlight, TweenInfo.new(0.25), { FillTransparency = 1, OutlineTransparency = 1 })
-		HighlightTween:Play()
-		HighlightTween.Completed:Once(function()
-			if PromptHighlight.Parent then
-				PromptHighlight:Destroy()
-			end
-		end)
+local CleanedUp = false
+local function Cleanup()
+	if CleanedUp then
+		return
 	end
 
-	if PromptHighlight and DestroyingCache[PromptHighlight] then
-		DestroyingCache[PromptHighlight]:Disconnect()
-		DestroyingCache[PromptHighlight] = nil
-	end
+	CleanedUp = true
+	Connections:DisconnectAll()
+	HideActivePrompt()
+	WorldPromptUI:Destroy()
+end
 
-	if CurrentPrompt == prompt then
-		if HeldPrompt == prompt then
-			EndButtonHold()
-		end
-		CurrentPrompt = nil
-		ResetHoldProgress()
-		local ActivePromptScale = if IsPickablePrompt(prompt) then WorldPromptScale else PromptScale
-		TweenService:Create(ActivePromptScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Scale = 0.94,
-		}):Play()
-		task.delay(0.12, function()
-			if not CurrentPrompt then
-				HidePromptUI()
-			end
-		end)
+Connections:Add(Player.CharacterRemoving:Connect(function(Character: Model)
+	if Character == OwnerCharacter then
+		Cleanup()
 	end
-end)
+end))
+script.Destroying:Connect(Cleanup)
+
+HidePromptUI()

@@ -1,5 +1,6 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local ValuesService = Knit.CreateService({
 	Name = "ValuesService",
@@ -11,8 +12,10 @@ local ItemService
 local StanceService
 local RaceService
 local SkillTreeService
+local StatService
+local Progression = require(ReplicatedStorage.Shared.StatProgression)
 
-local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
 function ValuesService:UpdateAll(Character: Model, SetToMax: boolean)
 	if not Character then
@@ -29,7 +32,7 @@ end
 
 function ValuesService:GetEquipmentAttributeValue(Character: Model, AttributeName: string)
 	local TotalValue = 0
-	for Name, Value in Character:GetAttributes() do
+	for _, Value in Character:GetAttributes() do
 		if typeof(Value) ~= "string" then
 			continue
 		end
@@ -50,7 +53,7 @@ function ValuesService:UpdateRegeneration(Character: Model)
 		NodeIncrease = self:GetAmountUnlockedNodesMatch(Player, "Regeneration") * 0.01
 	end
 
-	Character:SetAttribute("Regeneration", 0.01 + NodeIncrease)
+	Character:SetAttribute("Regeneration", 0.01 + NodeIncrease + StatService:GetLevel(Character, "Spirit") * Progression.Bonuses.Spirit.Regeneration)
 end
 
 local function NormalizeWeaponSide(WeaponSide: string?): string
@@ -110,7 +113,7 @@ function ValuesService:GetWeaponDamage(Character: Model, WeaponSide: string?): n
 	local SwordBaseDamage = StanceData.BaseDamage or 0
 	SwordBaseDamage += self:GetWeaponAdditionalStat(Character, WeaponSide, "AdditionalDamage")
 
-	return SwordBaseDamage + Kendo
+	return SwordBaseDamage + Kendo + StatService:GetLevel(Character, "Strength") * Progression.Bonuses.Strength.WeaponDamage
 end
 
 function ValuesService:GetWeaponStaminaCost(Character: Model, WeaponSide: string?): number
@@ -125,7 +128,8 @@ function ValuesService:GetWeaponStaminaCost(Character: Model, WeaponSide: string
 	local SwordBaseStaminaCost = StanceData.BaseStaminaCost or 0
 	SwordBaseStaminaCost += self:GetWeaponAdditionalStat(Character, WeaponSide, "AdditionalStaminaCost")
 
-	return SwordBaseStaminaCost * EnergyConservation
+	local StatReduction = StatService:GetLevel(Character, "Dexterity") * Progression.Bonuses.Dexterity.StaminaCostReduction
+	return SwordBaseStaminaCost * EnergyConservation * math.max(0.1, 1 - StatReduction)
 end
 
 function ValuesService:UpdateDamage(Character: Model)
@@ -153,8 +157,9 @@ function ValuesService:UpdateMaxHealth(Character: Model, SetToMax: boolean)
 
 	local RaceData = RaceService:GetRaceData(Character:GetAttribute("Race") or "Human")
 	local BASE_HEALTH = RaceData.BaseStats.MaxHealth
+	local StatIncrease = StatService:GetLevel(Character, "Vitality") * Progression.Bonuses.Vitality.Health
 
-	Character:SetAttribute("MaxHealth", BASE_HEALTH + NodeIncrease + ArmorIncrease)
+	Character:SetAttribute("MaxHealth", BASE_HEALTH + NodeIncrease + ArmorIncrease + StatIncrease)
 
 	if SetToMax then
 		Character:SetAttribute("Health", Character:GetAttribute("MaxHealth"))
@@ -167,9 +172,9 @@ end
 
 local BASE_POSTURE = 100
 function ValuesService:UpdateMaxPosture(Character: Model)
-	local StrengthPoints = (Character:GetAttribute("StrengthPoints") or 0)
-	local PointsPosture = (StrengthPoints * 0.1)
-	Character:SetAttribute("MaxPosture", BASE_POSTURE + PointsPosture)
+	local StatPosture = StatService:GetLevel(Character, "Resistance") * Progression.Bonuses.Resistance.Posture
+	Character:SetAttribute("MaxPosture", BASE_POSTURE + StatPosture)
+	Character:SetAttribute("StatWeaponResistance", StatService:GetLevel(Character, "Resistance") * Progression.Bonuses.Resistance.WeaponResistance)
 end
 
 function ValuesService:GetAmountUnlockedNodesMatch(Player: Player | Model, Pattern: string)
@@ -207,8 +212,9 @@ function ValuesService:UpdateMaxStamina(Character: Model, SetToMax: boolean)
 	end
 
 	local ArmorIncrease = self:GetEquipmentAttributeValue(Character, "MaxStaminaIncrease")
+	local StatIncrease = StatService:GetLevel(Character, "Resistance") * Progression.Bonuses.Resistance.Stamina
 
-	Character:SetAttribute("MaxStamina", BASE_STAMINA + ArmorIncrease + NodeIncrease)
+	Character:SetAttribute("MaxStamina", BASE_STAMINA + ArmorIncrease + NodeIncrease + StatIncrease)
 
 	if SetToMax then
 		Character:SetAttribute("Stamina", Character:GetAttribute("MaxStamina"))
@@ -220,15 +226,15 @@ function ValuesService:UpdateMaxStamina(Character: Model, SetToMax: boolean)
 end
 
 function ValuesService:UpdateWalkspeed(Character: Model)
-	local SpeedPoints = (Character:GetAttribute("SpeedPoints") or 0)
-
-	local Multiplier = SpeedPoints * 0.005
+	local Agility = StatService:GetLevel(Character, "Agility")
+	local Multiplier = Agility * Progression.Bonuses.Agility.RunMultiplier
 
 	local EquipableIncrease = self:GetEquipmentAttributeValue(Character, "RunspeedIncrease")
 	local Clamped = math.clamp(Multiplier, 0, 0.35)
 
 	Character:SetAttribute("RunSpeedMultiplier", 1 + Clamped)
 	Character:SetAttribute("RunSpeedIncrease", EquipableIncrease)
+	Character:SetAttribute("DefaultWalkSpeed", 12 + Agility * Progression.Bonuses.Agility.WalkSpeed)
 	CharacterShared:UpdateWalkspeed(Character)
 end
 
@@ -244,6 +250,7 @@ function ValuesService.KnitInit()
 	StanceService = Knit.GetService("StanceService")
 	RaceService = Knit.GetService("RaceService")
 	SkillTreeService = Knit.GetService("SkillTreeService")
+	StatService = Knit.GetService("StatService")
 end
 
 function ValuesService.KnitStart() end

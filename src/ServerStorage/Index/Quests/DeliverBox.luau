@@ -1,8 +1,9 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 local DataService = Knit.GetService("DataService")
 local TetsuService = Knit.GetService("TetsuService")
 local QuestService = Knit.GetService("QuestService")
-local LevelService = Knit.GetService("LevelService")
+local StatService = Knit.GetService("StatService")
 local AlertService = Knit.GetService("AlertService")
 local DebounceService = Knit.GetService("DebounceService")
 local ObjectiveService = Knit.GetService("ObjectiveService")
@@ -74,7 +75,7 @@ return {
 		local PlayerData = DataService:GetData(Player)
 		PlayerData.NPCs.DeliveredBoxToSakamoto = true
 		TetsuService:AddTetsu(Player, 125)
-		LevelService:GiveExp(Player, 1000)
+		StatService:GiveRewardXP(Player, 1000, "Delivery")
 
 		ObjectiveService:UpdateProgress(Player, "QuestDeliverBox", 2, 1)
 		ObjectiveService:ClearObjectives(Player, true)

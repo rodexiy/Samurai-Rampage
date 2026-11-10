@@ -1,6 +1,7 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local ServerStorage = game:GetService("ServerStorage")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local MissionBoardService = Knit.CreateService({
 	Name = "MissionBoardService",
@@ -10,7 +11,7 @@ local MissionBoardService = Knit.CreateService({
 local PlayerBoards = {}
 local PlayerSelectedMissions = {}
 local AlertService
-local LevelService
+local StatService
 local TetsuService
 local ObjectiveService
 local MAX_ACTIVE_MISSIONS = 3
@@ -72,7 +73,6 @@ function MissionBoardService:RaycastDown(Position: Vector3)
 	end
 end
 
-local MissionSpawns = workspace.Map.MissionSpawns:GetChildren()
 
 function MissionBoardService:GetRandomPoint(Part: BasePart)
 	local size = Part.Size
@@ -93,7 +93,6 @@ function MissionBoardService:GetRandomPoint(Part: BasePart)
 end
 
 local MissionSpawns 
-local DuelSpawns
 
 function MissionBoardService:GetRandomPointInDuelSpawn()
 	local DuelSpawns = ServerStorage.DuelSpawns:GetChildren()
@@ -152,7 +151,7 @@ function MissionBoardService:OpenBoard(Player: Player)
 	if not PlayerBoards[Player] then
 		PlayerBoards[Player] = {}
 
-		for i = 1, 5 do
+		for _ = 1, 5 do
 			local MissionType = MissionTypes[math.random(#MissionTypes)]
 			local Mission = Missions[MissionType]:Randomize(Player)
 			Mission.Id = HttpService:GenerateGUID(false):sub(1, 8)
@@ -168,7 +167,8 @@ function MissionBoardService:FinishedMission(Player: Player, Mission: { any })
 		Missions[Mission.Name]:Reward(Player, Mission)
 	end
 
-	LevelService:GiveExp(Player, Mission.Exp)
+	local RewardKinds = { Kill = "Combat", ResourceContract = "Gathering", DeliveryTimed = "Delivery", ObtainLostItem = "Exploration" }
+	StatService:GiveRewardXP(Player, Mission.Exp, RewardKinds[Mission.Name] or "Combat")
 	TetsuService:AddTetsu(Player, Mission.Tetsu)
 	local ObjectiveName = GetMissionObjectiveName(Mission)
 	if ObjectiveName then
@@ -280,13 +280,8 @@ function MissionBoardService.KnitInit()
 		MissionSpawns = MissionSpawnsFolder:GetChildren()
 	end
 	
-	local DuelSpawnsFolder = ServerStorage:FindFirstChild("DuelSpawns")
-	if DuelSpawnsFolder then
-		DuelSpawns = DuelSpawnsFolder:GetChildren()
-	end
-	
 	AlertService = Knit.GetService("AlertService")
-	LevelService = Knit.GetService("LevelService")
+	StatService = Knit.GetService("StatService")
 	TetsuService = Knit.GetService("TetsuService")
 	ObjectiveService = Knit.GetService("ObjectiveService")
 

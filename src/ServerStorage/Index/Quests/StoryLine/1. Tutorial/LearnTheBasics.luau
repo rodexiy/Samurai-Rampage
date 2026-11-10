@@ -1,9 +1,10 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local ObjectiveService = Knit.GetService("ObjectiveService")
 local QuestService = Knit.GetService("QuestService")
 local TutorialService = Knit.GetService("TutorialService")
-local LevelService = Knit.GetService("LevelService")
+local StatService = Knit.GetService("StatService")
 local CombatTutorialService = Knit.GetService("CombatTutorialService")
 
 local LearnTheBasics = {}
@@ -144,7 +145,7 @@ function LearnTheBasics:CompleteQuest(Player: Player)
 	LearnTheBasics:ClearTargets(Player)
 	CombatTutorialService:EndTraining(Player, false)
 	ObjectiveService:ClearObjective(Player, LearnTheBasics.Name, true)
-	LevelService:GiveExp(Player, 100)
+	StatService:GiveRewardXP(Player, 100, "Combat")
 	TutorialService:CompleteMission(Player, LearnTheBasics.Name)
 	return true
 end

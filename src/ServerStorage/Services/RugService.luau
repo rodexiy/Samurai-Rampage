@@ -1,4 +1,5 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local RugService = Knit.CreateService({
 	Name = "RugService",
@@ -10,7 +11,7 @@ local RugService = Knit.CreateService({
 local DataService
 local AlertService
 local RenderService
-local LevelService
+local StatService
 
 local MAX_RUG_DISTANCE = 10
 local SPAWN_HEIGHT = 3
@@ -142,7 +143,7 @@ function RugService:UnlockRug(Player: Player)
 		table.insert(PlayerData.UnlockedRugs, Rug.Name)
 		RenderService:RenderForAllPlayers("Misc", "MeditateNewRug", { Character = Character })
 		AlertService:AlertPlayer(Player, "Unlocked " .. Rug.Name .. "!", "Success")
-		LevelService:GiveExp(Player, 100)
+		StatService:GiveRewardXP(Player, 100, "Meditation")
 		RugService.Client.UnlockedRug:Fire(Player, PlayerData.UnlockedRugs)
 	end
 
@@ -166,7 +167,7 @@ function RugService.KnitInit()
 	DataService = Knit.GetService("DataService")
 	AlertService = Knit.GetService("AlertService")
 	RenderService = Knit.GetService("RenderService")
-	LevelService = Knit.GetService("LevelService")
+	StatService = Knit.GetService("StatService")
 end
 
 function RugService.KnitStart() end

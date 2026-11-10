@@ -1,10 +1,11 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local DataService = Knit.GetService("DataService")
 local QuestService = Knit.GetService("QuestService")
 local ObjectiveService = Knit.GetService("ObjectiveService")
 local TetsuService = Knit.GetService("TetsuService")
-local LevelService = Knit.GetService("LevelService")
+local StatService = Knit.GetService("StatService")
 local AlertService = Knit.GetService("AlertService")
 local SideQuestService = Knit.GetService("SideQuestService")
 
@@ -245,7 +246,7 @@ return {
 		SideQuestService:MarkQuestCompleted(Player, QUEST_NAME)
 
 		TetsuService:AddTetsu(Player, 50)
-		LevelService:GiveExp(Player, 150)
+		StatService:GiveRewardXP(Player, 150, "Healing")
 
 		ObjectiveService:ClearObjectives(Player, true)
 		QuestService:RemoveQuest(Player)

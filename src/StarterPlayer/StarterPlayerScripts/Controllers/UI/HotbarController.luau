@@ -1,6 +1,7 @@
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local HotbarController = Knit.CreateController({
 	Name = "HotbarController",
@@ -8,9 +9,9 @@ local HotbarController = Knit.CreateController({
 
 local InventoryService
 local SkillService
-local SoundEffectController
 local AnimationController
 local InventoryController
+local MenuController
 
 local Player = game.Players.LocalPlayer
 local PlayerGui
@@ -24,6 +25,8 @@ local EquipDebounce = false
 local SelectedSlot
 local Ghosts = false
 local DialogHidden = false
+local PendingHotbarItem: string? = nil
+local AssigningSlots: { [number]: boolean } = {}
 
 local Character = Player.Character
 local KeysDisplay = {
@@ -40,25 +43,66 @@ local KeysDisplay = {
 }
 
 local EquippedTextColor = Color3.fromRGB(255, 183, 0)
-local EasyVisuals = require(game.ReplicatedStorage.Assets.Libraries.EasyVisuals)
+local EasyVisuals = require(ReplicatedStorage.Assets.Libraries.EasyVisuals)
 
-local SelectedVisual
-function HotbarController:HotbarEnabledBooleans()
-	local Selected = InventoryController:GetSelected()
-	return PlayerGui.Menu.Inventory.Enabled or PlayerGui.Menu.SkillTree.Enabled,
-		(
-			Selected ~= nil
-			and Selected:GetAttribute("ItemClass") ~= "Equipable"
-			and Selected:GetAttribute("ItemClass") ~= "Weapon"
-		)
+function HotbarController:HotbarEnabledBooleans(): (boolean, boolean)
+	local Menu = PlayerGui and PlayerGui:FindFirstChild("Menu")
+	local SkillTree = Menu and Menu:FindFirstChild("SkillTree") :: ScreenGui?
+
+	return self:IsSelectingSlot() or (SkillTree ~= nil and SkillTree.Enabled), self:IsSelectingSlot()
+end
+
+function HotbarController:IsSelectingSlot(): boolean
+	return PendingHotbarItem ~= nil
+end
+
+function HotbarController:UpdateVisibility()
+	if Hotbar then
+		Hotbar.Enabled = not DialogHidden and not InventoryController:IsOpen()
+	end
+end
+
+function HotbarController:CancelSlotSelection()
+	if not PendingHotbarItem then
+		return
+	end
+
+	PendingHotbarItem = nil
+	MenuController:SetHudFocus(false)
+	self:LoadHotbar(self:HotbarEnabledBooleans())
+	self:UpdateVisibility()
+end
+
+function HotbarController:BeginSlotSelection(ItemName: string)
+	if DialogHidden or not Hotbar then
+		return
+	end
+
+	MenuController:CloseAllMenus()
+	PendingHotbarItem = ItemName
+	MenuController:SetHudFocus(true, Hotbar)
+	self:LoadHotbar(true, true)
+	self:UpdateVisibility()
+end
+
+function HotbarController:ConfirmSlotSelection(Index: number)
+	local ItemName = PendingHotbarItem
+	if not ItemName or Index < 0 or Index > 9 or Index % 1 ~= 0 then
+		return
+	end
+
+	self:CancelSlotSelection()
+	InventoryService:EquipToHotbar(ItemName, Index)
 end
 
 function HotbarController:SetDialogHidden(Hidden: boolean)
 	DialogHidden = Hidden
 
-	if Hotbar then
-		Hotbar.Enabled = not DialogHidden
+	if Hidden then
+		self:CancelSlotSelection()
 	end
+
+	self:UpdateVisibility()
 end
 
 function HotbarController:GetToolInHotbarIndex(Index: number)
@@ -77,7 +121,7 @@ function HotbarController:GetToolInHotbarIndex(Index: number)
 	end
 end
 
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
+local Collector = require(ReplicatedStorage.Shared.Collector)
 local Connections = Collector.new()
 
 local CooldownTweens = {}
@@ -111,10 +155,13 @@ function HotbarController:ClearHotbar()
 	end
 end
 
-local EasyVisuals = require(game.ReplicatedStorage.Assets.Libraries.EasyVisuals)
 local Visuals = {}
 
 function HotbarController:LoadHotbar(_Ghosts: boolean, Selected: boolean)
+	if not Background then
+		return
+	end
+
 	Ghosts = _Ghosts
 	HotbarController:ClearHotbar()
 
@@ -124,8 +171,8 @@ function HotbarController:LoadHotbar(_Ghosts: boolean, Selected: boolean)
 
 	for _, Visual in Visuals do
 		Visual:Destroy()
-		Visuals[_] = nil
 	end
+	table.clear(Visuals)
 
 	for i = 0, 9 do
 		local Tool: Tool = HotbarController:GetToolInHotbarIndex(i)
@@ -194,6 +241,8 @@ function HotbarController:LoadHotbar(_Ghosts: boolean, Selected: boolean)
 			end
 		end
 	end
+
+	self:UpdateVisibility()
 end
 
 function HotbarController:HandleEquip()
@@ -238,17 +287,34 @@ end
 
 local Camera = workspace.CurrentCamera
 local Mouse = Player:GetMouse()
-local Items = require(game.ReplicatedStorage.Shared.Index.Items)
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
+local Items = require(ReplicatedStorage.Shared.Index.Items)
+local Validate = require(ReplicatedStorage.Shared.Validate)
 
-local KeepLookingAtMouse = false
 local Released = false
-function HotbarController.OnKeyPress(value: number, state)
+function HotbarController.OnKeyPress(value: number, state: Enum.UserInputState)
 	if not value or not Character then
 		return
 	end
 
 	if DialogHidden or Player:GetAttribute("InDialog") then
+		return
+	end
+
+	if state == Enum.UserInputState.End and AssigningSlots[value] then
+		AssigningSlots[value] = nil
+		return
+	end
+
+	if HotbarController:IsSelectingSlot() then
+		if state == Enum.UserInputState.Begin then
+			AssigningSlots[value] = true
+			HotbarController:ConfirmSlotSelection(value)
+		end
+
+		return
+	end
+
+	if InventoryController:IsOpen() then
 		return
 	end
 
@@ -291,7 +357,6 @@ function HotbarController.OnKeyPress(value: number, state)
 			end
 		end
 
-		local Ended = false
 		if state == Enum.UserInputState.Begin then
 			local StaminaCost = SkillData.StaminaCost or 0
 
@@ -453,8 +518,8 @@ end
 function HotbarController.KnitInit()
 	InventoryService = Knit.GetService("InventoryService")
 	InventoryController = Knit.GetController("InventoryController")
+	MenuController = Knit.GetController("MenuController")
 	SkillService = Knit.GetService("SkillService")
-	SoundEffectController = Knit.GetController("SoundEffectController")
 	SkillTreeController = Knit.GetController("SkillTreeController")
 	AnimationController = Knit.GetController("AnimationController")
 end
@@ -463,20 +528,15 @@ function HotbarController:BindButtons()
 	for i = 0, 9 do
 		local button = Background[i]
 		button.Activated:Connect(function()
-			local Selected = InventoryController:GetSelected()
+			if self:IsSelectingSlot() then
+				self:ConfirmSlotSelection(i)
+				return
+			end
+
 			local SelectedNode = SkillTreeController:GetSelected()
+			local SkillTree = MenuController:GetMenu("SkillTree")
 
-			if Selected then
-				if
-					Selected:GetAttribute("ItemClass") == "Equipable"
-					or Selected:GetAttribute("ItemClass") == "Weapon"
-				then
-					return
-				end
-
-				InventoryService:EquipToHotbar(Selected:GetAttribute("Name") or Selected.Name, i)
-				InventoryController:Unselect()
-			elseif SelectedNode then
+			if SelectedNode and SkillTree and SkillTree.Enabled then
 				SelectedNode = SelectedNode:gsub(" ", "")
 				InventoryService:EquipToHotbar(SelectedNode, i)
 				HotbarController:LoadHotbar(false, false)
@@ -502,20 +562,21 @@ function HotbarController.KnitStart()
 	Hud = PlayerGui:WaitForChild("Hud")
 	Hotbar = Hud:WaitForChild("NewHotbar")
 	Background = Hotbar:WaitForChild("Background")
-	Hotbar.Enabled = not DialogHidden
+	HotbarController:UpdateVisibility()
 
-	Player.Backpack.ChildAdded:Connect(function(tool)
+	Player.Backpack.ChildAdded:Connect(function()
 		if Character and Character:GetAttribute("Loaded") then
 			HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
 		end
 	end)
-	Player.Backpack.ChildRemoved:Connect(function(character)
+	Player.Backpack.ChildRemoved:Connect(function()
 		if Character and Character:GetAttribute("Loaded") then
 			HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
 		end
 	end)
 
 	Player.CharacterAdded:Connect(function(character)
+		HotbarController:CancelSlotSelection()
 		HotbarController:ClearHotbar()
 		Character = character
 
@@ -525,6 +586,11 @@ function HotbarController.KnitStart()
 	Character = Player.Character
 
 	UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+		if input.KeyCode == Enum.KeyCode.Escape and HotbarController:IsSelectingSlot() then
+			HotbarController:CancelSlotSelection()
+			return
+		end
+
 		if gameProcessedEvent then
 			return
 		end
