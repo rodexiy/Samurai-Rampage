@@ -35,6 +35,12 @@ Neck.MaxVelocity = 1 / 3
 RunService.RenderStepped:Connect(function(Delta: number)
 	local LerpSpeed = 0.4 ^ (1 / (Delta * 60))
 	local Camera = workspace.CurrentCamera
+	local Mounted = Character:GetAttribute("Mounted") == true
+	if Mounted then
+		Waist.C0 = WaistOriginC0
+		LHip.C0 = LHipOriginC0
+		RHip.C0 = RHipOriginC0
+	end
 
 	if Character:FindFirstChild("Torso") and Character:FindFirstChild("Head") then
 		local HeadPosition = Head.CFrame.p
@@ -71,15 +77,19 @@ RunService.RenderStepped:Connect(function(Delta: number)
 				local yAxisWaistRotation = (((HeadPosition - Point).Unit):Cross(RootPart.CFrame.LookVector)).Y * 0.5
 				local rotationWaistCFrame = CFrame.Angles(xAxisWaistRotation, yAxisWaistRotation, 0)
 				local goalWaistCFrame = rotationWaistCFrame * WaistOriginC0
-				Waist.C0 = Waist.C0:lerp(goalWaistCFrame, LerpSpeed).Rotation + WaistOriginC0.Position
+				if not Mounted then
+					Waist.C0 = Waist.C0:lerp(goalWaistCFrame, LerpSpeed).Rotation + WaistOriginC0.Position
+				end
 
 				Neck.C0 = Neck.C0:lerp(goalNeckCFrame * NeckOriginC0, LerpSpeed).Rotation + NeckOriginC0.Position
 
 				local currentLegCounterCFrame = Waist.C0 * WaistOriginC0:Inverse()
 				local currentWaistPitch = currentLegCounterCFrame:ToOrientation()
 				local legsCounterCFrame = CFrame.Angles(-currentWaistPitch, 0, 0)
-				RHip.C0 = legsCounterCFrame * RHipOriginC0
-				LHip.C0 = legsCounterCFrame * LHipOriginC0
+				if not Mounted then
+					RHip.C0 = legsCounterCFrame * RHipOriginC0
+					LHip.C0 = legsCounterCFrame * LHipOriginC0
+				end
 			end
 		end
 	end

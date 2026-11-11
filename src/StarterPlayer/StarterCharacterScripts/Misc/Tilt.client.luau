@@ -2,9 +2,16 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
-local RootJoint = RootPart:WaitForChild("RootJoint")
+local Humanoid = Character:WaitForChild("Humanoid") :: Humanoid
+local RootPart = Character.PrimaryPart
+if not RootPart then
+	Character:GetPropertyChangedSignal("PrimaryPart"):Wait()
+	RootPart = Character.PrimaryPart
+end
+if not RootPart then
+	return
+end
+local RootJoint = RootPart:WaitForChild("RootJoint") :: Motor6D
 local RootC1 = RootJoint.C1
 
 --[[
@@ -15,10 +22,11 @@ local MaxTiltAngle = 5
 local Tilt = CFrame.new()
 local DefaultTilt = CFrame.new()
 
-RunService.RenderStepped:Connect(function(Delta)
+RunService.RenderStepped:Connect(function(Delta: number)
 	if
 
-		Character:GetAttribute("Ragdoll")
+		Character:GetAttribute("Mounted")
+		or Character:GetAttribute("Ragdoll")
 		or Humanoid:GetState() == Enum.HumanoidStateType.Seated
 		or Character:GetAttribute("Died")
 		or Character:GetAttribute("Downed")

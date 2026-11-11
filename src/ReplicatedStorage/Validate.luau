@@ -1,4 +1,5 @@
 local GeneralCantAttributes = {
+	"Mounted",
 	"Died",
 	"Ragdoll",
 	"PostureBreak",
@@ -175,7 +176,7 @@ function Validate:CanStrongAttack(Character: Model)
 end
 
 function Validate:CanUseSkill(Character: Model, StaminaCost: number)
-	if Character:GetAttribute("BowEquipped") then
+	if Character:GetAttribute("BowEquipped") or Character:GetAttribute("Mounted") then
 		return false
 	end
 

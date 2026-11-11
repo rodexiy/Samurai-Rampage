@@ -60,6 +60,7 @@ local BowConfig = {
 		Pose = { Name = "Bow Pose", Id = "rbxassetid://123681337764234" },
 	},
 	CancelAttributes = {
+		"Mounted",
 		"Died", "Downed", "Ragdoll", "BeenHitted", "PostureBreak", "HeavyDeflect",
 		"BeenDeflected", "Meditating", "Rolling", "RollClientDebounce", "Climbing",
 		"Vaulting", "WallRunning", "CameraCutscene", "RealmTeleporting", "SkillLockMovement",
