@@ -8,6 +8,10 @@ local UserInputService = game:GetService("UserInputService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local SharedConstants = require(ReplicatedStorage.Shared.Constants)
 local CameraShaker = require(ReplicatedStorage.Assets.Libraries.CameraShaker)
+local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
+local ShouldFaceAim = require(ReplicatedStorage.Shared.Utils.ShouldFaceAim)
+local CameraUtils = require(Players.LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")
+	:WaitForChild("CameraModule"):WaitForChild("CameraUtils") :: ModuleScript)
 
 local CameraController = Knit.CreateController({ Name = "CameraController" })
 
@@ -17,7 +21,8 @@ local SHOULDER_OFFSET = Vector2.new(2.15, 0.25)
 local SHOULDER_RESPONSE = 10
 local ANIMATION_INFLUENCE = 0.18
 local MAX_CAMERA_ROLL = math.rad(0.35)
-local CHARACTER_TURN_RESPONSE = 32
+local MOVEMENT_TURN_RESPONSE = 8
+local AIM_TURN_RESPONSE = 32
 local COLLISION_RADIUS = 0.35
 
 local Player = Players.LocalPlayer
@@ -54,6 +59,52 @@ local UnshakenCFrame: CFrame? = nil
 local ShakenCFrame: CFrame? = nil
 local FovPulse: Tween? = nil
 local FovPulseRevision = 0
+local ForcedShiftLocks: { [string]: boolean } = {}
+local SavedMouseIcon: boolean? = nil
+local ForcedMouseApplied = false
+local BowDrawStarted: number? = nil
+local BowDrawSeed = 0
+local BowFocusZoom = false
+local BowFovTween: Tween? = nil
+local BowFovCamera: Camera? = nil
+local BowFovBase: number? = nil
+local SavedBowSensitivity: number? = nil
+local AppliedBowSensitivity: number? = nil
+local SmoothedBowSway = CFrame.identity
+local LastShakeTime: number? = nil
+
+local function IsShiftLocked(): boolean
+	return Player:GetAttribute("MouseLocked") == true or next(ForcedShiftLocks) ~= nil
+end
+
+local function ReleaseForcedMouse()
+	if not ForcedMouseApplied then
+		return
+	end
+
+	-- Share the native camera's override so it never saves our LockCenter as its baseline.
+	CameraUtils.restoreMouseBehavior()
+	if SavedMouseIcon ~= nil then
+		UserInputService.MouseIconEnabled = SavedMouseIcon
+	end
+	SavedMouseIcon = nil
+	ForcedMouseApplied = false
+end
+
+function CameraController:SetForcedShiftLock(Source: string, Enabled: boolean)
+	if (ForcedShiftLocks[Source] == true) == Enabled then
+		return
+	end
+
+	if Enabled then
+		ForcedShiftLocks[Source] = true
+	else
+		ForcedShiftLocks[Source] = nil
+		if next(ForcedShiftLocks) == nil then
+			ReleaseForcedMouse()
+		end
+	end
+end
 
 local CollisionParams = RaycastParams.new()
 CollisionParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -73,6 +124,112 @@ local function IsGameplayCamera(): boolean
 	end
 
 	return Camera.CameraType == Enum.CameraType.Custom or Character:GetAttribute("LockedOnEnemy") == true
+end
+
+local function ClearBowFieldOfView(Restore: boolean)
+	local PreviousTween, PreviousCamera, PreviousBase = BowFovTween, BowFovCamera, BowFovBase
+	BowFovTween = nil
+	BowFovCamera = nil
+	BowFovBase = nil
+
+	local CanRestore = not PreviousTween or PreviousTween.PlaybackState ~= Enum.PlaybackState.Cancelled
+	if PreviousTween then
+		PreviousTween:Cancel()
+	end
+	if Restore and CanRestore and PreviousCamera and PreviousBase then
+		PreviousCamera.FieldOfView = PreviousBase
+	end
+end
+
+local function UpdateBowSensitivity()
+	if not IsGameplayCamera() or (BowDrawStarted == nil and not BowFocusZoom) then
+		if SavedBowSensitivity ~= nil and UserInputService.MouseDeltaSensitivity == AppliedBowSensitivity then
+			UserInputService.MouseDeltaSensitivity = SavedBowSensitivity
+		end
+		SavedBowSensitivity = nil
+		AppliedBowSensitivity = nil
+		return
+	end
+
+	if SavedBowSensitivity == nil then
+		SavedBowSensitivity = UserInputService.MouseDeltaSensitivity
+	end
+	local Multiplier = if BowFocusZoom then BowConfig.FocusSensitivityMultiplier else BowConfig.AimSensitivityMultiplier
+	UserInputService.MouseDeltaSensitivity = SavedBowSensitivity * Multiplier
+	AppliedBowSensitivity = UserInputService.MouseDeltaSensitivity
+end
+
+local function UpdateBowFieldOfView(TransitionTime: number?)
+	if BowFovCamera and (BowFovCamera ~= Camera or not IsGameplayCamera()) then
+		ClearBowFieldOfView(true)
+	end
+	local EffectsEnabled = Player:GetAttribute("FovEffects") == true and IsGameplayCamera()
+	local Drawing = BowDrawStarted ~= nil and EffectsEnabled
+	local Focusing = BowFocusZoom and EffectsEnabled
+	local Active = Drawing or Focusing
+	if Active and not BowFovCamera then
+		BowFovCamera = Camera
+		BowFovBase = Camera.FieldOfView
+	end
+	if not BowFovCamera or not BowFovBase then
+		return
+	end
+
+	local PreviousTween = BowFovTween
+	BowFovTween = nil
+	if PreviousTween then
+		PreviousTween:Cancel()
+	end
+
+	local Target = BowFovBase - (if Drawing then BowConfig.DrawFovReduction else 0)
+		- (if Focusing then BowConfig.FocusFovReduction else 0)
+	local Duration = TransitionTime or (if Drawing then BowConfig.FullChargeTime else BowConfig.DrawFovRestoreTime)
+	local Tween = TweenService:Create(BowFovCamera, TweenInfo.new(Duration, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+		FieldOfView = math.clamp(Target, 1, 120),
+	})
+	BowFovTween = Tween
+	Tween.Completed:Once(function(State: Enum.PlaybackState)
+		if BowFovTween == Tween and (not Active or State ~= Enum.PlaybackState.Completed) then
+			ClearBowFieldOfView(false)
+		end
+	end)
+	Tween:Play()
+end
+
+function CameraController:SetBowFocusZoom(Enabled: boolean)
+	if BowFocusZoom == Enabled then
+		return
+	end
+
+	BowFocusZoom = Enabled
+	UpdateBowSensitivity()
+	UpdateBowFieldOfView(BowConfig.FocusFovTransitionTime)
+end
+
+function CameraController:SetBowDrawSway(StartedAt: number?, Seed: number?)
+	local WasDrawing = BowDrawStarted ~= nil
+	BowDrawStarted = StartedAt
+	BowDrawSeed = Seed or 0
+
+	if WasDrawing ~= (StartedAt ~= nil) then
+		UpdateBowSensitivity()
+		UpdateBowFieldOfView()
+	end
+end
+
+local function ApplyForcedShiftLock()
+	if next(ForcedShiftLocks) ~= nil and IsGameplayCamera() and Character
+		and not Character:GetAttribute("Ragdoll") and not Character:GetAttribute("Downed")
+		and not Character:GetAttribute("Died") and not Character:GetAttribute("Meditating") then
+		if not ForcedMouseApplied then
+			SavedMouseIcon = UserInputService.MouseIconEnabled
+			ForcedMouseApplied = true
+		end
+		CameraUtils.setMouseBehaviorOverride(Enum.MouseBehavior.LockCenter)
+		UserInputService.MouseIconEnabled = false
+	else
+		ReleaseForcedMouse()
+	end
 end
 
 function CameraController:GetShoulderSide(): number
@@ -148,7 +305,7 @@ local function UpdateCombatZoom()
 	end
 
 	local Active = Character and IsGameplayCamera()
-		and (Player:GetAttribute("MouseLocked") == true or Character:GetAttribute("LockedOnEnemy") == true)
+		and (IsShiftLocked() or Character:GetAttribute("LockedOnEnemy") == true)
 	local Bounds = Vector2.new(Player.CameraMinZoomDistance, Player.CameraMaxZoomDistance)
 
 	if Active then
@@ -273,7 +430,7 @@ local function UpdateFollowSubject(DeltaTime: number)
 	end
 
 	local Offset = (CustomOffsetCFrame or CameraController:GetDefaultCameraSubjectCFrameOffset()).Position
-	if Player:GetAttribute("AnimationsInfluence") and Player:GetAttribute("MouseLocked") ~= true then
+	if Player:GetAttribute("AnimationsInfluence") and not IsShiftLocked() then
 		local AnimationOffset = Torso.Position - RootPart.Position
 		Offset += Vector3.new(
 			math.clamp(AnimationOffset.X, -1, 1),
@@ -291,6 +448,7 @@ local function UpdateFollowSubject(DeltaTime: number)
 end
 
 local function PrepareNativeCamera(DeltaTime: number)
+	ApplyForcedShiftLock()
 	-- Capture transitions from the displayed view, then remove last frame's visual offsets.
 	UpdateCombatZoom()
 
@@ -306,6 +464,7 @@ local function PrepareNativeCamera(DeltaTime: number)
 end
 
 local function UpdateShoulderCamera(DeltaTime: number)
+	ApplyForcedShiftLock()
 	SmoothedShoulderSide += (ShoulderSide - SmoothedShoulderSide) * SmoothingAlpha(SHOULDER_RESPONSE, DeltaTime)
 	if not Camera or not RootPart or not HeadSubject or not Character then
 		return
@@ -321,7 +480,7 @@ local function UpdateShoulderCamera(DeltaTime: number)
 	local BaseFocus = Camera.Focus.Position
 	local CameraOffset = BaseCFrame.Position - BaseFocus
 	local Distance = CameraOffset.Magnitude
-	local Active = Player:GetAttribute("MouseLocked") == true and Distance > 1
+	local Active = IsShiftLocked() and Distance > 1
 	ShoulderBlend += ((if Active then 1 else 0) - ShoulderBlend) * SmoothingAlpha(SHOULDER_RESPONSE, DeltaTime)
 
 	local RollTarget = 0
@@ -356,13 +515,16 @@ local function UpdateShoulderCamera(DeltaTime: number)
 end
 
 local function UpdateCharacterRotation(DeltaTime: number)
+	local Aiming = Character ~= nil and ShouldFaceAim(Character)
+
 	if not Camera or not Character or not RootPart or not RootPart.Parent or RootPart.Anchored or not Humanoid
-		or Camera.CameraType ~= Enum.CameraType.Custom or Player:GetAttribute("MouseLocked") ~= true
+		or Camera.CameraType ~= Enum.CameraType.Custom or (not IsShiftLocked() and not Aiming)
 		or not Humanoid.AutoRotate or Character:GetAttribute("LockedOnEnemy")
 		or Character:GetAttribute("Died") or Character:GetAttribute("Downed")
 		or Character:GetAttribute("Ragdoll") or Character:GetAttribute("PostureBreak")
 		or Character:GetAttribute("HeavyDeflect") or Character:GetAttribute("Meditating")
 		or Character:GetAttribute("Climbing") or Character:GetAttribute("WallRunning")
+		or Character:GetAttribute("Rolling")
 		or Character:GetAttribute("Vaulting") or Character:GetAttribute("CameraCutscene")
 		or Character:GetAttribute("RealmTeleporting") or Character:GetAttribute("SkillLockMovement")
 		or Humanoid:GetState() == Enum.HumanoidStateType.Seated
@@ -377,16 +539,18 @@ local function UpdateCharacterRotation(DeltaTime: number)
 		return
 	end
 
-	-- Use this frame's native view, before shoulder offsets, transitions, and shakes.
-	local Direction = Camera.CFrame.LookVector * Vector3.new(1, 0, 1)
+	-- Face movement while free; use the native camera direction while attacking, blocking, or drawing.
+	local Direction = if Aiming then Camera.CFrame.LookVector else Humanoid.MoveDirection
+	Direction *= Vector3.new(1, 0, 1)
 	if Direction.Magnitude < 0.001 then
+		CharacterRotation = RootPart.CFrame.Rotation
 		return
 	end
 
 	local Target = CFrame.lookAt(Vector3.zero, Direction)
 	CharacterRotation = (CharacterRotation or RootPart.CFrame.Rotation):Lerp(
 		Target,
-		SmoothingAlpha(CHARACTER_TURN_RESPONSE, DeltaTime)
+		SmoothingAlpha(if Aiming then AIM_TURN_RESPONSE else MOVEMENT_TURN_RESPONSE, DeltaTime)
 	)
 	RootPart.CFrame = CFrame.new(RootPart.Position) * CharacterRotation
 end
@@ -434,6 +598,13 @@ end
 
 local function ResetCharacter()
 	CameraController:UnbindShiftLock()
+	table.clear(ForcedShiftLocks)
+	ReleaseForcedMouse()
+	CameraController:SetBowFocusZoom(false)
+	CameraController:SetBowDrawSway(nil)
+	ClearBowFieldOfView(true)
+	SmoothedBowSway = CFrame.identity
+	LastShakeTime = nil
 	FovPulseRevision += 1
 	if FovPulse then
 		FovPulse:Cancel()
@@ -515,14 +686,18 @@ function CameraController.KnitStart()
 	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		ClearAppliedFrame()
 		ClearTransition()
+		ClearBowFieldOfView(true)
 		Camera = workspace.CurrentCamera
 		UpdateSubject()
+		UpdateBowSensitivity()
+		UpdateBowFieldOfView()
 	end)
 	Player:GetAttributeChangedSignal("AnimationsInfluence"):Connect(UpdateSubject)
+	Player:GetAttributeChangedSignal("FovEffects"):Connect(UpdateBowFieldOfView)
 
 	ContextActionService:BindAction("SwapCameraShoulder", function(_Action: string, State: Enum.UserInputState): Enum.ContextActionResult
 		if State == Enum.UserInputState.Begin and IsGameplayCamera()
-			and (Player:GetAttribute("MouseLocked") or (Character and Character:GetAttribute("LockedOnEnemy")))
+			and (IsShiftLocked() or (Character and Character:GetAttribute("LockedOnEnemy")))
 			and not UserInputService:GetFocusedTextBox()
 		then
 			CameraController:SwapShoulder()
@@ -533,10 +708,22 @@ function CameraController.KnitStart()
 	end, false, Enum.KeyCode.V)
 
 	camShake = CameraShaker.new(Enum.RenderPriority.Camera.Value + 5, function(ShakeCFrame: CFrame)
+		local Now = os.clock()
+		local DeltaTime = if LastShakeTime then math.clamp(Now - LastShakeTime, 0, 0.1) else 1 / 60
+		LastShakeTime = Now
+
 		if not Camera or not IsGameplayCamera() or not Player:GetAttribute("CameraShake") then
 			ShakeCamera = nil
+			SmoothedBowSway = CFrame.identity
 			return
 		end
+
+		local BowSway = CFrame.identity
+		if BowDrawStarted and Character and Character:GetAttribute("BowEquipped") then
+			BowSway = BowConfig.GetDrawCameraSway(workspace:GetServerTimeNow() - BowDrawStarted, BowDrawSeed)
+		end
+		SmoothedBowSway = SmoothedBowSway:Lerp(BowSway, SmoothingAlpha(BowConfig.CameraSwayResponse, DeltaTime))
+		ShakeCFrame *= SmoothedBowSway
 
 		local Position = ShakeCFrame.Position
 		if Position.Magnitude > 0.6 then

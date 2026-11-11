@@ -1,5 +1,3 @@
-local RunService = game:GetService("RunService")
-
 local GeneralCantAttributes = {
 	"Died",
 	"Ragdoll",
@@ -37,6 +35,10 @@ end
 local Validate = {}
 
 function Validate:CanEquipWeapon(Character: Model)
+	if Character:GetAttribute("BowEquipped") then
+		return false
+	end
+
 	local Tool = Character:FindFirstChildWhichIsA("Tool")
 	return isFalse(Character, GeneralCantAttributes)
 		and isFalse(Character, {
@@ -59,6 +61,7 @@ function Validate:CanRun(Character: Model)
 	local Humanoid = Character:FindFirstChild("Humanoid")
 	return isFalse(Character, GeneralCantAttributes)
 		and isFalse(Character, {
+			"BowDrawing",
 			"UsingSkillCantAttack",
 			"Blocking",
 			"HasBlocked",
@@ -88,6 +91,10 @@ function Validate:CanRoll(Character: Model)
 end
 
 function Validate:CanBlock(Character: Model)
+	if Character:GetAttribute("BowEquipped") then
+		return false
+	end
+
 	return isFalse(Character, GeneralCantAttributes)
 		and isFalse(Character, {
 			"UsingSkillCantAttack",
@@ -103,6 +110,10 @@ function Validate:CanBlock(Character: Model)
 end
 
 function Validate:CanAttack(Character: Model)
+	if Character:GetAttribute("BowEquipped") then
+		return false
+	end
+
 	local Tool = Character:FindFirstChildWhichIsA("Tool")
 	local Player = game.Players:GetPlayerFromCharacter(Character)
 	if Player and Player:GetAttribute("CantAttack") then
@@ -132,6 +143,10 @@ function Validate:CanAttack(Character: Model)
 end
 
 function Validate:CanStrongAttack(Character: Model)
+	if Character:GetAttribute("BowEquipped") then
+		return false
+	end
+
 	local Tool = Character:FindFirstChildWhichIsA("Tool")
 	local Player = game.Players:GetPlayerFromCharacter(Character)
 	if Player and Player:GetAttribute("CantAttack") then
@@ -160,6 +175,10 @@ function Validate:CanStrongAttack(Character: Model)
 end
 
 function Validate:CanUseSkill(Character: Model, StaminaCost: number)
+	if Character:GetAttribute("BowEquipped") then
+		return false
+	end
+
 	local Player = game.Players:GetPlayerFromCharacter(Character)
 	if Player and Player:GetAttribute("CantAttack") then
 		return false

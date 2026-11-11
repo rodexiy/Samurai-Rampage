@@ -1,4 +1,5 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local HitService = Knit.CreateService({
 	Name = "HitService",
@@ -16,7 +17,6 @@ local AnimationService
 local BloodService
 local BuffService
 local SkillService
-local PlayerService
 local InCombatService
 
 function HitService:IsInFront(Attacker: Model, Character: Model)
@@ -33,7 +33,7 @@ function HitService:ResolveHitResult(Character: Model, Attacker: Model, Damage: 
 	return Result
 end
 
-function HitService:ApplyWeaponHitBuffs(Character: Model, Attacker: Model, Data: { any })
+function HitService:ApplyWeaponHitBuffs(Character: Model, Attacker: Model, _Data: { any })
 	if Attacker:GetAttribute("SwordOnFire") then
 		BuffService:AddBuff(Character, "Burn", "Burn", 2, 5, "int")
 	elseif Attacker:GetAttribute("ConfettiOnSword") and Character:GetAttribute("IsGhost") then
@@ -56,31 +56,33 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 
 	InCombatService:SetInCombat(Character, true, Attacker)
 
-	SkillService:TryCancelSkillData(Character)
+	if not Data.NoStun then
+		SkillService:TryCancelSkillData(Character)
+		DebounceService:AddDebounce(Character, "BeenHitted", 1)
+		Character:SetAttribute("Blocking", false)
+		AnimationService:StopAnimationFind(Character, "Block")
 
-	DebounceService:AddDebounce(Character, "BeenHitted", 1)
+		if not Character:GetAttribute("Stunless") then
+			AnimationService:StopAttackAnimations(Character)
+		end
+		AnimationService:PlayRandomAnimationFromFolder(Character, ReplicatedStorage.Assets.Animations.Combat.Hit)
+	end
+
 	DebounceService:AddDebounce(Attacker, "HasHitted", 0.35)
 
 	if Data.By == "Weapon" then
 		HitService:ApplyWeaponHitBuffs(Character, Attacker, Data)
 	end
 
-	Character:SetAttribute("Blocking", false)
-
-	if not Attacker:GetAttribute("AttackedBeforeUnequip") or not BloodService:HasBloodOnBlade(Attacker) then
-		BloodService:ApplyBloodOnBlade(Attacker)
+	if not Data.Ranged then
+		if not Attacker:GetAttribute("AttackedBeforeUnequip") or not BloodService:HasBloodOnBlade(Attacker) then
+			BloodService:ApplyBloodOnBlade(Attacker)
+		end
+		Attacker:SetAttribute("AttackedBeforeUnequip", true)
 	end
-	Attacker:SetAttribute("AttackedBeforeUnequip", true)
-	AnimationService:StopAnimationFind(Character, "Block")
-
 	--PostureService:DealPostureDamage(Character, Damage / 3, false, Attacker)
 
-	RenderService:RenderForAllPlayers("Combat", "Blood", { Character = Character, Attacker = Attacker })
-	if not Character:GetAttribute("Stunless") then
-		AnimationService:StopAttackAnimations(Character)
-	end
-	AnimationService:PlayRandomAnimationFromFolder(Character, game.ReplicatedStorage.Assets.Animations.Combat.Hit)
-
+	RenderService:RenderForAllPlayers("Combat", "Blood", { Character = Character, Attacker = Attacker, Ranged = Data.Ranged })
 	if Data.FlingOnLast then
 		WeaponService:TryFling(Character, Attacker)
 	end
@@ -149,7 +151,6 @@ function HitService.KnitInit()
 	BloodService = Knit.GetService("BloodService")
 	BuffService = Knit.GetService("BuffService")
 	SkillService = Knit.GetService("SkillService")
-	PlayerService = Knit.GetService("PlayerService")
 	InCombatService = Knit.GetService("InCombatService")
 end
 

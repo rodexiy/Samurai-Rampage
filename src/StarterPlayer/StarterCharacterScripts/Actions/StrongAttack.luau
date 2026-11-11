@@ -1,20 +1,19 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local Character = Player.Character
 
 local WeaponService
 local DeviceController = Knit.GetController("DeviceController")
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
-
-local Camera = workspace.CurrentCamera
-
 local StrongAttack = {
-	callback = function(inputState, inputObject)
+	callback = function(inputState: Enum.UserInputState, _InputObject: InputObject?)
 		if inputState ~= Enum.UserInputState.Begin then
 			return
 		end
-		if Character:GetAttribute("Meditating") then
+		if not Character:GetAttribute("WeaponEquipped")
+			or Character:GetAttribute("Meditating") or Character:GetAttribute("BowEquipped") then
 			return
 		end
 

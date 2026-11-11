@@ -1,24 +1,28 @@
 local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
-local Player = game.Players.LocalPlayer
-
-local Camera = workspace.CurrentCamera
+local Player = Players.LocalPlayer
 
 local Character = Player.Character or Player.CharacterAdded:Wait()
 
-local Head = Character:WaitForChild("Head")
+local Head = Character:WaitForChild("Head") :: BasePart
 
-local Humanoid = Character:WaitForChild("Humanoid")
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+local RootPart = Character.PrimaryPart
+if not RootPart then
+	Character:GetPropertyChangedSignal("PrimaryPart"):Wait()
+	RootPart = Character.PrimaryPart
+end
+if not RootPart then
+	return
+end
 
-local Torso = Character:WaitForChild("Torso")
-local Neck = Torso:WaitForChild("Neck")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Torso = Character:WaitForChild("Torso") :: BasePart
+local Neck = Torso:WaitForChild("Neck") :: Motor6D
 
-local Waist = HumanoidRootPart:WaitForChild("RootJoint")
+local Waist = RootPart:WaitForChild("RootJoint") :: Motor6D
 
-local RHip = Torso:WaitForChild("Right Hip")
-local LHip = Torso:WaitForChild("Left Hip")
+local RHip = Torso:WaitForChild("Right Hip") :: Motor6D
+local LHip = Torso:WaitForChild("Left Hip") :: Motor6D
 
 local LHipOriginC0 = LHip.C0
 local RHipOriginC0 = RHip.C0
@@ -28,8 +32,9 @@ local WaistOriginC0 = Waist.C0
 
 Neck.MaxVelocity = 1 / 3
 
-RunService.RenderStepped:Connect(function(Delta)
+RunService.RenderStepped:Connect(function(Delta: number)
 	local LerpSpeed = 0.4 ^ (1 / (Delta * 60))
+	local Camera = workspace.CurrentCamera
 
 	if Character:FindFirstChild("Torso") and Character:FindFirstChild("Head") then
 		local HeadPosition = Head.CFrame.p
@@ -38,6 +43,8 @@ RunService.RenderStepped:Connect(function(Delta)
 			not Player:GetAttribute("FollowCamera")
 			or Character:GetAttribute("Climbing")
 			or Character:GetAttribute("Meditating")
+			or not Camera
+			or Camera.CameraType ~= Enum.CameraType.Custom
 		then
 			Neck.C0 = Neck.C0:lerp(NeckOriginC0, LerpSpeed)
 			Waist.C0 = Waist.C0:lerp(WaistOriginC0, LerpSpeed)
@@ -47,7 +54,8 @@ RunService.RenderStepped:Connect(function(Delta)
 		end
 
 		if Neck and Waist then
-			if Camera.CameraSubject:IsDescendantOf(Character) or Camera.CameraSubject:IsDescendantOf(Player) then
+			local Subject = Camera.CameraSubject
+			if Subject and (Subject:IsDescendantOf(Character) or Subject:IsDescendantOf(Player)) then
 				local Point = (Camera.CFrame * CFrame.new(0, 0, -1000)).Position
 
 				local Distance = (Head.CFrame.p - Point).magnitude

@@ -1,4 +1,7 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
 
 local Shared = {}
 
@@ -21,24 +24,24 @@ local function ApplyNoWeaponSpeedBonus(Character: Model, walkspeed: number): num
 end
 
 function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: string?)
-	local humanoid = Character:FindFirstChild("Humanoid")
+	local humanoid = Character:FindFirstChildWhichIsA("Humanoid")
 	if not humanoid then
 		return
 	end
-	local function change(toChange, walkspeed)
-		if toChange == overwrite then
-			if Character:GetAttribute("IsAI") then
-				humanoid.WalkSpeed = amount
-			else
-				Character:SetAttribute("TargetWalkSpeed", amount)
-			end
-		else
-			if Character:GetAttribute("IsAI") then
-				humanoid.WalkSpeed = walkspeed
-			else
-				Character:SetAttribute("TargetWalkSpeed", walkspeed)
-			end
+	local function SetWalkSpeed(Speed: number)
+		if Character:GetAttribute("BowDrawing") then
+			Speed = math.min(Speed, BowConfig.DrawWalkSpeed)
 		end
+
+		if Character:GetAttribute("IsAI") then
+			humanoid.WalkSpeed = Speed
+		else
+			Character:SetAttribute("TargetWalkSpeed", Speed)
+		end
+	end
+
+	local function change(toChange: string, walkspeed: number)
+		SetWalkSpeed(if toChange == overwrite and amount then amount else walkspeed)
 	end
 
 	local Walkspeeds = {
@@ -97,11 +100,7 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 		Default = function()
 			local target = amount or Character:GetAttribute("DefaultWalkSpeed") or humanoid.WalkSpeed
 			target = ApplyNoWeaponSpeedBonus(Character, target)
-			if Character:GetAttribute("IsAI") then
-				humanoid.WalkSpeed = target
-			else
-				Character:SetAttribute("TargetWalkSpeed", target)
-			end
+			SetWalkSpeed(target)
 		end,
 	}
 
@@ -123,11 +122,17 @@ function Shared:UpdateWalkspeed(Character: Model)
 	Shared:ChangeWalkSpeed(Character)
 end
 
-function Shared:ChangeJumpPower(Character, amount, overwrite)
-	local humanoid = Character:FindFirstChild("Humanoid")
+function Shared:ChangeJumpPower(Character: Model, amount: number?, overwrite: string?)
+	local humanoid = Character:FindFirstChildWhichIsA("Humanoid")
 	if not humanoid then
 		return
 	end
+	if Character:GetAttribute("BowDrawing") then
+		humanoid.Jump = false
+		humanoid.JumpPower = 0
+		return
+	end
+
 	amount = amount or Character:GetAttribute("DefaultJumpPower")
 
 	local function change(toChange, walkspeed)

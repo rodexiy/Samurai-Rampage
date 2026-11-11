@@ -17,6 +17,8 @@ local DataService
 local ValuesService
 local HitService
 local RenderService
+local WeaponService
+local BowService
 local LoadedPlayers: { [Player]: boolean } = {}
 local LastPositions: { [Player]: Vector3 } = {}
 local MeditationPositions: { [Player]: Vector3 } = {}
@@ -228,6 +230,11 @@ function StatService:SetMeditating(Player: Player, Enabled: boolean)
 	local Active = Enabled and Character:GetAttribute("Loaded") and CanMeditate(Player, Character)
 	MeditationPositions[Player] = if Active then Character.PrimaryPart.Position else nil
 	Character:SetAttribute("Meditating", Active == true)
+
+	if Active then
+		BowService:SetInHand(Player, false)
+		WeaponService:Equip(Character, false, 0)
+	end
 end
 
 function StatService:SampleTraining(Elapsed: number)
@@ -267,6 +274,8 @@ function StatService.KnitInit()
 	ValuesService = Knit.GetService("ValuesService")
 	HitService = Knit.GetService("HitService")
 	RenderService = Knit.GetService("RenderService")
+	WeaponService = Knit.GetService("WeaponService")
+	BowService = Knit.GetService("BowService")
 end
 
 function StatService.KnitStart()

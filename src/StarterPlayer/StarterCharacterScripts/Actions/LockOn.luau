@@ -134,7 +134,7 @@ Unlock = function()
 end
 
 LockOn.callback = function(inputState: Enum.UserInputState, _Input: InputObject?, TargetOverride: Model?, ZoomOverride: number?)
-	if inputState ~= Enum.UserInputState.Begin then
+	if inputState ~= Enum.UserInputState.Begin or Character:GetAttribute("BowEquipped") then
 		return
 	end
 
@@ -280,6 +280,12 @@ LockOn.keys = { Enum.KeyCode.T }
 DeviceController:BindAction("LockOn", LockOn.callback, "LockOn", UDim2.fromScale(0.175, 0.2))
 
 function LockOn.Start()
+	Character:GetAttributeChangedSignal("BowEquipped"):Connect(function()
+		if Character:GetAttribute("BowEquipped") then
+			Unlock()
+		end
+	end)
+
 	Character:GetAttributeChangedSignal("CameraCutscene"):Connect(function()
 		if Character:GetAttribute("CameraCutscene") then
 			Unlock()

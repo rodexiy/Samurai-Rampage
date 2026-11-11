@@ -56,6 +56,17 @@
     "SoundService": {
       "$properties": {
         "RespectFilteringEnabled": true
+      },
+      "SoundServicePackage": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "Combat": {
+          "$className": "Folder",
+          "$ignoreUnknownInstances": true,
+          "Bow": {
+            "$path": "src/SoundService/Bow.model.json"
+          }
+        }
       }
     }
   }

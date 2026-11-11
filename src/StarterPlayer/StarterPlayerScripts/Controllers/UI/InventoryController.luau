@@ -123,6 +123,7 @@ function InventoryController:CanAssignToHotbar(): boolean
 		and SelectedItemData.Class ~= "Weapon"
 		and SelectedItemData.Class ~= "Equipable"
 		and SelectedItemData.Class ~= "Stance"
+		and SelectedItemData.Type ~= "Ammunition"
 end
 
 function InventoryController:RefreshHotbar()
@@ -193,6 +194,11 @@ function InventoryController:AddModelToViewport(Viewport: ViewportFrame, Item: I
 	local Weapon = ReplicatedStorage.Assets.Weapons:FindFirstChild(Item.Name)
 	if not Source and Weapon then
 		Source = Weapon:FindFirstChild("Weapon")
+	end
+	if Item.Type == "Bow" then
+		Source = ReplicatedStorage.Assets.Models.Bow.Bow
+	elseif Item.Type == "Ammunition" and Item.Name == "Arrow" then
+		Source = ReplicatedStorage.Assets.Models.Bow.Arrow
 	end
 
 	if not Source then

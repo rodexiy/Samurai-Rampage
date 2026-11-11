@@ -1,6 +1,5 @@
-local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local InventoryService = Knit.CreateService({
 	Name = "InventoryService",
@@ -20,8 +19,9 @@ local ItemService
 local AlertService
 local GamepassService
 local StanceService
+local BowService
 
-local DeepCopy = require(game.ReplicatedStorage.Shared.Utils.DeepCopy)
+local DeepCopy = require(ReplicatedStorage.Shared.Utils.DeepCopy)
 
 local function CanChangeEquippedItems(Character: Model?)
 	if not Character then
@@ -162,6 +162,10 @@ end
 
 function InventoryService:EquipToHotbar(Player: Player, ItemName: string, Index: number)
 	local PlayerData = DataService:GetData(Player)
+	local ItemData = ItemService:GetItemData(ItemName)
+	if not ItemData or ItemData.Type == "Bow" or ItemData.Type == "Ammunition" then
+		return
+	end
 
 	if not self:GetPlayerItemByName(Player, ItemName) then
 		return
@@ -175,7 +179,6 @@ function InventoryService:EquipToHotbar(Player: Player, ItemName: string, Index:
 	self:RemoveItemFromHotbar(Player, Index)
 	PlayerData.Hotbar[tostring(Index)] = nil
 
-	local ItemData = ItemService:GetItemData(ItemName)
 	local updateUI = true
 	if ItemData.Class == "Artifact" then
 		updateUI = false
@@ -262,11 +265,15 @@ function InventoryService:RemoveItemFromPlayer(
 
 	local PlayerData = DataService:GetData(Player)
 	if Item.Stack <= 0 then
+		if PlayerData.Equipped.Bow == ItemName then
+			BowService:UnequipItem(Player)
+		end
+
 		if not dontRemoveFromHotbar then
 			self:RemoveItemFromHotbarByName(Player, ItemName)
 		end
-		for index, Item in PlayerData.Inventory do
-			if Item.Name == ItemName then
+		for index, InventoryItem in PlayerData.Inventory do
+			if InventoryItem.Name == ItemName then
 				table.remove(PlayerData.Inventory, index)
 				break
 			end
@@ -309,7 +316,9 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string)
 		return
 	end
 
-	if ItemData.Class == "Weapon" then
+	if ItemData.Class == "Weapon" and ItemData.Type == "Bow" then
+		BowService:EquipItem(Player, ItemName)
+	elseif ItemData.Class == "Weapon" then
 		if PlayerData.Equipped.Weapon ~= ItemName then
 			local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
 
@@ -415,7 +424,7 @@ function InventoryService:EquipUnequipLeftItem(Player: Player, ItemName: string)
 	local PlayerData = DataService:GetData(Player)
 	local ItemData = ItemService:GetItemData(ItemName)
 
-	if not ItemData or ItemData.Class ~= "Weapon" then
+	if not ItemData or ItemData.Class ~= "Weapon" or ItemData.Type == "Bow" then
 		return
 	end
 
@@ -488,7 +497,11 @@ function InventoryService:GetInventory(Player: Player)
 			continue
 		end
 
-		if Item.Class == "Weapon" then
+		if Item.Class == "Weapon" and Item.Type == "Bow" then
+			Item.Equipped = PlayerData.Equipped.Bow == Item.Name
+			Item.EquippedLeft = false
+			Item.CanEquipLeft = false
+		elseif Item.Class == "Weapon" then
 			Item.Equipped = PlayerData.Equipped.Weapon == Item.Name
 			Item.EquippedLeft = PlayerData.Equipped.LeftWeapon == Item.Name
 			Item.CanEquipLeft = StanceData
@@ -517,6 +530,7 @@ function InventoryService.KnitInit()
 	AlertService = Knit.GetService("AlertService")
 	GamepassService = Knit.GetService("GamepassService")
 	StanceService = Knit.GetService("StanceService")
+	BowService = Knit.GetService("BowService")
 end
 
 function InventoryService.KnitStart() end

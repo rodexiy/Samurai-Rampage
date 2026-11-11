@@ -137,6 +137,17 @@ return function(Sources: { [string]: string }): string
 		return Profiles[Player]
 	end }
 	Services.RenderService = { RenderForAllPlayers = function() end }
+	local WeaponStows = 0
+	local BowStows = 0
+	Services.WeaponService = { Equip = function(_Self: any, Character: any, State: boolean)
+		WeaponStows += 1
+		Character:SetAttribute("WeaponEquipped", State)
+	end }
+	Services.BowService = { SetInHand = function(_Self: any, Player: any, InHand: boolean)
+		BowStows += 1
+		Player.Character:SetAttribute("BowEquipped", InHand)
+		Player.Character:SetAttribute("BowDrawing", false)
+	end }
 	Services.HitService = { HitResolved = { Event = Signal() } }
 	Services.PartyService = { GetPlayerParty = function(): any
 		return nil
@@ -294,16 +305,27 @@ return function(Sources: { [string]: string }): string
 	Stats:SampleTraining(1)
 	Check(Training.Agility.XP == PreviousAgility + 20 * Config.Training.RunDistance, "Teleports are not running distance")
 	Defender:SetAttribute("Running", false)
+	Defender:SetAttribute("WeaponEquipped", true)
+	Defender:SetAttribute("BowEquipped", true)
+	Defender:SetAttribute("BowDrawing", true)
 	Stats:SetMeditating(Trainee, true)
 	Stats:SampleTraining(1)
 	Check(Training.Spirit.XP == 0, "Meditation away from rugs is rejected")
+	Check(WeaponStows == 0 and BowStows == 0 and Defender:GetAttribute("WeaponEquipped")
+		and Defender:GetAttribute("BowEquipped"), "Rejected meditation must not stow weapons")
 	Defender.PrimaryPart.Position = VectorNew(0, 0, 0)
 	Stats:SetMeditating(Trainee, true)
+	Check(WeaponStows == 1 and BowStows == 1 and not Defender:GetAttribute("WeaponEquipped")
+		and not Defender:GetAttribute("BowEquipped") and not Defender:GetAttribute("BowDrawing"),
+		"Accepted meditation must stow melee weapons and cancel/stow the bow")
 	Stats:SampleTraining(1)
 	Check(Training.Spirit.XP == Config.Training.Meditation, "Valid server meditation grants spirit XP")
 	Defender.PrimaryPart.Position = VectorNew(3, 0, 0)
 	Stats:SampleTraining(1)
 	Check(Training.Spirit.XP == Config.Training.Meditation and not Defender:GetAttribute("Meditating"), "Moving ends meditation training")
+	Stats:SetMeditating(Trainee, false)
+	Check(WeaponStows == 1 and BowStows == 1 and not Defender:GetAttribute("WeaponEquipped")
+		and not Defender:GetAttribute("BowEquipped"), "Ending meditation must leave weapons stowed")
 	Skills:SetSkillData(Attacker, "TestArtifact", "Charge")
 	Skills:SetSkillData(Attacker, "TestArtifact", "Active")
 	Check(Profiles[AttackingPlayer].Stats.Spirit.XP == Config.Training.ArtifactSkill, "An artifact activation grants XP once across its states")

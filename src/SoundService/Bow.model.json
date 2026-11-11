@@ -1,0 +1,166 @@
+{
+  "ClassName": "Folder",
+  "Children": [
+    {
+      "Name": "Bow Charging",
+      "ClassName": "Sound",
+      "Properties": {
+        "SoundId": "rbxassetid://9125405388",
+        "Volume": 0.35,
+        "Looped": true,
+        "RollOffMinDistance": 10,
+        "RollOffMaxDistance": 150
+      }
+    },
+    {
+      "Name": "Bow Equip",
+      "ClassName": "Sound",
+      "Properties": {
+        "SoundId": "rbxassetid://80733196766791",
+        "Volume": 0.4,
+        "Looped": false,
+        "RollOffMinDistance": 10,
+        "RollOffMaxDistance": 150
+      }
+    },
+    {
+      "Name": "Bow Shoot",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "Bow Shoot 1",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://106412255063928",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        },
+        {
+          "Name": "Bow Shoot 2",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://77600385799398",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        },
+        {
+          "Name": "Bow Shoot 3",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://140151353646022",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        },
+        {
+          "Name": "Bow Shoot 4",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://136967567038278",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Bow Hit",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "Bow Hit 1",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://129822254617682",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        },
+        {
+          "Name": "Bow Hit 2",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://115374295541411",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        },
+        {
+          "Name": "Bow Hit 3",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://131010454040062",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        },
+        {
+          "Name": "Bow Hit 4",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://140351720521928",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Bow Impacts",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "Metal",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://80576909226381",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        },
+        {
+          "Name": "Wood",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://9120888980",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        },
+        {
+          "Name": "Default",
+          "ClassName": "Sound",
+          "Properties": {
+            "SoundId": "rbxassetid://609352672",
+            "Volume": 0.55,
+            "Looped": false,
+            "RollOffMinDistance": 10,
+            "RollOffMaxDistance": 150
+          }
+        }
+      ]
+    }
+  ]
+}
