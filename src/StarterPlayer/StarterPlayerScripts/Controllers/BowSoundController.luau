@@ -5,6 +5,7 @@ local SoundService = game:GetService("SoundService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
+local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
 local BowSoundController = Knit.CreateController({ Name = "BowSoundController" })
 
 local SoundEffectController
@@ -25,7 +26,8 @@ end
 
 local function UpdateCharging(Character: Model)
 	BowSoundController:StopCharging(Character)
-	if not Character.Parent or not Character:GetAttribute("BowDrawing") or not Character:GetAttribute("BowEquipped") then
+	if not Character.Parent or not Character:GetAttribute("BowDrawing") or not Character:GetAttribute("BowEquipped")
+		or RangedWeaponConfig.GetForCharacter(Character).IsFirearm then
 		return
 	end
 
@@ -53,7 +55,7 @@ local function BindCharacter(Character: Model)
 		UpdateCharging(Character)
 	end)
 	Character:GetAttributeChangedSignal("BowEquipped"):Connect(function()
-		if Character:GetAttribute("BowEquipped") then
+		if Character:GetAttribute("BowEquipped") and not RangedWeaponConfig.GetForCharacter(Character).IsFirearm then
 			local Root = Character.PrimaryPart
 			if Root then
 				SoundEffectController:PlaySoundEffect(EquipTemplate, true, Root)
@@ -118,8 +120,10 @@ function BowSoundController.KnitStart()
 
 	Knit.GetService("BowService").Projectile:Connect(function(Action: string, _Id: number, ...: any)
 		if Action == "Launch" then
-			local _Shooter, Origin = ...
-			PlayAtPosition(ShootFolder, Origin)
+			local _Shooter, Origin, _Velocity, _Acceleration, _ServerTime, ItemName = ...
+			if not RangedWeaponConfig.Get(ItemName).IsFirearm then
+				PlayAtPosition(ShootFolder, Origin)
+			end
 		elseif Action == "Hit" then
 			local Position, _Velocity, HitPart, ImpactType = ...
 			local Kind = ImpactType or BowConfig.GetImpactSoundType(HitPart)

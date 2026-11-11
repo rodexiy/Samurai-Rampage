@@ -34,8 +34,8 @@ end
 
 local Validate = {}
 
-function Validate:CanEquipWeapon(Character: Model)
-	if Character:GetAttribute("BowEquipped") then
+function Validate:CanEquipWeapon(Character: Model, AllowRangedSwitch: boolean?): boolean
+	if Character:GetAttribute("BowEquipped") and not AllowRangedSwitch then
 		return false
 	end
 

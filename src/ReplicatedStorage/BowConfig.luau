@@ -1,6 +1,12 @@
 local Players = game:GetService("Players")
 
 local BowConfig = {
+	WeaponName = "Bow",
+	IsFirearm = false,
+	Ammunition = { Arrow = 1 },
+	AmmoWarning = "You need arrows to use the bow.",
+	HandPart = "Left Arm",
+	BackPart = "Torso",
 	ArrowItem = "Arrow",
 	MinDrawTime = 0.8,
 	FullChargeTime = 1.5,

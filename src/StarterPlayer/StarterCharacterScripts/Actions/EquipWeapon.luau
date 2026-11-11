@@ -1,27 +1,42 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Player = game.Players.LocalPlayer
+local Knit = require(ReplicatedStorage.Packages.Knit)
+
+local Player = Players.LocalPlayer
 local Character = Player.Character
 
 local WeaponService
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
-
-local Camera = workspace.CurrentCamera
-local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
+local Validate = require(ReplicatedStorage.Shared.Validate)
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
 local AnimationController
-local RenderController
 local SoundEffectController
 local DeviceController
+local BowController
+local SwitchingFromRanged = false
 
 local EquipWeapon = {
-	callback = function(inputState)
+	callback = function(inputState: Enum.UserInputState)
+		if SwitchingFromRanged and (inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel) then
+			SwitchingFromRanged = false
+			return
+		end
+
 		local CombatAnimations = AnimationController:GetCombatAnimationFolder(Character)
 		if Character:GetAttribute("Meditating") then
 			return
 		end
 
 		if inputState == Enum.UserInputState.Begin then
+			if Character:GetAttribute("BowEquipped") then
+				SwitchingFromRanged = BowController:EquipSword()
+				if SwitchingFromRanged then
+					AnimationController:PlayAnimation(Character, CombatAnimations.EquipDraw)
+				end
+				return
+			end
+
 			if not Character:GetAttribute("WeaponEquipped") then
 				if not Validate:CanEquipWeapon(Character) then
 					return
@@ -90,9 +105,9 @@ local EquipWeapon = {
 function EquipWeapon.Start()
 	WeaponService = Knit.GetService("WeaponService")
 	AnimationController = Knit.GetController("AnimationController")
-	RenderController = Knit.GetController("RenderController")
 	SoundEffectController = Knit.GetController("SoundEffectController")
 	DeviceController = Knit.GetController("DeviceController")
+	BowController = Knit.GetController("BowController")
 
 	DeviceController:BindAction("EquipWeapon", EquipWeapon.callback, "Equip", UDim2.fromScale(0.8, 0.2))
 

@@ -1,4 +1,6 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local WeaponService = Knit.CreateService({
 	Name = "WeaponService",
@@ -16,9 +18,9 @@ local QuestService
 
 local WeaponsModules = {}
 
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
-local Weapons = game.ReplicatedStorage.Assets.Weapons
-local Stances = require(game.ReplicatedStorage.Shared.Index.Stances)
+local Validate = require(ReplicatedStorage.Shared.Validate)
+local Weapons = ReplicatedStorage.Assets.Weapons
+local Stances = require(ReplicatedStorage.Shared.Index.Stances)
 
 local WeaponSlots = {
 	{ WeaponName = "Weapon", SheathName = "Sheath" },
@@ -28,6 +30,28 @@ local WeaponSlots = {
 local LeftWeaponSheathCFrame = CFrame.new(-1, 0.025, -1.4) * CFrame.Angles(0, math.rad(90), math.rad(110))
 local LeftSheathCFrame = CFrame.new(0, -0.55, 1.65) * CFrame.Angles(0, math.rad(90), math.rad(110))
 local DefaultHeldWeaponCFrame = CFrame.Angles(0, math.rad(90), math.rad(90))
+
+local WeaponAttachmentParts = {
+	RightHand = true,
+	LeftHand = true,
+	SheathPart = true,
+	SheathPart2 = true,
+}
+
+local function ProtectCharacterWeaponMotors(Character: Model)
+	for _, Motor: Motor6D in Character:QueryDescendants("Motor6D") do
+		local Part = Motor.Part1
+		if Part and Part.Parent == Character and WeaponAttachmentParts[Part.Name] then
+			Motor:SetAttribute("NotRagdoll", true)
+		end
+	end
+end
+
+local function ProtectModelMotors(Model: Model)
+	for _, Motor: Motor6D in Model:QueryDescendants("Motor6D") do
+		Motor:SetAttribute("NotRagdoll", true)
+	end
+end
 
 local function GetCharacterModelScale(Character: Model): number
 	local ModelScale = Character:GetAttribute("ModelScale")
@@ -226,6 +250,8 @@ local function GetWeaponModels(Character: Model, WeaponSide: string?): { Model }
 end
 
 local function LoadWeaponModel(Character: Model, WeaponFolder: Instance, WeaponName: string, SheathName: string, HandSide: string)
+	ProtectCharacterWeaponMotors(Character)
+
 	local Torso = Character:WaitForChild("Torso", 3)
 	local Hand = GetHand(Character, HandSide)
 	local IsLeftWeapon = WeaponName == "LeftWeapon"
@@ -236,6 +262,7 @@ local function LoadWeaponModel(Character: Model, WeaponFolder: Instance, WeaponN
 
 	local Weapon = WeaponFolder.Weapon:Clone()
 	Weapon.Name = WeaponName
+	ProtectModelMotors(Weapon)
 	ScaleInstanceToCharacter(Weapon, Character)
 
 	if Weapon:FindFirstChild("Right Arm") and Weapon:FindFirstChild("Left Arm") then
@@ -267,25 +294,26 @@ local function LoadWeaponModel(Character: Model, WeaponFolder: Instance, WeaponN
 		HandWeld.Part1 = Weapon.PrimaryPart
 		Weapon.Parent = Character.Assets.Weapon
 
-		local Sheath = WeaponFolder:FindFirstChild("Sheath")
-		if Sheath then
-			local Sheath = Sheath:Clone()
+		local SheathTemplate = WeaponFolder:FindFirstChild("Sheath")
+		if SheathTemplate then
+			local Sheath = SheathTemplate:Clone()
 			Sheath.Name = SheathName
+			ProtectModelMotors(Sheath)
 			ScaleInstanceToCharacter(Sheath, Character)
-			local SheathWeld, HasLeftSheathWeld = GetSheathWeld(Sheath, IsLeftWeapon)
+			local AttachmentWeld, HasLeftAttachmentWeld = GetSheathWeld(Sheath, IsLeftWeapon)
 			local SheathPart = GetSheathPart(Character, IsLeftWeapon)
 
-			if Sheath.PrimaryPart and SheathWeld and SheathPart then
+			if Sheath.PrimaryPart and AttachmentWeld and SheathPart then
 				SetWeldEnabled(Sheath, "SheathWeld", false)
 				SetWeldEnabled(Sheath, "Sheath2Weld", false)
 
-				SheathWeld.Part1 = Sheath.PrimaryPart
-				SheathWeld.Part0 = SheathPart
-				if IsLeftWeapon and not HasLeftSheathWeld then
-					SheathWeld.C0 = LeftSheathCFrame
-					SheathWeld.C1 = CFrame.new()
+				AttachmentWeld.Part1 = Sheath.PrimaryPart
+				AttachmentWeld.Part0 = SheathPart
+				if IsLeftWeapon and not HasLeftAttachmentWeld then
+					AttachmentWeld.C0 = LeftSheathCFrame
+					AttachmentWeld.C1 = CFrame.new()
 				end
-				SheathWeld.Enabled = true
+				AttachmentWeld.Enabled = true
 				Sheath.Parent = Character.Assets.Weapon
 			else
 				Sheath:Destroy()
@@ -340,9 +368,6 @@ function WeaponService:Equip(Character: Model, State: boolean, _UnequipDelay: nu
 
 	DebounceService:AddDebounce(Character, "EquipDebounce", 1 + DebounceDelay)
 	
-
-	local Assets = Character.Assets
-	local WeaponFolder = Assets.Weapon
 
 	Character:SetAttribute("WeaponEquipped", State)
 

@@ -9,6 +9,7 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local SharedConstants = require(ReplicatedStorage.Shared.Constants)
 local CameraShaker = require(ReplicatedStorage.Assets.Libraries.CameraShaker)
 local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
+local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
 local ShouldFaceAim = require(ReplicatedStorage.Shared.Utils.ShouldFaceAim)
 local CameraUtils = require(Players.LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")
 	:WaitForChild("CameraModule"):WaitForChild("CameraUtils") :: ModuleScript)
@@ -183,7 +184,8 @@ local function UpdateBowFieldOfView(TransitionTime: number?)
 
 	local Target = BowFovBase - (if Drawing then BowConfig.DrawFovReduction else 0)
 		- (if Focusing then BowConfig.FocusFovReduction else 0)
-	local Duration = TransitionTime or (if Drawing then BowConfig.FullChargeTime else BowConfig.DrawFovRestoreTime)
+	local Config = RangedWeaponConfig.GetForCharacter(Player.Character)
+	local Duration = TransitionTime or (if Drawing then Config.AimTransitionTime or BowConfig.FullChargeTime else BowConfig.DrawFovRestoreTime)
 	local Tween = TweenService:Create(BowFovCamera, TweenInfo.new(Duration, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 		FieldOfView = math.clamp(Target, 1, 120),
 	})
@@ -720,7 +722,8 @@ function CameraController.KnitStart()
 
 		local BowSway = CFrame.identity
 		if BowDrawStarted and Character and Character:GetAttribute("BowEquipped") then
-			BowSway = BowConfig.GetDrawCameraSway(workspace:GetServerTimeNow() - BowDrawStarted, BowDrawSeed)
+			local Config = RangedWeaponConfig.GetForCharacter(Player.Character)
+			BowSway = Config.GetDrawCameraSway(workspace:GetServerTimeNow() - BowDrawStarted, BowDrawSeed)
 		end
 		SmoothedBowSway = SmoothedBowSway:Lerp(BowSway, SmoothingAlpha(BowConfig.CameraSwayResponse, DeltaTime))
 		ShakeCFrame *= SmoothedBowSway

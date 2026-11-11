@@ -93,10 +93,6 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 			)
 		end,
 
-		Crouching = function()
-			change("Crouching", 4)
-		end,
-
 		Default = function()
 			local target = amount or Character:GetAttribute("DefaultWalkSpeed") or humanoid.WalkSpeed
 			target = ApplyNoWeaponSpeedBonus(Character, target)
@@ -178,10 +174,6 @@ function Shared:ChangeJumpPower(Character: Model, amount: number?, overwrite: st
 
 		JumpDebounce = function()
 			change("JumpDebounce", 0)
-		end,
-
-		Crouching = function()
-			change("Crouching", 0)
 		end,
 
 		Default = function()

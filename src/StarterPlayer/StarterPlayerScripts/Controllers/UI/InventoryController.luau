@@ -4,6 +4,7 @@ local TweenService = game:GetService("TweenService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local Items = require(ReplicatedStorage.Shared.Index.Items)
+local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
 
 type ItemData = { [string]: any }
 
@@ -196,7 +197,7 @@ function InventoryController:AddModelToViewport(Viewport: ViewportFrame, Item: I
 		Source = Weapon:FindFirstChild("Weapon")
 	end
 	if Item.Type == "Bow" then
-		Source = ReplicatedStorage.Assets.Models.Bow.Bow
+		Source = RangedWeaponConfig.GetModel(Item.Name)
 	elseif Item.Type == "Ammunition" and Item.Name == "Arrow" then
 		Source = ReplicatedStorage.Assets.Models.Bow.Arrow
 	end

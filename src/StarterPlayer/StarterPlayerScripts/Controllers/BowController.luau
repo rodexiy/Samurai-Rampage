@@ -7,7 +7,9 @@ local UserInputService = game:GetService("UserInputService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
+local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
 local BowRaycast = require(ReplicatedStorage.Shared.Utils.BowRaycast)
+local Validate = require(ReplicatedStorage.Shared.Validate)
 local BowController = Knit.CreateController({ Name = "BowController" })
 
 local Player = Players.LocalPlayer
@@ -17,6 +19,7 @@ local CameraController
 local CursorController
 local FocusController
 local BowSoundController
+local RangedWeaponEffectsController
 local AimEvent: UnreliableRemoteEvent
 local Character: Model? = nil
 local Tracks: { [string]: AnimationTrack } = {}
@@ -29,12 +32,47 @@ local FocusStillSince: number? = nil
 local Started: number? = nil
 local Seed = 0
 local ArrowCount = 0
+local AmmoCounts: { [string]: number } = {}
 local LastAimUpdate = 0
 local NextShot = 0
+local ReloadSoundSequence = 0
 local PlayTransitionAnimation: (boolean) -> ()
 local AimParams = RaycastParams.new()
 AimParams.FilterType = Enum.RaycastFilterType.Exclude
 AimParams.IgnoreWater = true
+
+local RangedAnimationIds: { [string]: boolean } = {}
+for _, ItemName in { "Bow", "Tanegashima" } do
+	for _, Animation in RangedWeaponConfig.Get(ItemName).Animations do
+		RangedAnimationIds[Animation.Id:match("%d+") or Animation.Id] = true
+	end
+end
+
+local function StopEquipmentAnimations(Target: Model?)
+	local ToStop: { [AnimationTrack]: boolean } = {}
+	for _, Track in Tracks do
+		ToStop[Track] = true
+	end
+
+	local Humanoid = Target and Target:FindFirstChildWhichIsA("Humanoid")
+	local Animator = Humanoid and Humanoid:FindFirstChildWhichIsA("Animator")
+	if Animator then
+		for _, Track in Animator:GetPlayingAnimationTracks() do
+			local Animation = Track.Animation
+			local Id = Animation and (Animation.AnimationId:match("%d+") or Animation.AnimationId)
+			if Track:GetAttribute("RangedWeaponAnimation") or (Id and RangedAnimationIds[Id]) then
+				ToStop[Track] = true
+			end
+		end
+	end
+
+	for Track in ToStop do
+		-- Destroying an AnimationTrack alone can leave its animation playing on the Animator.
+		Track:Stop(0)
+		Track:Destroy()
+	end
+	table.clear(Tracks)
+end
 
 local function IsBlocked(): boolean
 	if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then
@@ -64,6 +102,9 @@ local function StopDraw()
 	if BowSoundController and Character then
 		BowSoundController:StopCharging(Character)
 	end
+	if RangedWeaponEffectsController and Character then
+		RangedWeaponEffectsController:SetAiming(Character, false)
+	end
 	if CameraController then
 		CameraController:SetBowDrawSway(nil)
 	end
@@ -74,20 +115,25 @@ local function StopDraw()
 	end
 end
 
+local function ScheduleReadySound(ReadyAt: number, ItemName: string)
+	local Shooter = Character
+	ReloadSoundSequence += 1
+	local Sequence = ReloadSoundSequence
+	task.delay(math.max(0, ReadyAt - workspace:GetServerTimeNow()), function()
+		if Shooter and Shooter == Character and Shooter.Parent and ReloadSoundSequence == Sequence
+			and not Shooter:GetAttribute("Died") then
+			RangedWeaponEffectsController:PlayReadySound(Shooter, ItemName)
+		end
+	end)
+end
+
 local function CanFocusZoom(): boolean
 	if not Character or not WindowFocused
 		or not (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)) then
 		return false
 	end
 
-	local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
-	local Root = Character.PrimaryPart
-	local MaxSpeed = if FocusActive then BowConfig.FocusExitMoveSpeed else BowConfig.FocusMaxMoveSpeed
-	return Humanoid ~= nil and Root ~= nil and not Humanoid.Sit
-		and Humanoid.FloorMaterial ~= Enum.Material.Air
-		and Humanoid.MoveDirection.Magnitude < BowConfig.FocusMoveInputDeadzone
-		and Root:GetVelocityAtPosition(Root.Position).Magnitude <= MaxSpeed
-		and not Character:GetAttribute("Running") and BowConfig.CanUse(Character)
+	return RangedWeaponConfig.CanFocus(Character, FocusActive)
 end
 
 local function UpdateFocusZoom(Eligible: boolean): boolean
@@ -105,6 +151,17 @@ local function UpdateFocusZoom(Eligible: boolean): boolean
 	return FocusActive
 end
 
+local function ClearEquipmentVisuals()
+	StopDraw()
+	StopEquipmentAnimations(Character)
+
+	UpdateFocusZoom(false)
+	CameraController:SetBowFocusZoom(false)
+	CameraController:SetForcedShiftLock("Bow", false)
+	FocusController:SetActive(false)
+	CursorController:SetVisible(false)
+end
+
 local function StopTransitionAnimations()
 	for _, Name in { "Equip", "Unequip" } do
 		local Track = Tracks[Name]
@@ -117,7 +174,7 @@ end
 local function StopPose()
 	local Pose = Tracks.Pose
 	if Pose and Pose.IsPlaying then
-		Pose:Stop(0.15)
+		Pose:Stop(0)
 	end
 end
 
@@ -126,6 +183,18 @@ function BowController:CancelDraw()
 		BowService.Request:Fire("Cancel")
 	end
 	StopDraw()
+end
+
+function BowController:EquipSword(): boolean
+	if not Character or not Character:GetAttribute("BowEquipped") or IsBlocked()
+		or not Validate:CanEquipWeapon(Character, true) then
+		return false
+	end
+
+	self:CancelDraw()
+	ClearEquipmentVisuals()
+	BowService.Request:Fire("EquipSword")
+	return true
 end
 
 local function GetAimPoint(): Vector3
@@ -137,17 +206,18 @@ local function GetAimPoint(): Vector3
 end
 
 local function UpdateAmmo(Items: { any })
-	ArrowCount = 0
+	table.clear(AmmoCounts)
 	for _, Item in Items do
-		if Item.Name == BowConfig.ArrowItem then
-			ArrowCount += Item.Stack or 0
-		end
+		AmmoCounts[Item.Name] = (AmmoCounts[Item.Name] or 0) + (Item.Stack or 0)
 	end
+
+	ArrowCount = RangedWeaponConfig.GetAmmoCount(BowConfig, AmmoCounts)
 end
 
 local function UpdateNock(Target: Model)
 	local Existing = NockedArrows[Target]
-	if not Target.Parent or not Target:GetAttribute("BowDrawing") or not Target:GetAttribute("BowEquipped") then
+	if not Target.Parent or not Target:GetAttribute("BowDrawing") or not Target:GetAttribute("BowEquipped")
+		or RangedWeaponConfig.GetForCharacter(Target).IsFirearm then
 		if Existing then
 			Existing.Arrow:Destroy()
 			NockedArrows[Target] = nil
@@ -214,11 +284,11 @@ local function BindCharacter(NewCharacter: Model)
 		Connection:Disconnect()
 	end
 	table.clear(CharacterConnections)
-	for _, Track in Tracks do
-		Track:Destroy()
-	end
-	table.clear(Tracks)
+	StopEquipmentAnimations(Character)
 	Character = NewCharacter
+	StopEquipmentAnimations(NewCharacter)
+	BowConfig = RangedWeaponConfig.GetForCharacter(NewCharacter)
+	ArrowCount = RangedWeaponConfig.GetAmmoCount(BowConfig, AmmoCounts)
 	UpdateFocusZoom(false)
 	CameraController:SetBowFocusZoom(false)
 	FocusController:SetActive(false)
@@ -231,11 +301,23 @@ local function BindCharacter(NewCharacter: Model)
 	AimParams.FilterDescendantsInstances = Excluded
 	NextShot = 0
 
+	table.insert(CharacterConnections, NewCharacter:GetAttributeChangedSignal("Bow"):Connect(function()
+		BowController:CancelDraw()
+		StopEquipmentAnimations(NewCharacter)
+
+		BowConfig = RangedWeaponConfig.GetForCharacter(NewCharacter)
+		ArrowCount = RangedWeaponConfig.GetAmmoCount(BowConfig, AmmoCounts)
+		if not NewCharacter:GetAttribute("Bow") then
+			ClearEquipmentVisuals()
+		end
+	end))
+
 	for _, Attribute in BowConfig.CancelAttributes do
 		table.insert(CharacterConnections, NewCharacter:GetAttributeChangedSignal(Attribute):Connect(function()
 			if NewCharacter:GetAttribute(Attribute) then
 				BowController:CancelDraw()
 				StopTransitionAnimations()
+				StopPose()
 			end
 		end))
 	end
@@ -244,13 +326,22 @@ local function BindCharacter(NewCharacter: Model)
 			PlayTransitionAnimation(true)
 		else
 			BowController:CancelDraw()
-			PlayTransitionAnimation(false)
+			ClearEquipmentVisuals()
+			if not NewCharacter:GetAttribute("WeaponEquipped")
+				and NewCharacter:GetAttribute("Bow") and NewCharacter:FindFirstChild("BowModel") then
+				PlayTransitionAnimation(false)
+			end
+		end
+	end))
+	table.insert(CharacterConnections, NewCharacter:GetAttributeChangedSignal("WeaponEquipped"):Connect(function()
+		if NewCharacter:GetAttribute("WeaponEquipped") then
+			ClearEquipmentVisuals()
 		end
 	end))
 end
 
 local function LoadTracks()
-	if not Character or Tracks.Aim then
+	if not Character or Tracks.Pose then
 		return
 	end
 
@@ -270,7 +361,9 @@ local function LoadTracks()
 
 		local Track = Animator:LoadAnimation(Animation)
 		Track.Name = Data.Name
-		Track.Priority = if Name == "Pose" then Enum.AnimationPriority.Action
+		Track:SetAttribute("RangedWeaponAnimation", true)
+		Track.Priority = if BowConfig.IsFirearm and Name == "Shot" then Enum.AnimationPriority.Action4
+			elseif Name == "Pose" then Enum.AnimationPriority.Action
 			elseif Name == "Equip" or Name == "Unequip" then Enum.AnimationPriority.Action2 else Enum.AnimationPriority.Action3
 		-- The looped shot variant plays one recovery cycle for each fully charged arrow.
 		Track.Looped = Name == "Hold" or Name == "Pose"
@@ -292,7 +385,8 @@ PlayTransitionAnimation = function(InHand: boolean)
 end
 
 local function UpdatePose()
-	if not Character or not BowConfig.CanUse(Character) then
+	if not Character or not Character:GetAttribute("Bow") or not Character:FindFirstChild("BowModel")
+		or not BowConfig.CanUse(Character) then
 		StopPose()
 		return
 	end
@@ -326,7 +420,7 @@ local function HoldDrawPose()
 end
 
 function BowController:BeginDraw()
-	if not Character or Holding or ArrowCount <= 0 or workspace:GetServerTimeNow() < NextShot
+	if not Character or Holding or (not BowConfig.IsFirearm and (ArrowCount <= 0 or workspace:GetServerTimeNow() < NextShot))
 		or not BowConfig.CanUse(Character) or not Character:GetAttribute("BowEquipped") or IsBlocked() then
 		return
 	end
@@ -337,11 +431,26 @@ function BowController:BeginDraw()
 	CameraController:SetBowDrawSway(Started, Seed)
 	LoadTracks()
 	StopTransitionAnimations()
-	if Tracks.Aim then
+	if BowConfig.IsFirearm then
+		Tracks.Hold:Play(0.12)
+		RangedWeaponEffectsController:SetAiming(Character, true)
+	elseif Tracks.Aim then
 		local Duration = if Tracks.Aim.Length > 0 then Tracks.Aim.Length else BowConfig.FullChargeTime
 		Tracks.Aim:Play(0.12, 1, Duration / BowConfig.FullChargeTime)
 	end
 	BowService.Request:Fire("Begin", GetAimPoint())
+end
+
+function BowController:ShootFirearm()
+	if not BowConfig.IsFirearm or not Character or not Holding or not Started or not WindowFocused or IsBlocked()
+		or not Character:GetAttribute("BowEquipped") or not BowConfig.CanUse(Character)
+		or workspace:GetServerTimeNow() < NextShot then
+		return
+	end
+
+	LoadTracks()
+	NextShot = workspace:GetServerTimeNow() + BowConfig.ShotCooldown
+	BowService.Request:Fire("Shoot", GetAimPoint(), FocusActive and CanFocusZoom())
 end
 
 local function InputAction(Action: string, State: Enum.UserInputState): Enum.ContextActionResult
@@ -358,6 +467,20 @@ local function InputAction(Action: string, State: Enum.UserInputState): Enum.Con
 	end
 	if not Character:GetAttribute("BowEquipped") then
 		return Enum.ContextActionResult.Pass
+	end
+
+	if BowConfig.IsFirearm then
+		if Action == "BowCancel" then
+			if State == Enum.UserInputState.Begin then
+				BowController:BeginDraw()
+			elseif State == Enum.UserInputState.End or State == Enum.UserInputState.Cancel then
+				BowController:CancelDraw()
+			end
+		elseif Action == "BowDraw" and State == Enum.UserInputState.Begin then
+			BowController:ShootFirearm()
+		end
+
+		return if IsBlocked() then Enum.ContextActionResult.Pass else Enum.ContextActionResult.Sink
 	end
 
 	if Action == "BowCancel" and State == Enum.UserInputState.Begin then
@@ -385,6 +508,8 @@ end
 local function Render()
 	local Camera = workspace.CurrentCamera
 	local Equipped = Character and Character.Parent and Character:GetAttribute("BowEquipped") == true
+		and Character:GetAttribute("Bow") ~= nil and Character:FindFirstChild("BowModel") ~= nil
+		and not Character:GetAttribute("WeaponEquipped")
 	if Equipped then
 		UpdatePose()
 	else
@@ -429,7 +554,7 @@ local function Render()
 			LastAimUpdate = Now
 			AimEvent:FireServer(Aim)
 		end
-		if Elapsed >= BowConfig.FullChargeTime then
+		if BowConfig.IsFirearm or Elapsed >= BowConfig.FullChargeTime then
 			HoldDrawPose()
 		elseif Tracks.Aim and Tracks.Aim.Length > 0 then
 			local Speed = Tracks.Aim.Length / BowConfig.FullChargeTime
@@ -439,7 +564,7 @@ local function Render()
 			end
 		end
 	end
-	CursorController:Update(CursorPosition, Elapsed, ArrowCount)
+	CursorController:Update(CursorPosition, Elapsed, ArrowCount, BowConfig, AmmoCounts, Focusing)
 end
 
 function BowController.KnitStart()
@@ -449,12 +574,13 @@ function BowController.KnitStart()
 	CursorController = Knit.GetController("BowCursorController")
 	FocusController = Knit.GetController("BowFocusController")
 	BowSoundController = Knit.GetController("BowSoundController")
+	RangedWeaponEffectsController = Knit.GetController("RangedWeaponEffectsController")
 	AimEvent = ReplicatedStorage.Assets.Events:WaitForChild("BowAim") :: UnreliableRemoteEvent
 	InventoryService.InventoryUpdated:Connect(UpdateAmmo)
 	task.spawn(function()
 		UpdateAmmo(InventoryService:GetInventory())
 	end)
-	BowService.Feedback:Connect(function(Action: string, Value: number?, NewSeed: number?)
+	BowService.Feedback:Connect(function(Action: string, Value: number?, NewSeed: number?, WeaponName: string?)
 		if Action == "Draw" then
 			if Holding then
 				Started = Value
@@ -462,16 +588,25 @@ function BowController.KnitStart()
 				CameraController:SetBowDrawSway(Started, Seed)
 			end
 		elseif Action == "Shot" then
-			StopDraw()
-			NextShot = workspace:GetServerTimeNow() + BowConfig.ShotCooldown
+			local ShotConfig = if WeaponName then RangedWeaponConfig.Get(WeaponName) else BowConfig
+			local SameWeapon = ShotConfig.WeaponName == BowConfig.WeaponName
+			if not ShotConfig.IsFirearm and SameWeapon then
+				StopDraw()
+			end
+			NextShot = workspace:GetServerTimeNow() + ShotConfig.ShotCooldown
+			if ShotConfig.IsFirearm then
+				ScheduleReadySound(NextShot, ShotConfig.WeaponName)
+			end
 			local Charge = Value or 0
-			local Track = if Charge >= 1 then Tracks.ShotLooped
+			local Track = if ShotConfig.IsFirearm then Tracks.Shot elseif Charge >= 1 then Tracks.ShotLooped
 				elseif Charge < 0.2 then Tracks.Shoot else Tracks.Shot
-			if Track and Character and Character:GetAttribute("BowEquipped") and BowConfig.CanUse(Character) then
+			if SameWeapon and Track and Character and Character:GetAttribute("BowEquipped") and BowConfig.CanUse(Character) then
 				Track:Play(0.05)
 			end
 		elseif Action == "Cancel" then
 			StopDraw()
+		elseif Action == "Unequipped" then
+			ClearEquipmentVisuals()
 		end
 	end)
 
@@ -492,8 +627,7 @@ function BowController.KnitStart()
 	Player.CharacterRemoving:Connect(function(Removing: Model)
 		if Character == Removing then
 			BowController:CancelDraw()
-			StopTransitionAnimations()
-			StopPose()
+			ClearEquipmentVisuals()
 			Character = nil
 			UpdateFocusZoom(false)
 			CameraController:SetBowFocusZoom(false)

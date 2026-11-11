@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
-local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
 local BowCursorController = Knit.CreateController({ Name = "BowCursorController" })
 
 local Gui: ScreenGui
@@ -18,22 +17,34 @@ function BowCursorController:SetVisible(Visible: boolean)
 	end
 end
 
-function BowCursorController:Update(Position: Vector2, Elapsed: number?, ArrowCount: number)
+function BowCursorController:Update(Position: Vector2, Elapsed: number?, ArrowCount: number, Config: any, AmmoCounts: { [string]: number }, Focused: boolean?)
 	if not Gui then
 		return
 	end
 
-	local Charge = BowConfig.GetCharge(Elapsed or 0)
-	local Exhaustion = math.clamp(((Elapsed or 0) - BowConfig.FullChargeTime) / (BowConfig.MaxHoldTime - BowConfig.FullChargeTime), 0, 1)
+	local Charge = Config.GetCharge(Elapsed or 0)
+	local Exhaustion = math.clamp(((Elapsed or 0) - Config.FullChargeTime) / (Config.MaxHoldTime - Config.FullChargeTime), 0, 1)
 	local Size = 22 - Charge * 7 + Exhaustion * 5
+	if Config.IsFirearm then
+		local Camera = workspace.CurrentCamera
+		local FocalLength = Camera.ViewportSize.Y / (2 * math.tan(math.rad(Camera.FieldOfView * 0.5)))
+		Size = 2 * FocalLength * math.tan(math.rad(Config.GetSpreadDegrees(Focused)))
+		Exhaustion = 0
+	end
 	Ring.Position = UDim2.fromOffset(Position.X, Position.Y)
 	Ring.Size = UDim2.fromOffset(Size, Size)
 	Outline.Color = if ArrowCount <= 0 then Color3.fromRGB(220, 85, 70)
 		else Color3.fromRGB(235, 225, 200):Lerp(Color3.fromRGB(230, 100, 65), Exhaustion)
 	ChargeBar.Size = UDim2.fromScale(Charge, 1)
+	local ChargeFrame = ChargeBar.Parent :: Frame
+	ChargeFrame.Visible = not Config.IsFirearm
 	ChargeBar.BackgroundColor3 = Outline.Color
-	Status.Text = if Elapsed then (if Charge < 1 then "DRAWING" else string.format("RELEASE  %.1fs", math.max(0, BowConfig.MaxHoldTime - Elapsed))) else ""
+	Status.Text = if Elapsed then (if Charge < 1 then "DRAWING" else string.format("RELEASE  %.1fs", math.max(0, Config.MaxHoldTime - Elapsed))) else ""
 	Ammo.Text = string.format("%d ARROWS", ArrowCount)
+	if Config.IsFirearm then
+		Status.Text = if Elapsed then "AIMING" else ""
+		Ammo.Text = string.format("%d BULLETS / %d GUNPOWDER", AmmoCounts.IronBullet or 0, AmmoCounts.Gunpowder or 0)
+	end
 end
 
 function BowCursorController.KnitStart()
