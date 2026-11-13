@@ -64,6 +64,8 @@ local FovPulseRevision = 0
 local ForcedShiftLocks: { [string]: boolean } = {}
 local SavedMouseIcon: boolean? = nil
 local ForcedMouseApplied = false
+local MenuMouseApplied = false
+local SavedMenuMouseIcon: boolean? = nil
 local BowDrawStarted: number? = nil
 local BowDrawSeed = 0
 local BowFocusZoom = false
@@ -75,8 +77,20 @@ local AppliedBowSensitivity: number? = nil
 local SmoothedBowSway = CFrame.identity
 local LastShakeTime: number? = nil
 
+local function IsMenuMouseUnlocked(): boolean
+	local PlayerGui = Player:FindFirstChildWhichIsA("PlayerGui")
+	local Menus = PlayerGui and PlayerGui:FindFirstChild("Menu")
+	local MainMenu = PlayerGui and (PlayerGui:FindFirstChild("MainMenu") or (Menus and Menus:FindFirstChild("MainMenu"))) :: ScreenGui?
+
+	return MainMenu ~= nil and MainMenu.Enabled
+end
+
+function CameraController:IsMouseUnlocked(): boolean
+	return IsMenuMouseUnlocked()
+end
+
 local function IsShiftLocked(): boolean
-	return Player:GetAttribute("MouseLocked") == true or next(ForcedShiftLocks) ~= nil
+	return not IsMenuMouseUnlocked() and (Player:GetAttribute("MouseLocked") == true or next(ForcedShiftLocks) ~= nil)
 end
 
 local function ReleaseForcedMouse()
@@ -91,6 +105,26 @@ local function ReleaseForcedMouse()
 	end
 	SavedMouseIcon = nil
 	ForcedMouseApplied = false
+end
+
+local function UpdateMenuMouse()
+	if IsMenuMouseUnlocked() then
+		if not MenuMouseApplied then
+			ReleaseForcedMouse()
+			SavedMenuMouseIcon = UserInputService.MouseIconEnabled
+			MenuMouseApplied = true
+		end
+
+		CameraUtils.setMouseBehaviorOverride(Enum.MouseBehavior.Default)
+		UserInputService.MouseIconEnabled = true
+	elseif MenuMouseApplied then
+		CameraUtils.restoreMouseBehavior()
+		if SavedMenuMouseIcon ~= nil then
+			UserInputService.MouseIconEnabled = SavedMenuMouseIcon
+		end
+		SavedMenuMouseIcon = nil
+		MenuMouseApplied = false
+	end
 end
 
 function CameraController:SetForcedShiftLock(Source: string, Enabled: boolean)
@@ -221,7 +255,7 @@ function CameraController:SetBowDrawSway(StartedAt: number?, Seed: number?)
 end
 
 local function ApplyForcedShiftLock()
-	if next(ForcedShiftLocks) ~= nil and IsGameplayCamera() and Character
+	if not IsMenuMouseUnlocked() and next(ForcedShiftLocks) ~= nil and IsGameplayCamera() and Character
 		and not Character:GetAttribute("Ragdoll") and not Character:GetAttribute("Downed")
 		and not Character:GetAttribute("Died") and not Character:GetAttribute("Meditating") then
 		if not ForcedMouseApplied then
@@ -451,6 +485,7 @@ local function UpdateFollowSubject(DeltaTime: number)
 end
 
 local function PrepareNativeCamera(DeltaTime: number)
+	UpdateMenuMouse()
 	ApplyForcedShiftLock()
 	-- Capture transitions from the displayed view, then remove last frame's visual offsets.
 	UpdateCombatZoom()
@@ -687,6 +722,8 @@ local function UpdateCharacter(NewCharacter: Model)
 end
 
 function CameraController.KnitStart()
+	-- Run after native camera and lock-on code so the open menu owns the cursor.
+	RunService:BindToRenderStep("MenuMouseUnlock", Enum.RenderPriority.Last.Value, UpdateMenuMouse)
 	Camera.FieldOfView = SharedConstants.DEFAULT_FIELD_OF_VIEW
 	Player.CharacterAdded:Connect(UpdateCharacter)
 	Player.CharacterRemoving:Connect(function(RemovingCharacter: Model)

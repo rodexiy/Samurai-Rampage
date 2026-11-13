@@ -516,6 +516,7 @@ function InventoryController.KnitStart()
 	local Menus = PlayerGui:WaitForChild("Menu") :: ScreenGui
 	MainMenu = (PlayerGui:FindFirstChild("MainMenu") or Menus:WaitForChild("MainMenu")) :: ScreenGui
 	local CloseButton = MainMenu:WaitForChild("Close") :: ImageButton
+	CloseButton.Modal = true
 	Inventory = MainMenu:WaitForChild("Inventory") :: Frame
 	Templates = Inventory:WaitForChild("Templates") :: Frame
 	Tabs = MainMenu:WaitForChild("Tabs") :: GuiObject

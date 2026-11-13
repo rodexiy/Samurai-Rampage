@@ -218,12 +218,16 @@ LockOn.callback = function(inputState: Enum.UserInputState, _Input: InputObject?
 					return
 				end
 
-				ChangeTarget()
+				local MouseUnlocked = CameraController:IsMouseUnlocked()
+				if not MouseUnlocked then
+					ChangeTarget()
+				end
 				if not enemyLocked or not enemyLocked.PrimaryPart then
 					return
 				end
 
-				UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+				UserInputService.MouseBehavior = if MouseUnlocked then Enum.MouseBehavior.Default else Enum.MouseBehavior.LockCenter
+				UserInputService.MouseIconEnabled = MouseUnlocked
 
 				local PlayerFocus = RootPart.Position + Vector3.new(0, 1.2, 0)
 				local EnemyFocus = enemyLocked.PrimaryPart.Position + Vector3.new(0, 1, 0)
