@@ -38,6 +38,16 @@ local BowConfig = {
 	SwayGrowth = 1.2,
 	CameraSwayScale = 0.22,
 	CameraSwayResponse = 8,
+	AimPose = {
+		MaximumPitch = math.rad(85),
+		TorsoPitchFraction = 0.25,
+		MaximumTorsoPitch = math.rad(20),
+		StandingMaximumYaw = math.rad(35),
+		MaximumArmPitch = math.rad(85),
+		MaximumHeadPitch = math.rad(60),
+		MaximumHeadYaw = math.rad(45),
+		Response = 14,
+	},
 
 	-- Posicao do arco guardado, relativa ao Torso (em studs): X lado, Y altura, Z costas.
 	BackPosition = Vector3.new(-0.8, 0, 0.85),
@@ -60,7 +70,6 @@ local BowConfig = {
 		Pose = { Name = "Bow Pose", Id = "rbxassetid://123681337764234" },
 	},
 	CancelAttributes = {
-		"Mounted",
 		"Died", "Downed", "Ragdoll", "BeenHitted", "PostureBreak", "HeavyDeflect",
 		"BeenDeflected", "Meditating", "Rolling", "RollClientDebounce", "Climbing",
 		"Vaulting", "WallRunning", "CameraCutscene", "RealmTeleporting", "SkillLockMovement",

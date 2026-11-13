@@ -65,7 +65,7 @@ local function PlayShot(Shooter: Player, Origin: Vector3, Config: any)
 	Sound.SoundId = Config.ShotSound
 	Sound.Volume = 1
 	Sound.RollOffMinDistance = 15
-	Sound.RollOffMaxDistance = 600
+	Sound.RollOffMaxDistance = Config.ShotSoundMaxDistance
 	Sound.Parent = Emitter
 	Sound.Ended:Once(function()
 		Emitter:Destroy()

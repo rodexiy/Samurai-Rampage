@@ -17,7 +17,7 @@ function HorseRiderController.Reset(State: State)
 	State.Rest = nil
 end
 
-function HorseRiderController.Update(State: State, Model: Model, BodyMotion: CFrame)
+function HorseRiderController.Update(State: State, Model: Model, SaddleMotion: CFrame)
 	local Root = Model.PrimaryPart
 	local Joint = Root and Root:FindFirstChild("RiderWeld")
 	if typeof(Model:GetAttribute("RiderUserId")) ~= "number" or not Root or not Joint or not Joint:IsA("Weld")
@@ -33,8 +33,8 @@ function HorseRiderController.Update(State: State, Model: Model, BodyMotion: CFr
 		State.Rest = Joint.C0
 	end
 	if State.Rest then
-		-- Apply the same root-space motion as the skinned body, including saddle pitch.
-		Joint.C0 = BodyMotion * State.Rest
+		-- Follow the animated saddle, including the spine's flexion and the body motion.
+		Joint.C0 = SaddleMotion * State.Rest
 	end
 end
 

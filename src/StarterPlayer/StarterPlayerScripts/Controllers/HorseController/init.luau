@@ -11,6 +11,7 @@ local HorseGrounding = require(ReplicatedStorage.Shared.HorseGrounding)
 local HorseSteeringController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseController.HorseSteeringController)
 local HorseGaitController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseController.HorseGaitController)
 local HorseAvoidanceController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseController.HorseAvoidanceController)
+local HorseMountedAnimationController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseController.HorseMountedAnimationController)
 
 local HorseController = Knit.CreateController({ Name = "HorseController" })
 local LocalPlayer = Players.LocalPlayer
@@ -22,6 +23,7 @@ local ShiftKeys: { [Enum.KeyCode]: boolean } = {}
 local ControlledHorse: Model? = nil
 local Grounding: HorseGrounding.State? = nil
 local HorseConnections: { [Instance]: { RBXScriptConnection } } = {}
+local MountedAnimation = HorseMountedAnimationController.Create()
 
 local function UpdatePrompt(Model: Model)
 	local Root = Model.PrimaryPart
@@ -72,6 +74,7 @@ local function SetControlledHorse(Model: Model?)
 		end
 	end
 
+	HorseMountedAnimationController.Reset(MountedAnimation)
 	ControlledHorse = Model
 	Grounding = if Model then HorseGrounding.Create(Model) else nil
 	Gait = if Model then HorseGaitController.Create() else nil
@@ -126,6 +129,8 @@ end
 local function Simulate(DeltaTime: number)
 	local Model = ControlledHorse
 	local Character = LocalPlayer.Character
+	HorseMountedAnimationController.Update(MountedAnimation, Character, Model)
+
 	local Humanoid = Character and Character:FindFirstChildWhichIsA("Humanoid")
 	local Root = Model and Model.PrimaryPart
 	if not Model or not Root or not Humanoid then

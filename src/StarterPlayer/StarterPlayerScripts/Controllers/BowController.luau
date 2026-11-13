@@ -9,6 +9,7 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
 local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
 local BowRaycast = require(ReplicatedStorage.Shared.Utils.BowRaycast)
+local MountedAim = require(ReplicatedStorage.Shared.Utils.MountedAim)
 local Validate = require(ReplicatedStorage.Shared.Validate)
 local BowController = Knit.CreateController({ Name = "BowController" })
 
@@ -36,6 +37,10 @@ local AmmoCounts: { [string]: number } = {}
 local LastAimUpdate = 0
 local NextShot = 0
 local ReloadSoundSequence = 0
+local ReloadSequence = 0
+local ReloadPending = false
+local ReloadShotConnection: RBXScriptConnection? = nil
+local ReloadEndConnection: RBXScriptConnection? = nil
 local PlayTransitionAnimation: (boolean) -> ()
 local AimParams = RaycastParams.new()
 AimParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -48,7 +53,26 @@ for _, ItemName in { "Bow", "Tanegashima" } do
 	end
 end
 
+local function StopReload()
+	ReloadSequence += 1
+	ReloadPending = false
+	if ReloadShotConnection then
+		ReloadShotConnection:Disconnect()
+		ReloadShotConnection = nil
+	end
+	if ReloadEndConnection then
+		ReloadEndConnection:Disconnect()
+		ReloadEndConnection = nil
+	end
+
+	local Reload = Tracks.Reload
+	if Reload then
+		Reload:Stop(0.1)
+	end
+end
+
 local function StopEquipmentAnimations(Target: Model?)
+	StopReload()
 	local ToStop: { [AnimationTrack]: boolean } = {}
 	for _, Track in Tracks do
 		ToStop[Track] = true
@@ -109,9 +133,56 @@ local function StopDraw()
 		CameraController:SetBowDrawSway(nil)
 	end
 	for Name, Track in Tracks do
-		if Name ~= "Pose" and Name ~= "Unequip" then
+		if Name ~= "Pose" and Name ~= "Unequip" and Name ~= "Reload" then
 			Track:Stop(0.12)
 		end
+	end
+end
+
+local function ScheduleReload(Shot: AnimationTrack)
+	StopReload()
+	local Reload = Tracks.Reload
+	local Shooter = Character
+	local ItemName = BowConfig.WeaponName
+	if not Reload or not Shooter then
+		return
+	end
+
+	ReloadPending = true
+	local Sequence = ReloadSequence
+	local function IsCurrent(): boolean
+		return Sequence == ReloadSequence and Character == Shooter and Shooter.Parent ~= nil
+			and Tracks.Reload == Reload and BowConfig.WeaponName == ItemName
+			and Shooter:GetAttribute("BowEquipped") == true and BowConfig.CanUse(Shooter)
+	end
+
+	local function StartReload()
+		if Sequence ~= ReloadSequence then
+			return
+		end
+		ReloadShotConnection = nil
+		if not IsCurrent() then
+			StopReload()
+			return
+		end
+
+		local Hold = Tracks.Hold
+		if Hold then
+			Hold:Stop(0.1)
+		end
+		ReloadEndConnection = Reload.Ended:Once(function()
+			if Sequence == ReloadSequence then
+				ReloadEndConnection = nil
+				StopReload()
+			end
+		end)
+		Reload:Play(0.1, 1, 1)
+	end
+
+	if Shot.IsPlaying then
+		ReloadShotConnection = Shot.Ended:Once(StartReload)
+	else
+		StartReload()
 	end
 end
 
@@ -200,9 +271,13 @@ end
 local function GetAimPoint(): Vector3
 	local Camera = workspace.CurrentCamera
 	local Origin = Camera.CFrame.Position
-	local Direction = Camera.CFrame.LookVector * BowConfig.MaxDistance
+	local Target = MountedAim.ClampTarget(Character, Origin, Origin + Camera.CFrame.LookVector * BowConfig.MaxDistance)
+	local Direction = Target - Origin
+	AimParams.FilterDescendantsInstances = BowRaycast.GetExclusions(Character)
 	local Hit = BowRaycast.Aim(Origin, Direction, AimParams)
-	return if Hit then Hit.Position else Origin + Direction
+	local Point = if Hit then Hit.Position else Target
+	local BowOrigin = Character and BowConfig.GetOrigin(Character)
+	return MountedAim.ClampTarget(Character, BowOrigin or Origin, Point)
 end
 
 local function UpdateAmmo(Items: { any })
@@ -293,12 +368,6 @@ local function BindCharacter(NewCharacter: Model)
 	CameraController:SetBowFocusZoom(false)
 	FocusController:SetActive(false)
 	CameraController:SetForcedShiftLock("Bow", false)
-	local Excluded: { Instance } = { NewCharacter }
-	local Effects = workspace:FindFirstChild("VFX")
-	if Effects then
-		table.insert(Excluded, Effects)
-	end
-	AimParams.FilterDescendantsInstances = Excluded
 	NextShot = 0
 
 	table.insert(CharacterConnections, NewCharacter:GetAttributeChangedSignal("Bow"):Connect(function()
@@ -316,6 +385,7 @@ local function BindCharacter(NewCharacter: Model)
 		table.insert(CharacterConnections, NewCharacter:GetAttributeChangedSignal(Attribute):Connect(function()
 			if NewCharacter:GetAttribute(Attribute) then
 				BowController:CancelDraw()
+				StopReload()
 				StopTransitionAnimations()
 				StopPose()
 			end
@@ -400,6 +470,10 @@ local function UpdatePose()
 end
 
 local function HoldDrawPose()
+	if ReloadPending then
+		return
+	end
+
 	local Hold = Tracks.Hold
 	local Aim = Tracks.Aim
 	if Hold and Hold.Length > 0 then
@@ -432,7 +506,9 @@ function BowController:BeginDraw()
 	LoadTracks()
 	StopTransitionAnimations()
 	if BowConfig.IsFirearm then
-		Tracks.Hold:Play(0.12)
+		if not ReloadPending then
+			Tracks.Hold:Play(0.12)
+		end
 		RangedWeaponEffectsController:SetAiming(Character, true)
 	elseif Tracks.Aim then
 		local Duration = if Tracks.Aim.Length > 0 then Tracks.Aim.Length else BowConfig.FullChargeTime
@@ -543,6 +619,7 @@ local function Render()
 	if Origin and Elapsed then
 		local Aim = GetAimPoint()
 		local Target = BowConfig.GetAimTarget(Origin, Aim, Elapsed, Seed)
+		Target = MountedAim.ClampTarget(Character, Origin, Target)
 		local Point = Camera:WorldToViewportPoint(Target)
 		if Point.Z > 0 then
 			CursorPosition = Vector2.new(
@@ -602,6 +679,9 @@ function BowController.KnitStart()
 				elseif Charge < 0.2 then Tracks.Shoot else Tracks.Shot
 			if SameWeapon and Track and Character and Character:GetAttribute("BowEquipped") and BowConfig.CanUse(Character) then
 				Track:Play(0.05)
+				if ShotConfig.IsFirearm then
+					ScheduleReload(Track)
+				end
 			end
 		elseif Action == "Cancel" then
 			StopDraw()

@@ -72,9 +72,8 @@ return function(Animator: any): string
 					Horse:PivotTo(Horse:GetPivot() - Vector3.zAxis * Speed / 60)
 					local Before = Root.CFrame
 					Animator.Update(ActiveRig, 1 / 60, 0, 2, true)
-					local AnimatedBody = ActiveRig.Body.TransformedWorldCFrame
-					local Saddle = AnimatedBody * ActiveRig.BodyRest:Inverse() * Config.RiderOffset
-					assert(Near(Root.CFrame * Joint.C0, Saddle), "The rider follows the actual animated body, not only the collider")
+					local Saddle = ActiveRig.SaddleBone.TransformedWorldCFrame * ActiveRig.SaddleRest:Inverse() * Config.RiderOffset
+					assert(Near(Root.CFrame * Joint.C0, Saddle), "The rider follows the actual saddle bone through spine flexion")
 					assert(Near(Rider.CFrame, Saddle), "The character's physical root follows the saddle without a delayed frame")
 					assert(Near(Root.CFrame, Before), "Animating the saddle cannot reposition the mount root")
 					if Frame > 90 then
@@ -87,17 +86,17 @@ return function(Animator: any): string
 
 			Root.CFrame *= CFrame.Angles(math.rad(20), 0, math.rad(8))
 			Animator.Update(ActiveRig, 1 / 60, 0, 2, true)
-			Check(Near(Rider.CFrame, Root.CFrame * ActiveRig.BodyMotion * Config.RiderOffset), "The rider shares saddle pitch and bank")
+			Check(Near(Rider.CFrame, Root.CFrame * ActiveRig.SaddleMotion * Config.RiderOffset), "The rider shares saddle pitch and bank")
 			Horse:SetAttribute("RiderUserId", nil)
 			Animator.Update(ActiveRig, 1 / 60, 0, 2, true)
 			Check(Near(Joint.C0, Config.RiderOffset), "Dismount restores the original attachment offset")
 			Horse:SetAttribute("RiderUserId", 1)
 			Animator.Update(ActiveRig, 1 / 60, 0, 2, true)
-			Check(Near(Joint.C0, ActiveRig.BodyMotion * Config.RiderOffset), "Remount does not accumulate the old animation offset")
+			Check(Near(Joint.C0, ActiveRig.SaddleMotion * Config.RiderOffset), "Remount does not accumulate the old animation offset")
 			Animator.SetQuality(ActiveRig, 0)
 			Check(Near(Joint.C0, Config.RiderOffset), "Culling restores both horse and rider")
 			Animator.Update(ActiveRig, 1 / 60, 0, 1, false)
-			Check(Near(Joint.C0, ActiveRig.BodyMotion * Config.RiderOffset), "Distant riders also follow the locally animated saddle")
+			Check(Near(Joint.C0, ActiveRig.SaddleMotion * Config.RiderOffset), "Distant riders also follow the locally animated saddle")
 			Animator.Destroy(ActiveRig)
 			ActiveRig = nil
 			Check(Near(Joint.C0, Config.RiderOffset), "Removing the rig releases the visual attachment offset")

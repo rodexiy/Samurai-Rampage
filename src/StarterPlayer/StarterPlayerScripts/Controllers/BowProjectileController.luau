@@ -69,14 +69,8 @@ local function Launch(Id: number, Shooter: Player, Origin: Vector3, Velocity: Ve
 	local Config = RangedWeaponConfig.Get(ItemName)
 	local Params = RaycastParams.new()
 	Params.FilterType = Enum.RaycastFilterType.Exclude
-	local Excluded: { Instance } = { Container }
-	if Shooter.Character then
-		table.insert(Excluded, Shooter.Character)
-	end
-	local Effects = workspace:FindFirstChild("VFX")
-	if Effects then
-		table.insert(Excluded, Effects)
-	end
+	local Excluded = BowRaycast.GetExclusions(Shooter.Character)
+	table.insert(Excluded, Container)
 	Params.FilterDescendantsInstances = Excluded
 
 	local Behavior = FastCast.newBehavior()

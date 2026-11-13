@@ -168,6 +168,7 @@ function HorseService:Dismount(Player: Player)
 	State.Model:SetAttribute("RiderLookTime", nil)
 	Rider.Weld:Destroy()
 	Rider.Character:SetAttribute("Mounted", nil)
+	Rider.Character:SetAttribute("InHorse", false)
 	State.Model:SetAttribute("RiderUserId", nil)
 	State.Velocity.Enabled = true
 	State.Velocity.PlaneVelocity = Vector2.zero
@@ -253,6 +254,7 @@ function HorseService:Mount(Player: Player, Model: Model)
 
 	local AutoRotate = Humanoid.AutoRotate
 	local PlatformStand = Humanoid.PlatformStand
+	Character:SetAttribute("InHorse", true)
 	Humanoid.AutoRotate = false
 	Humanoid.PlatformStand = true
 	Humanoid.Jump = false
@@ -484,6 +486,15 @@ function HorseService.KnitStart()
 	end)
 
 	local function TrackPlayer(Player: Player)
+		local function TrackCharacter(Character: Model)
+			Character:SetAttribute("InHorse", false)
+		end
+
+		Player.CharacterAdded:Connect(TrackCharacter)
+		if Player.Character then
+			TrackCharacter(Player.Character)
+		end
+
 		Player.CharacterRemoving:Connect(function()
 			HorseService:Despawn(Player)
 		end)

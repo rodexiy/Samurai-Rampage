@@ -45,8 +45,18 @@ return function(Animator: any, Tail: any): string
 	local Success, Error = pcall(function()
 		for Tier = 1, 5 do
 			local Horse = CreateHorse(Tier)
+			local TailPoses: { [Bone]: CFrame } = {}
+			if not Config.Animation.Tail.Enabled then
+				for _, Bone in Horse:QueryDescendants("Bone") :: { Bone } do
+					if Bone.Name:match("^SK_tail") then
+						Bone.Transform = CFrame.Angles(0.04 * Tier, -0.03, 0.02)
+						TailPoses[Bone] = Bone.Transform
+					end
+				end
+			end
 			Active = Animator.Create(Horse, Targets)
-			Check(#Active.TailMotion.Segments == 6, "Use all six imported tail bones")
+			Check(#Active.TailMotion.Segments == (if Config.Animation.Tail.Enabled then 6 else 0),
+				"Disabled tail motion must not take control of the tail bones")
 			Horse:SetAttribute("RiderUserId", 1)
 			for _ = 1, 120 do
 				Animator.Update(Active, 1 / 60, 0, 2, true, Vector3.new(1, 0.5, -1).Unit)
@@ -71,6 +81,24 @@ return function(Animator: any, Tail: any): string
 			Check(math.abs(Active.NeckYaw) < math.rad(1), "Camera look yields to movement while the horse is walking")
 
 			local Motion = Active.TailMotion
+			if not Config.Animation.Tail.Enabled then
+				for _, Quality in { 1, 0, 2 } do
+					Animator.SetQuality(Active, Quality)
+					Animator.Update(Active, 1 / 60, 4, Quality, true)
+					Tail.Reset(Motion)
+					Tail.Update(Motion, CFrame.identity, -Vector3.zAxis * 80, 1.5, 0.5, 4, 1 / 60)
+					for Bone, Pose in TailPoses do
+						Check(Bone.Transform == Pose, "Animation, resets and culling must leave disabled tail transforms untouched")
+					end
+				end
+				Animator.Destroy(Active)
+				Active = nil
+				for Bone, Pose in TailPoses do
+					Check(Bone.Transform == Pose, "Removing the rig must not overwrite an externally posed tail")
+				end
+				Horse:Destroy()
+				continue
+			end
 			local Tip = Motion.Segments[6].Bone
 			for _, Moving in { false, true } do
 				Tail.Reset(Motion)

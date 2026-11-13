@@ -22,25 +22,16 @@ function HorseAvoidanceController.Create(): State
 	}
 end
 
-local function HasSupport(Ground: HorseGrounding.State, Direction: Vector3, Distance: number): boolean
-	if not Ground.Grounded then
-		return false
-	end
-	local Point = Ground.Root.Position + Direction * Distance
-	Point = Vector3.new(Point.X, HorseGrounding.GetHeight(Point, Ground.PlanePoint, Ground.Normal, 0), Point.Z)
-	local Hit = workspace:Raycast(Point + Vector3.yAxis * HorseConfig.Grounding.StepHeight,
-		-Vector3.yAxis * (HorseConfig.Grounding.StepHeight + HorseConfig.Grounding.DropDistance), Ground.Params)
-
-	return Hit ~= nil and HorseGrounding.IsSupportable(Hit.Normal)
-		and (HorseGrounding.IsWalkable(Hit.Normal) or Direction:Dot(Hit.Normal) >= -0.01)
-end
-
 local function Scan(State: State, Ground: HorseGrounding.State, Input: Vector3, Speed: number)
 	local Distance = math.clamp(Speed * Settings.LookAheadTime, Settings.MinimumDistance, Settings.MaximumDistance)
 	local Desired = Input.Unit
 	local Forward = HorseGrounding.HorizontalDirection(Ground.Root.CFrame.LookVector)
-	local Clearance, Normal = HorseGrounding.ScanMovement(Ground, Desired, Distance)
-	local ForwardClearance, ForwardNormal = HorseGrounding.ScanMovement(Ground, Forward, Distance)
+	local SupportDistance = math.min(Distance, math.max(4, Speed * 0.3))
+	local Clearance, Normal, Supported = HorseGrounding.ScanMovement(Ground, Desired, Distance, SupportDistance)
+	local ForwardClearance, ForwardNormal = Clearance, Normal
+	if Desired:Dot(Forward) < 0.999 then
+		ForwardClearance, ForwardNormal = HorseGrounding.ScanMovement(Ground, Forward, Distance, SupportDistance)
+	end
 	if not Normal and not ForwardNormal then
 		State.TargetWeight, State.TargetSpeedMultiplier = 0, 1
 		return
@@ -50,8 +41,12 @@ local function Scan(State: State, Ground: HorseGrounding.State, Input: Vector3, 
 	local BestClearance = 0
 	for _, Angle in { 0, 30, -30, 60, -60, 90, -90 } do
 		local Candidate = CFrame.fromAxisAngle(Vector3.yAxis, math.rad(Angle)):VectorToWorldSpace(Desired)
-		local Free = HorseGrounding.ScanMovement(Ground, Candidate, Distance)
-		if not HasSupport(Ground, Candidate, math.min(Distance, math.max(4, Speed * 0.3))) then
+		local Free, Safe = Clearance, Supported
+		if Angle ~= 0 then
+			local CandidateClearance, _, HasGround = HorseGrounding.ScanMovement(Ground, Candidate, Distance, SupportDistance)
+			Free, Safe = CandidateClearance, HasGround
+		end
+		if not Safe then
 			continue
 		end
 		local Side = math.sign(Forward:Cross(Candidate).Y)

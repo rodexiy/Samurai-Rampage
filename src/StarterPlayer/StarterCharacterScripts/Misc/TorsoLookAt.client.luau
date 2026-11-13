@@ -1,96 +1,53 @@
-local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
-local Player = Players.LocalPlayer
+local CharacterLookController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.CharacterLookController)
 
-local Character = Player.Character or Player.CharacterAdded:Wait()
-
-local Head = Character:WaitForChild("Head") :: BasePart
-
-local RootPart = Character.PrimaryPart
-if not RootPart then
+local Character = script.Parent.Parent.Parent :: Model
+local Torso = Character:WaitForChild("Torso") :: BasePart
+Character:WaitForChild("Head")
+if not Character.PrimaryPart then
 	Character:GetPropertyChangedSignal("PrimaryPart"):Wait()
-	RootPart = Character.PrimaryPart
 end
-if not RootPart then
+local Root = Character.PrimaryPart
+if not Root then
+	return
+end
+Root:WaitForChild("RootJoint")
+for _, Name in { "Neck", "Right Hip", "Left Hip", "Right Shoulder", "Left Shoulder" } do
+	Torso:WaitForChild(Name)
+end
+
+local State = CharacterLookController.Create(Character)
+if not State then
 	return
 end
 
-local Torso = Character:WaitForChild("Torso") :: BasePart
-local Neck = Torso:WaitForChild("Neck") :: Motor6D
-
-local Waist = RootPart:WaitForChild("RootJoint") :: Motor6D
-
-local RHip = Torso:WaitForChild("Right Hip") :: Motor6D
-local LHip = Torso:WaitForChild("Left Hip") :: Motor6D
-
-local LHipOriginC0 = LHip.C0
-local RHipOriginC0 = RHip.C0
-
-local NeckOriginC0 = Neck.C0
-local WaistOriginC0 = Waist.C0
-
-Neck.MaxVelocity = 1 / 3
-
-RunService.RenderStepped:Connect(function(Delta: number)
-	local LerpSpeed = 0.4 ^ (1 / (Delta * 60))
-	local Camera = workspace.CurrentCamera
-	local Mounted = Character:GetAttribute("Mounted") == true
-	if Mounted then
-		Waist.C0 = WaistOriginC0
-		LHip.C0 = LHipOriginC0
-		RHip.C0 = RHipOriginC0
+local Binding = "LocalCharacterLook_" .. HttpService:GenerateGUID(false)
+RunService:BindToRenderStep(Binding, Enum.RenderPriority.Camera.Value + 8, function(DeltaTime: number)
+	if Players.LocalPlayer.Character ~= Character or not Character:IsDescendantOf(workspace) then
+		CharacterLookController.Reset(State)
+		return
 	end
 
-	if Character:FindFirstChild("Torso") and Character:FindFirstChild("Head") then
-		local HeadPosition = Head.CFrame.p
+	local Camera = workspace.CurrentCamera
+	CharacterLookController.Update(State, Players.LocalPlayer, if Camera then Camera.CFrame else nil,
+		Camera ~= nil and Camera.CameraType == Enum.CameraType.Custom, DeltaTime)
+end)
+local RemovingConnection: RBXScriptConnection?
+local function Cleanup()
+	RunService:UnbindFromRenderStep(Binding)
+	CharacterLookController.Reset(State)
+	if RemovingConnection then
+		RemovingConnection:Disconnect()
+		RemovingConnection = nil
+	end
+end
 
-		if
-			not Player:GetAttribute("FollowCamera")
-			or Character:GetAttribute("Climbing")
-			or Character:GetAttribute("Meditating")
-			or not Camera
-			or Camera.CameraType ~= Enum.CameraType.Custom
-		then
-			Neck.C0 = Neck.C0:lerp(NeckOriginC0, LerpSpeed)
-			Waist.C0 = Waist.C0:lerp(WaistOriginC0, LerpSpeed)
-			LHip.C0 = LHip.C0:lerp(LHipOriginC0, LerpSpeed)
-			RHip.C0 = RHip.C0:lerp(RHipOriginC0, LerpSpeed)
-			return
-		end
-
-		if Neck and Waist then
-			local Subject = Camera.CameraSubject
-			if Subject and (Subject:IsDescendantOf(Character) or Subject:IsDescendantOf(Player)) then
-				local Point = (Camera.CFrame * CFrame.new(0, 0, -1000)).Position
-
-				local Distance = (Head.CFrame.p - Point).magnitude
-				local Difference = Head.CFrame.Y - Point.Y
-
-				local goalNeckCFrame = CFrame.Angles(
-					-(math.atan(Difference / Distance) * 0.5),
-					(((HeadPosition - Point).Unit):Cross(RootPart.CFrame.LookVector)).Y * 1,
-					0
-				)
-
-				local xAxisWaistRotation = -(math.atan(Difference / Distance) * 0.5)
-				local yAxisWaistRotation = (((HeadPosition - Point).Unit):Cross(RootPart.CFrame.LookVector)).Y * 0.5
-				local rotationWaistCFrame = CFrame.Angles(xAxisWaistRotation, yAxisWaistRotation, 0)
-				local goalWaistCFrame = rotationWaistCFrame * WaistOriginC0
-				if not Mounted then
-					Waist.C0 = Waist.C0:lerp(goalWaistCFrame, LerpSpeed).Rotation + WaistOriginC0.Position
-				end
-
-				Neck.C0 = Neck.C0:lerp(goalNeckCFrame * NeckOriginC0, LerpSpeed).Rotation + NeckOriginC0.Position
-
-				local currentLegCounterCFrame = Waist.C0 * WaistOriginC0:Inverse()
-				local currentWaistPitch = currentLegCounterCFrame:ToOrientation()
-				local legsCounterCFrame = CFrame.Angles(-currentWaistPitch, 0, 0)
-				if not Mounted then
-					RHip.C0 = legsCounterCFrame * RHipOriginC0
-					LHip.C0 = legsCounterCFrame * LHipOriginC0
-				end
-			end
-		end
+RemovingConnection = Players.LocalPlayer.CharacterRemoving:Connect(function(Removing: Model)
+	if Removing == Character then
+		Cleanup()
 	end
 end)
+Character.Destroying:Once(Cleanup)

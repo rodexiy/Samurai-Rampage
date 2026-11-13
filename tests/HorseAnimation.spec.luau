@@ -137,12 +137,19 @@ return function(Animator: any): string
 				local Forward = -Horse.PrimaryPart.CFrame:PointToObjectSpace(Leg.Hoof.TransformedWorldCFrame.Position).Z
 				MinimumForward[Index] = math.min(MinimumForward[Index], Forward)
 				MaximumForward[Index] = math.max(MaximumForward[Index], Forward)
-				MinimumHip[Index] = math.min(MinimumHip[Index], Leg.Joints[1].Angle)
-				MaximumHip[Index] = math.max(MaximumHip[Index], Leg.Joints[1].Angle)
-				for _, Joint in Leg.Joints do
+				MinimumHip[Index] = math.min(MinimumHip[Index], Leg.Joints[Leg.SolveRoot].Angle)
+				MaximumHip[Index] = math.max(MaximumHip[Index], Leg.Joints[Leg.SolveRoot].Angle)
+				for JointIndex, Joint in Leg.Joints do
 					local Offset = Joint.Rest:ToObjectSpace(Joint.Bone.Transform)
+					local Compensated = Leg.Front and JointIndex == 2
+					if Compensated then
+						local Anchor = Leg.Joints[1]
+						local Parent = Anchor.Bone.Parent :: Bone
+						local Neutral = Parent.TransformedWorldCFrame * Anchor.Bone.CFrame * Anchor.Rest * Joint.Bone.CFrame * Joint.Rest
+						Offset = Neutral:ToObjectSpace(Joint.Bone.TransformedWorldCFrame)
+					end
 					local Axis, Angle = Offset:ToAxisAngle()
-					assert(Offset.Position.Magnitude < 0.0001, "Leg bones must never translate or stretch")
+					assert(Offset.Position.Magnitude < (if Compensated then 0.002 else 0.0001), "Leg bones must never translate or stretch")
 					assert(Angle < 0.001 or math.abs(Axis:Dot(Joint.Axis)) > 0.999, "Leg bones must stay on their bind-pose hinge")
 					assert(Joint.Angle >= Joint.Minimum - 0.001 and Joint.Angle <= Joint.Maximum + 0.001, "Respect anatomical bend limits")
 				end

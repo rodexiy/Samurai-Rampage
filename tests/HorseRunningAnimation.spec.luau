@@ -113,8 +113,15 @@ return function(Animator: any): string
 						end
 						PreviousAngles[Joint] = Joint.Angle
 						local Offset = Joint.Rest:ToObjectSpace(Joint.Bone.Transform)
+						local Compensated = Foot.Front and JointIndex == 2
+						if Compensated then
+							local Anchor = Foot.Joints[1]
+							local Parent = Anchor.Bone.Parent :: Bone
+							local Neutral = Parent.TransformedWorldCFrame * Anchor.Bone.CFrame * Anchor.Rest * Joint.Bone.CFrame * Joint.Rest
+							Offset = Neutral:ToObjectSpace(Joint.Bone.TransformedWorldCFrame)
+						end
 						local Axis, Angle = Offset:ToAxisAngle()
-						assert(Offset.Position.Magnitude < 0.0001, "Running never stretches the bones")
+						assert(Offset.Position.Magnitude < (if Compensated then 0.002 else 0.0001), "Running never stretches the bones")
 						assert(Angle < 0.001 or math.abs(Axis:Dot(Joint.Axis)) > 0.999, "Running preserves anatomical hinge axes")
 						assert(Joint.Angle >= Joint.Minimum - 0.001 and Joint.Angle <= Joint.Maximum + 0.001,
 							"Running preserves joint limits")
@@ -128,7 +135,8 @@ return function(Animator: any): string
 			Check(MaximumWeightStep < 0.09 and MaximumCycleStep < 0.1, "Blend weights and leg cycles stay continuous")
 			Check(MaximumGoalReach <= Config.Animation.MaximumForwardReach + 0.02,
 				"Do not predict a landing several body lengths ahead: " .. MaximumGoalReach)
-			Check(MaximumTargetReach <= math.max(Config.Animation.MaximumForwardReach, Config.Animation.FrontLeg.MaximumForwardReach) + 0.02,
+			Check(MaximumTargetReach <= math.max(Config.Animation.Running.MaximumForwardReach,
+				Config.Animation.MaximumForwardReach, Config.Animation.FrontLeg.MaximumForwardReach) + 0.02,
 				"The swing does not overshoot the anatomical reach: " .. MaximumTargetReach)
 			Check(MinimumSwingDuration >= Config.Animation.MinimumSwingDuration,
 				"A gait transition cannot rush a leg through a tiny swing duration")

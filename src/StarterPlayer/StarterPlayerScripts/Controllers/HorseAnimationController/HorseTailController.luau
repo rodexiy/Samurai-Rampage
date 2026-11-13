@@ -41,6 +41,10 @@ local function Limit(Spring: Spring, Minimum: number, Maximum: number)
 end
 
 function HorseTailController.Create(Root: BasePart, Bones: { [string]: Bone }, Original: { [Bone]: CFrame }): State
+	if not Settings.Enabled then
+		return { Segments = {}, LastVelocity = Vector3.zero, Initialized = false }
+	end
+
 	local Tail: { Bone } = {}
 	for Name, Bone in Bones do
 		if Name:match("^SK_tail_%d+$") then
@@ -83,7 +87,7 @@ function HorseTailController.Reset(State: State)
 	for _, Segment in State.Segments do
 		Segment.Yaw.Position, Segment.Yaw.Velocity = 0, 0
 		Segment.Pitch.Position, Segment.Pitch.Velocity = 0, 0
-		if Segment.Bone.Parent then
+		if Settings.Enabled and Segment.Bone.Parent then
 			Segment.Bone.Transform = Segment.Rest
 		end
 	end
@@ -91,6 +95,10 @@ end
 
 function HorseTailController.Update(State: State, Frame: CFrame, Velocity: Vector3, YawRate: number,
 	Phase: number, Time: number, DeltaTime: number)
+	if not Settings.Enabled then
+		return
+	end
+
 	local Acceleration = if State.Initialized and DeltaTime > 0
 		then (Velocity - State.LastVelocity) / DeltaTime else Vector3.zero
 	State.LastVelocity, State.Initialized = Velocity, true

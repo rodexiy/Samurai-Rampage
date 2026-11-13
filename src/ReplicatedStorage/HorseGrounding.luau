@@ -43,6 +43,7 @@ export type State = {
 	SupportVisualNormal: Vector3?,
 	LastProbePosition: Vector3,
 	LastMovementFrame: CFrame,
+	BodyFloorHeight: number,
 	HistoryPoint: Vector3?,
 	HistoryNormal: Vector3?,
 	HistoryTime: number,
@@ -115,6 +116,7 @@ function HorseGrounding.Create(Model: Model): State?
 		Normal = Vector3.yAxis, VisualNormal = Vector3.yAxis, SurfaceVelocity = Vector3.zero, Elapsed = Settings.ProbeInterval,
 		LastProbePosition = Root.Position - GetBodyUp(Root) * Clearance, HistoryTime = -math.huge,
 		LastMovementFrame = Root.CFrame,
+		BodyFloorHeight = -math.huge,
 		Grounded = false,
 	}
 end
@@ -129,6 +131,7 @@ function HorseGrounding.Reset(State: State)
 	State.SupportVisualNormal = nil
 	State.LastProbePosition = State.Root.Position - GetBodyUp(State.Root) * State.Clearance
 	State.LastMovementFrame = State.Root.CFrame
+	State.BodyFloorHeight = -math.huge
 end
 
 local function CastSurface(State: State, Point: Vector3, Rise: number, Drop: number, Recovery: boolean): RaycastResult?
@@ -172,6 +175,63 @@ local function CastSurface(State: State, Point: Vector3, Rise: number, Drop: num
 	return Best
 end
 
+local function GetBodySupport(State: State, Position: Vector3, Point: Vector3, Normal: Vector3): number
+	local Frame, Size = State.Root.CFrame, State.Root.Size
+	local Radius = (math.abs(Frame.RightVector:Dot(Normal)) * Size.X
+		+ math.abs(Frame.UpVector:Dot(Normal)) * Size.Y + math.abs(Frame.LookVector:Dot(Normal)) * Size.Z) * 0.5
+	local GroundY = HorseGrounding.GetHeight(Position, Point, Normal, 0)
+	local BodyHeight = GroundY + (Radius + Settings.ObstacleSkin) / math.max(Normal.Y, math.cos(Settings.MaximumSupportSlope))
+
+	return math.max(BodyHeight, State.BodyFloorHeight,
+		HorseGrounding.GetHeight(Position, Point, Normal, State.Clearance, GetBodyUp(State.Root)))
+end
+
+local function GetBaseSurface(State: State, Point: Vector3, Hit: RaycastResult, Drop: number): RaycastResult
+	local Tolerance = math.min(Settings.PenetrationTolerance, Settings.ObstacleSkin * 0.1)
+	if State.Grounded and Hit.Normal:Dot(State.Normal) > 0.98
+		and math.abs((Hit.Position - State.PlanePoint):Dot(State.Normal)) <= Tolerance then
+		return Hit
+	end
+
+	local Offset = State.Heading * (Settings.StepOverLength * 0.5 + Settings.ObstacleSkin)
+	local Front = CastSurface(State, Point + Offset, Settings.StepHeight, Drop + Settings.StepOverHeight, false)
+	local Back = CastSurface(State, Point - Offset, Settings.StepHeight, Drop + Settings.StepOverHeight, false)
+	if not Front or not Back or Front.Normal:Dot(Back.Normal) < 0.98 then
+		return Hit
+	end
+	if math.abs((Front.Position - Back.Position):Dot(Back.Normal)) > Settings.PlaneTolerance then
+		return Hit
+	end
+
+	local BaseY = HorseGrounding.GetHeight(Hit.Position, Back.Position, Back.Normal, 0)
+	local Rise = Hit.Position.Y - BaseY
+	if Rise > Tolerance and Rise <= Settings.StepOverHeight then
+		-- A small object between two coherent floor samples belongs to the footstep, not the body suspension.
+		return Back
+	end
+
+	return Hit
+end
+
+local function GetBodyFloorHeight(State: State): number
+	local Root = State.Root
+	local Height = -math.huge
+	for _, X in { -1, 1 } do
+		for _, Z in { -1, 1 } do
+			local Corner = Root.CFrame:PointToWorldSpace(Vector3.new(
+				Root.Size.X * X * 0.5, -Root.Size.Y * 0.5, Root.Size.Z * Z * 0.5))
+			local Hit = CastSurface(State, Corner, Settings.StepHeight, Settings.DropDistance, false)
+			if Hit then
+				Hit = GetBaseSurface(State, Corner, Hit, Settings.DropDistance)
+				local Clearance = Settings.ObstacleSkin / math.max(Hit.Normal.Y, math.cos(Settings.MaximumSupportSlope))
+				Height = math.max(Height, Root.Position.Y + Hit.Position.Y + Clearance - Corner.Y)
+			end
+		end
+	end
+
+	return Height
+end
+
 local function FindFootSupport(State: State, CatchDistance: number): RaycastResult?
 	local First: RaycastResult? = nil
 	local Count = 0
@@ -200,6 +260,7 @@ end
 
 local function Probe(State: State)
 	local Root = State.Root
+	State.BodyFloorHeight = -math.huge
 	local Feet = Root.Position - GetBodyUp(Root) * State.Clearance
 	State.LastProbePosition = Feet
 	local Falling = math.max(0, -Root.AssemblyLinearVelocity.Y)
@@ -210,6 +271,9 @@ local function Probe(State: State)
 	end
 	if not Center then
 		Center = FindFootSupport(State, CatchDistance)
+	end
+	if Center then
+		Center = GetBaseSurface(State, Feet, Center, CatchDistance)
 	end
 
 	State.Support = nil
@@ -257,8 +321,12 @@ local function Probe(State: State)
 			State.VisualNormal = Fitted.Unit
 		end
 	end
+	if not Coherent or GetBodyUp(Root):Dot(Center.Normal) < 0.98 then
+		-- A ramp and its landing can support different parts of the body at the same time.
+		State.BodyFloorHeight = GetBodyFloorHeight(State)
+	end
 
-	local Height = HorseGrounding.GetHeight(Root.Position, Center.Position, Center.Normal, State.Clearance, GetBodyUp(Root))
+	local Height = GetBodySupport(State, Root.Position, Center.Position, Center.Normal)
 	State.Grounded = Height - Root.Position.Y >= -CatchDistance
 	if not State.Grounded then
 		return
@@ -292,14 +360,52 @@ local function SlideSurface(Velocity: Vector3, Normal: Vector3): Vector3
 	return Velocity - Normal * math.min(0, Velocity:Dot(Normal))
 end
 
-local function CastObstacle(State: State, Frame: CFrame, Travel: Vector3): RaycastResult?
+local function CanCrossGroundEdge(State: State, Frame: CFrame, Hit: RaycastResult, Travel: Vector3): boolean
+	local Horizontal = Travel * Vector3.new(1, 0, 1)
+	if not State.Grounded or Horizontal.Magnitude < 0.001 or math.abs(Travel.Y) > Horizontal.Magnitude * 2 then
+		return false
+	end
+	-- A continuous steep uphill face remains a barrier, regardless of the nearby height.
+	if Hit.Normal.Y > 0.05 and not HorseGrounding.IsWalkable(Hit.Normal) then
+		return false
+	end
+
+	local FeetY = Frame.Position.Y - Frame.UpVector.Y * State.Clearance
+	local SamplePoint = Hit.Position + Horizontal.Unit * Settings.ObstacleSkin
+	local Origin = Vector3.new(SamplePoint.X, FeetY + Settings.StepHeight + Settings.ObstacleSkin, SamplePoint.Z)
+	local Top = workspace:Raycast(Origin,
+		-Vector3.yAxis * (Settings.StepHeight + Settings.DropDistance + Settings.ObstacleSkin), State.ObstacleParams)
+
+	return Top ~= nil and Top.Instance == Hit.Instance and HorseGrounding.IsWalkable(Top.Normal)
+		and Top.Position.Y - FeetY <= Settings.StepHeight + 0.001
+end
+
+local function CastObstacle(State: State, Frame: CFrame, Travel: Vector3, MinimumY: number?): RaycastResult?
 	if Travel.Magnitude < 0.001 then
 		return nil
 	end
 
-	local Hit = workspace:Blockcast(Frame, State.Root.Size, Travel, State.ObstacleParams)
-	if Hit and Hit.Normal.Y < MinimumNormal() and Travel:Dot(Hit.Normal) < -0.001 then
-		return Hit
+	local Params = State.ObstacleParams
+	for _ = 1, 4 do
+		local Hit = workspace:Blockcast(Frame, State.Root.Size, Travel, Params)
+		if not Hit then
+			return nil
+		end
+		if Hit.Normal.Y < (MinimumY or MinimumNormal()) and Travel:Dot(Hit.Normal) < -0.001
+			and not CanCrossGroundEdge(State, Frame, Hit, Travel) then
+			return Hit
+		end
+		if Hit.Instance:IsA("Terrain") then
+			return nil
+		end
+		local Filter = table.clone(Params.FilterDescendantsInstances)
+		table.insert(Filter, Hit.Instance)
+		local NextParams = RaycastParams.new()
+		NextParams.FilterType = Enum.RaycastFilterType.Exclude
+		NextParams.FilterDescendantsInstances = Filter
+		NextParams.RespectCanCollide = true
+		NextParams.CollisionGroup = State.ObstacleParams.CollisionGroup
+		Params = NextParams
 	end
 
 	return nil
@@ -324,15 +430,58 @@ local function GetSteepNormal(State: State, Travel: Vector3): Vector3?
 	return nil
 end
 
-function HorseGrounding.ScanMovement(State: State, Direction: Vector3, Distance: number): (number, Vector3?)
-	local Travel = HorseGrounding.HorizontalDirection(Direction) * Distance
-	local Hit = CastObstacle(State, State.Root.CFrame, Travel)
-	if Hit then
-		return Hit.Distance, Hit.Normal
-	end
-	local Steep = GetSteepNormal(State, Travel)
+function HorseGrounding.ScanMovement(State: State, Direction: Vector3, Distance: number,
+	SupportDistance: number?): (number, Vector3?, boolean)
+	local Avoidance = HorseConfig.Steering.Avoidance
+	local Heading = HorseGrounding.HorizontalDirection(Direction)
+	local MinimumY = math.cos(Avoidance.MinimumObstacleSlope)
+	local Frame = State.Root.CFrame
+	local Point = Frame.Position - GetBodyUp(State.Root) * State.Clearance
+	local Normal = State.Normal
+	local Supported = State.Grounded
+	local Traveled = 0
+	local Steps = math.max(1, math.ceil(Distance / Avoidance.PathSampleDistance))
+	local Step = Distance / Steps
 
-	return if Steep then 0 else Distance, Steep
+	for _ = 1, Steps do
+		local Position = State.Root.Position + Heading * (Traveled + Step)
+		local ExpectedY = HorseGrounding.GetHeight(Position, Point, Normal, 0)
+		local Feet = Vector3.new(Position.X, ExpectedY, Position.Z)
+		local Rise = math.max(Settings.StepHeight, Step * math.tan(Settings.MaximumSlope))
+		local Surface = CastSurface(State, Feet, Rise, Settings.DropDistance, false)
+		local Walkable = Surface ~= nil
+			and (HorseGrounding.IsWalkable(Surface.Normal) or Heading:Dot(Surface.Normal) >= -0.01)
+			and Surface.Position.Y - ExpectedY <= Settings.StepHeight + 0.001
+		if Traveled < (SupportDistance or Distance) then
+			Supported = Supported and Walkable
+		end
+
+		local NextFrame = CFrame.new(Position.X, Frame.Position.Y, Position.Z) * Frame.Rotation
+		if Walkable and Surface then
+			local Rotation = HorseGrounding.GetRotation(Heading, Surface.Normal, not HorseGrounding.IsWalkable(Surface.Normal))
+			local Height = HorseGrounding.GetHeight(Position, Surface.Position, Surface.Normal, State.Clearance, Rotation.UpVector)
+			NextFrame = CFrame.new(Position.X, Height, Position.Z) * Rotation
+		end
+		local Travel = NextFrame.Position - Frame.Position
+		-- Follow each reachable tread/ramp instead of sweeping the whole route at the starting body height.
+		local Hit = CastObstacle(State, Frame, Travel, MinimumY)
+		if Hit then
+			local Fraction = math.clamp(Hit.Distance / math.max(Travel.Magnitude, 0.001), 0, 1)
+			return Traveled + Step * Fraction, Hit.Normal, Supported
+		end
+		if Surface and Surface.Normal.Y < MinimumY and Heading:Dot(Surface.Normal) < -0.001 then
+			local Local = Frame:VectorToObjectSpace(Heading)
+			local Reach = (math.abs(Local.X) * State.Root.Size.X + math.abs(Local.Z) * State.Root.Size.Z) * 0.5
+			return math.max(0, Traveled + Step - Reach), Surface.Normal, Supported
+		end
+		if Walkable and Surface then
+			Point, Normal = Surface.Position, Surface.Normal
+		end
+		Frame = NextFrame
+		Traveled += Step
+	end
+
+	return Distance, nil, Supported
 end
 
 local function ResolveRotation(State: State): boolean
@@ -354,7 +503,8 @@ local function ResolveRotation(State: State): boolean
 				continue
 			end
 			local Hit = workspace:Blockcast(CFrame.new(Start) * Previous.Rotation, Size, Travel, State.ObstacleParams)
-			if Hit and Hit.Normal.Y < MinimumNormal() and Travel:Dot(Hit.Normal) < -0.001 then
+			if Hit and Hit.Normal.Y < MinimumNormal() and Travel:Dot(Hit.Normal) < -0.001
+				and not CanCrossGroundEdge(State, Previous, Hit, Travel) then
 				local Limit = math.max(0, Hit.Distance - Settings.ObstacleSkin) / Travel.Magnitude
 				if Limit < Fraction then
 					Fraction, Normal = Limit, Hit.Normal
@@ -423,6 +573,9 @@ function HorseGrounding.ConstrainMovement(State: State, Velocity: Vector3, Delta
 end
 
 function HorseGrounding.Update(State: State, DeltaTime: number, Direction: Vector3?, TurnSpeed: number?, Bank: number?)
+	local Integrated = State.LastMovementFrame:ToObjectSpace(State.Root.CFrame)
+	local _, RotationStep = Integrated:ToAxisAngle()
+	local AfterPhysics = DeltaTime == 0 and (Integrated.Position.Magnitude > 0.001 or RotationStep > 0.001)
 	ResolveMovement(State)
 	HorseGrounding.ConstrainMovement(State, Vector3.zero, DeltaTime)
 	local WasSupported = State.Grounded or State.Vertical.Enabled
@@ -434,7 +587,7 @@ function HorseGrounding.Update(State: State, DeltaTime: number, Direction: Vecto
 
 	State.Elapsed += DeltaTime
 	local Feet = State.Root.Position - GetBodyUp(State.Root) * State.Clearance
-	if State.Elapsed >= Settings.ProbeInterval or (Feet - State.LastProbePosition).Magnitude >= Settings.ProbeTravel then
+	if AfterPhysics or State.Elapsed >= Settings.ProbeInterval or (Feet - State.LastProbePosition).Magnitude >= Settings.ProbeTravel then
 		State.Elapsed = 0
 		Probe(State)
 	end
@@ -463,7 +616,7 @@ function HorseGrounding.Update(State: State, DeltaTime: number, Direction: Vecto
 	State.Vertical.MaxForce = Mass * (workspace.Gravity + Settings.SupportAcceleration)
 	State.Vertical.Enabled = State.Grounded
 	if State.Grounded then
-		local Height = HorseGrounding.GetHeight(State.Root.Position, State.PlanePoint, State.Normal, State.Clearance, GetBodyUp(State.Root))
+		local Height = GetBodySupport(State, State.Root.Position, State.PlanePoint, State.Normal)
 		local Error = Height - State.Root.Position.Y
 		if Error > Settings.PenetrationTolerance then
 			-- Resolve penetration by position, not an upward launch velocity.
@@ -483,8 +636,8 @@ function HorseGrounding.Update(State: State, DeltaTime: number, Direction: Vecto
 			local FutureFeet = FuturePosition - GetBodyUp(State.Root) * State.Clearance
 			local FutureGround = CastSurface(State, FutureFeet, Settings.StepHeight, Settings.DropDistance, false)
 			if FutureGround then
-				local FutureHeight = HorseGrounding.GetHeight(FuturePosition, FutureGround.Position, FutureGround.Normal,
-					State.Clearance, GetBodyUp(State.Root))
+				FutureGround = GetBaseSurface(State, FutureFeet, FutureGround, Settings.DropDistance)
+				local FutureHeight = GetBodySupport(State, FuturePosition, FutureGround.Position, FutureGround.Normal)
 				-- Start the vertical climb in the same physics step as entering the ramp.
 				ClimbVelocity = math.max(ClimbVelocity, (FutureHeight - State.Root.Position.Y) / DeltaTime)
 			end

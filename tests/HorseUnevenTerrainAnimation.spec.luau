@@ -78,13 +78,22 @@ return function(Animator: any): string
 							* CFrame.Angles(math.rad(5) * math.sin(Time * 2), 0, 0))
 						Animator.Update(ActiveRig, 1 / FPS, Time, 2, true)
 						for Index, Foot in ActiveRig.Feet do
+							if Foot.Front then
+								local Anchor, Upper, Elbow = Foot.Joints[1], Foot.Joints[2], Foot.Joints[3]
+								local Parent = Anchor.Bone.Parent :: Bone
+								local Rest = Parent.TransformedWorldCFrame * Anchor.Bone.CFrame * Anchor.Rest
+									* Upper.Bone.CFrame * Upper.Rest * Elbow.Bone.CFrame
+								Check((Elbow.Bone.TransformedWorldCFrame.Position - Rest.Position).Magnitude < 0.36 * ActiveRig.Scale,
+									"Slopes and missing ground cannot pull the upper foreleg out of the chest")
+							end
+
 							if Previous[Index] and Previous[Index].Swing and not Foot.InSwing then
 								Check(Foot.SwingAlpha >= 1, "A missed terrain sample cannot cancel a moving leg mid-stride")
 								Completed[Index] += 1
 							end
 							Previous[Index] = { Swing = Foot.InSwing }
 							if Time > 2.1 and Time < 2.5 then
-								local Angle = Foot.Joints[1].Angle
+								local Angle = Foot.Joints[Foot.SolveRoot].Angle
 								GapLow[Index] = math.min(GapLow[Index] or math.huge, Angle)
 								GapHigh[Index] = math.max(GapHigh[Index] or -math.huge, Angle)
 							end

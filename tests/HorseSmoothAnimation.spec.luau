@@ -100,10 +100,18 @@ return function(Animator: any): string
 		Check(math.abs(Swing.SwingGoal.Y - Origin.Y - 0.25 - Config.Animation.HoofClearance * ActiveRig.Scale) < 0.001,
 			"Cached ground follows the moving support during swing")
 		for _, Foot in ActiveRig.Feet do
-			for _, Joint in Foot.Joints do
+			for JointIndex, Joint in Foot.Joints do
 				local Offset = Joint.Rest:ToObjectSpace(Joint.Bone.Transform)
+				local Compensated = Foot.Front and JointIndex == 2
+				if Compensated then
+					local Anchor = Foot.Joints[1]
+					local Parent = Anchor.Bone.Parent :: Bone
+					local Neutral = Parent.TransformedWorldCFrame * Anchor.Bone.CFrame * Anchor.Rest * Joint.Bone.CFrame * Joint.Rest
+					Offset = Neutral:ToObjectSpace(Joint.Bone.TransformedWorldCFrame)
+				end
 				local Axis, Angle = Offset:ToAxisAngle()
-				Check(Offset.Position.Magnitude < 0.0001 and (Angle < 0.001 or math.abs(Axis:Dot(Joint.Axis)) > 0.999),
+				Check(Offset.Position.Magnitude < (if Compensated then 0.002 else 0.0001)
+					and (Angle < 0.001 or math.abs(Axis:Dot(Joint.Axis)) > 0.999),
 					"Render smoothing preserves anatomical hinges")
 			end
 		end

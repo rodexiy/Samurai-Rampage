@@ -5,6 +5,10 @@ local HorseConfig = require(ReplicatedStorage.Shared.HorseConfig)
 local HorseTerrainPredictionController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseAnimationController.HorseTerrainPredictionController)
 local HorseRiderController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseAnimationController.HorseRiderController)
 local HorseTailController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseAnimationController.HorseTailController)
+local HorseMotionController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseAnimationController.HorseMotionController)
+local HorseExpressionController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseAnimationController.HorseExpressionController)
+local HorseSpringController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseAnimationController.HorseSpringController)
+local HorseHoofSoundController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseAnimationController.HorseHoofSoundController)
 local Settings = HorseConfig.Animation
 local Running = Settings.Running
 local MinimumSupportNormal = math.cos(HorseConfig.Grounding.MaximumSupportSlope)
@@ -12,6 +16,12 @@ local HorseRigController = {}
 
 local function Blend(From: number, To: number, Weight: number): number
 	return From + (To - From) * Weight
+end
+
+local function Ease(Value: number): number
+	local Alpha = math.clamp(Value, 0, 1)
+
+	return Alpha * Alpha * Alpha * (10 + Alpha * (-15 + Alpha * 6))
 end
 
 type Pose = { Bone: Bone, Transform: CFrame }
@@ -30,10 +40,19 @@ export type Foot = {
 	Target: Attachment,
 	Hoof: Bone,
 	Joints: { Joint },
+	SolveRoot: number,
+	ShoulderAngle: number,
+	Sound: HorseHoofSoundController.State,
 	ParentAxis: Vector3,
 	MaximumReach: number,
+	UpperLength: number,
+	LowerLength: number,
+	UpperRestAngle: number,
+	ElbowRestAngle: number,
+	DownAxis: Vector3,
 	Rest: CFrame,
 	Phase: number,
+	GallopPhase: number,
 	RunPhase: number,
 	Cycle: number,
 	Front: boolean,
@@ -54,6 +73,7 @@ export type Foot = {
 	LastTarget: Vector3,
 	SolverEnabled: boolean,
 	Seeded: boolean,
+	StartStep: boolean,
 	GroundHit: RaycastResult?,
 	GroundFrame: CFrame?,
 	Prediction: HorseTerrainPredictionController.Contact,
@@ -65,13 +85,23 @@ export type Rig = {
 	BodyRest: CFrame,
 	BodyTransform: CFrame,
 	BodyMotion: CFrame,
+	SaddleBone: Bone,
+	SaddleRest: CFrame,
+	SaddleMotion: CFrame,
 	Rider: HorseRiderController.State,
 	Neck: Bone?,
 	NeckAxis: Vector3,
 	NeckYawAxis: Vector3,
 	NeckYaw: number,
 	LookPitch: number,
+	NeckPitch: number,
+	NeckPitchVelocity: number,
+	BodyPitch: number,
+	BodyPitchVelocity: number,
 	TailMotion: HorseTailController.State,
+	Expression: HorseExpressionController.State,
+	Motion: HorseMotionController.State,
+	MotionTime: number,
 	Poses: { Pose },
 	Original: { [Bone]: CFrame },
 	Feet: { Foot },
@@ -81,6 +111,7 @@ export type Rig = {
 	Phase: number,
 	Speed: number,
 	Gallop: number,
+	Sprint: number,
 	Frequency: number,
 	Velocity: Vector3,
 	Quality: number,
@@ -136,12 +167,18 @@ end
 local function ClearContacts(Rig: Rig)
 	Rig.NeckYaw = 0
 	Rig.LookPitch = 0
+	Rig.NeckPitch = 0
+	Rig.NeckPitchVelocity = 0
+	Rig.BodyPitch = 0
+	Rig.BodyPitchVelocity = 0
 	HorseTailController.Reset(Rig.TailMotion)
+	HorseExpressionController.Reset(Rig.Expression)
 	Rig.Prediction = HorseTerrainPredictionController.Create()
 	local Heading = Rig.Root.CFrame.LookVector * Vector3.new(1, 0, 1)
 	Rig.Prediction.Heading = if Heading.Magnitude > 0.001 then Heading.Unit else -Vector3.zAxis
 	Rig.PredictionContacts = {}
 	for _, Foot in Rig.Feet do
+		HorseHoofSoundController.Reset(Foot.Sound)
 		Foot.Plant = nil
 		Foot.Support = nil
 		Foot.SupportPoint = nil
@@ -150,6 +187,8 @@ local function ClearContacts(Rig: Rig)
 		Foot.SwingReady = true
 		Foot.Grounded = false
 		Foot.Seeded = false
+		Foot.StartStep = false
+		Foot.ShoulderAngle = 0
 		Foot.GroundHit = nil
 		Foot.GroundFrame = nil
 		Foot.Prediction = HorseTerrainPredictionController.CreateContact(Foot.Front)
@@ -179,9 +218,15 @@ function HorseRigController.SetQuality(Rig: Rig, Quality: number)
 end
 
 local function CreateFoot(Rig: Rig, Bones: { [string]: Bone }, Definition: any): Foot
-	local First = Bones[Definition.Prefix .. "1"]
 	local Hoof = Bones[Definition.Prefix .. Definition.Hoof]
-	local Parent = First.Parent :: Bone
+	local SolveRoot = if Definition.Front then 2 else 1
+	local RootBone = Bones[Definition.Prefix .. SolveRoot]
+	local Elbow = Bones[Definition.Prefix .. (SolveRoot + 1)]
+	local Parent = RootBone.Parent :: Bone
+	local Upper = Elbow.WorldPosition - RootBone.WorldPosition
+	local Lower = Hoof.WorldPosition - Elbow.WorldPosition
+	local UpperAngle = math.atan2(Upper:Dot(Rig.Root.CFrame.LookVector), -Upper:Dot(Rig.Root.CFrame.UpVector))
+	local LowerAngle = math.atan2(Lower:Dot(Rig.Root.CFrame.LookVector), -Lower:Dot(Rig.Root.CFrame.UpVector))
 	local Rest = Rig.Root.CFrame:ToObjectSpace(Hoof.WorldCFrame)
 	local Target = Instance.new("Attachment")
 	Target.Name = Definition.Prefix .. "Target"
@@ -193,7 +238,7 @@ local function CreateFoot(Rig: Rig, Bones: { [string]: Bone }, Definition: any):
 	local Length = 0
 	for Index = 1, Definition.Hoof do
 		local Bone = Bones[Definition.Prefix .. Index]
-		if Index > 1 then
+		if Index > SolveRoot then
 			Length += (Bone.WorldPosition - Bones[Definition.Prefix .. (Index - 1)].WorldPosition).Magnitude
 		end
 		table.insert(Joints, {
@@ -207,16 +252,20 @@ local function CreateFoot(Rig: Rig, Bones: { [string]: Bone }, Definition: any):
 	end
 
 	return {
-		Target = Target, Hoof = Hoof, Joints = Joints, Rest = Rest,
+		Target = Target, Hoof = Hoof, Joints = Joints, Rest = Rest, SolveRoot = SolveRoot, ShoulderAngle = 0,
+		Sound = HorseHoofSoundController.Create(Rig.Root, Definition.Prefix),
 		MaximumReach = Length * Settings.MaximumLegExtension,
+		UpperLength = Upper.Magnitude, LowerLength = Lower.Magnitude,
+		UpperRestAngle = UpperAngle, ElbowRestAngle = (LowerAngle - UpperAngle + math.pi) % (math.pi * 2) - math.pi,
+		DownAxis = RootBone.TransformedWorldCFrame:VectorToObjectSpace(-Rig.Root.CFrame.UpVector).Unit,
 		ParentAxis = Parent.TransformedWorldCFrame:VectorToObjectSpace(Rig.Root.CFrame.RightVector).Unit,
-		Phase = Definition.Phase, RunPhase = Definition.RunPhase, Cycle = Definition.Phase,
+		Phase = Definition.Phase, GallopPhase = Definition.GallopPhase, RunPhase = Definition.RunPhase, Cycle = Definition.Phase,
 		Front = Definition.Front, Normal = Vector3.yAxis,
 		Grounded = false, InSwing = false, ForcedSwing = false, SwingAlpha = 0,
 		SwingDuration = Settings.SettleDuration, SwingReady = true,
 		SwingGoal = Hoof.WorldPosition, LastTarget = Hoof.WorldPosition,
 		SwingLocalStart = Rest.Position, SwingStartVelocity = Vector3.zero, JustStarted = false,
-		SolverEnabled = false, Seeded = false,
+		SolverEnabled = false, Seeded = false, StartStep = false,
 		Prediction = HorseTerrainPredictionController.CreateContact(Definition.Front),
 	}
 end
@@ -233,7 +282,9 @@ function HorseRigController.Create(Model: Model, TargetFolder: Folder): Rig?
 	for _, Bone in Model:QueryDescendants("Bone") :: { Bone } do
 		Bones[Bone.Name] = Bone
 		Original[Bone] = Bone.Transform
-		table.insert(Poses, { Bone = Bone, Transform = Bone.Transform })
+		if Settings.Tail.Enabled or not Bone.Name:match("^SK_tail") then
+			table.insert(Poses, { Bone = Bone, Transform = Bone.Transform })
+		end
 	end
 	if not Bones.SK_root then
 		return nil
@@ -277,12 +328,18 @@ function HorseRigController.Create(Model: Model, TargetFolder: Folder): Rig?
 		BodyRest = Root.CFrame:ToObjectSpace(Bones.SK_root.TransformedWorldCFrame),
 		BodyTransform = Original[Bones.SK_root],
 		BodyMotion = CFrame.identity, Rider = HorseRiderController.Create(),
+		SaddleBone = Bones.SK_spine_2 or Bones.SK_root,
+		SaddleRest = Root.CFrame:ToObjectSpace((Bones.SK_spine_2 or Bones.SK_root).TransformedWorldCFrame),
+		SaddleMotion = CFrame.identity,
 		NeckAxis = if Bones.SK_neck then Bones.SK_neck.TransformedWorldCFrame:VectorToObjectSpace(Root.CFrame.RightVector).Unit else Vector3.xAxis,
 		NeckYawAxis = if Bones.SK_neck then Bones.SK_neck.TransformedWorldCFrame:VectorToObjectSpace(Root.CFrame.UpVector).Unit else Vector3.yAxis,
-		NeckYaw = 0, LookPitch = 0,
+		NeckYaw = 0, LookPitch = 0, NeckPitch = 0, NeckPitchVelocity = 0,
+		BodyPitch = 0, BodyPitchVelocity = 0,
 		TailMotion = HorseTailController.Create(Root, Bones, Original),
+		Expression = HorseExpressionController.Create(Root, Bones, Original),
+		Motion = HorseMotionController.Create(), MotionTime = 0,
 		Poses = Poses, Original = Original, Feet = {}, Targets = Targets, Params = Params, Scale = Scale,
-		Phase = 0, Speed = 0, Gallop = 0, Frequency = Settings.MinimumFrequency,
+		Phase = 0, Speed = 0, Gallop = 0, Sprint = 0, Frequency = Settings.MinimumFrequency,
 		Velocity = Vector3.zero, Quality = -1, Elapsed = 0, ProbeElapsed = 0,
 		LastFrame = Root.CFrame, Normal = Vector3.yAxis, BodyOffset = 0,
 		Epoch = Model:GetAttribute("GaitEpoch") or workspace:GetServerTimeNow(),
@@ -318,9 +375,17 @@ end
 local function PoseBody(Rig: Rig, DeltaTime: number, Now: number, LookDirection: Vector3?)
 	local Weight = math.clamp(Rig.Speed / 12, 0, 1)
 	local TrotPulse = math.sin(Rig.Phase * math.pi * 4)
-	local RunPulse = math.sin(Rig.Phase * math.pi * 2)
+	local RunPulse = math.sin(Rig.Phase * math.pi * 2 - 0.3)
+	-- Anticipate the body filter so the visual rise peaks during gathered suspension.
+	local BodyLag = math.atan(Rig.Frequency * math.pi * 2 / 12) / (math.pi * 2)
+	local SuspensionPulse = math.cos((Rig.Phase - Running.SuspensionPhase + BodyLag) * math.pi * 2)
+	RunPulse = Blend(RunPulse, SuspensionPulse, Rig.Sprint)
 	local Pulse = Blend(TrotPulse, RunPulse, Rig.Gallop)
-	local Bounce = Blend(Settings.BodyBounce, Running.BodyBounce, Rig.Gallop)
+	local HeadPulse = Blend(math.sin(Rig.Phase * math.pi * 4 + 0.5), math.sin(Rig.Phase * math.pi * 2 + 0.5), Rig.Gallop)
+	HeadPulse = Blend(HeadPulse, math.cos((Rig.Phase - Running.SuspensionPhase) * math.pi * 2), Rig.Gallop * Rig.Sprint)
+	local Bounce = Rig.Motion.Bounce
+	local Time = if Now > 0 then Now - Rig.Epoch else Rig.MotionTime
+	local Breath = math.sin(Time * math.pi * 2 / Settings.Idle.BreathingPeriod)
 	local Normal = Rig.Normal
 	local Pitch = math.clamp(-math.atan2(Normal:Dot(Rig.Root.CFrame.LookVector), Normal.Y), -Settings.MaximumTilt, Settings.MaximumTilt)
 	local Roll = math.clamp(-math.atan2(Normal:Dot(Rig.Root.CFrame.RightVector), Normal.Y), -Settings.MaximumTilt, Settings.MaximumTilt)
@@ -334,18 +399,23 @@ local function PoseBody(Rig: Rig, DeltaTime: number, Now: number, LookDirection:
 	for _, Foot in Rig.Feet do
 		Grounded = Grounded or Foot.Grounded
 	end
-	local Drop = if Grounded then -Settings.BodyDrop * (1 - Rig.IdleWeight) else 0
-	local TargetOffset = (Drop + Pulse * Bounce * Weight) * Rig.Scale + Rig.Prediction.BodyLift
+	local Drop = if Grounded then -Rig.Motion.BodyDrop * (1 - Rig.IdleWeight) else 0
+	local Breathing = (Breath - 0.5) * Settings.Idle.BreathingLift * Rig.IdleWeight
+	local RunningLift = Running.BodyLift * Rig.Gallop * Rig.Sprint * Weight
+	local TargetOffset = (Drop + Pulse * Bounce * Weight + Breathing + RunningLift) * Rig.Scale + Rig.Prediction.BodyLift
 	Rig.BodyOffset += (TargetOffset - Rig.BodyOffset) * (1 - math.exp(-12 * DeltaTime))
 
 	local Rest = Rig.Root.CFrame * Rig.BodyRest
+	local BodyPitch = math.cos(Rig.Phase * math.pi * 2) * Rig.Motion.BodyPitch * Weight
+	Rig.BodyPitch, Rig.BodyPitchVelocity = HorseSpringController.Step(Rig.BodyPitch, Rig.BodyPitchVelocity,
+		BodyPitch, DeltaTime, Settings.Spine.Frequency, Settings.Spine.Damping)
 	Rig.BodyMotion = CFrame.new(0, Rig.BodyOffset, 0)
-		* CFrame.Angles(Pitch + Pulse * Blend(0.012, Running.BodyPitch, Rig.Gallop) * Weight, 0, Roll)
+		* CFrame.Angles(Pitch + Rig.BodyPitch, 0,
+			Roll + math.sin(Time * 0.7) * Settings.Idle.WeightShift * Rig.IdleWeight)
 	local Desired = Rig.Root.CFrame * Rig.BodyMotion * Rig.BodyRest
 	Rig.Body.Transform = Rig.BodyTransform * Rest:ToObjectSpace(Desired)
-	HorseRiderController.Update(Rig.Rider, Rig.Model, Rig.BodyMotion)
 
-	local Idle = math.sin((Now - Rig.Epoch) * 1.8)
+	local Idle = Breath * Settings.Idle.NeckPitch * Rig.IdleWeight
 	if Rig.Neck then
 		local Turn = Settings.NeckTurn
 		local TargetYaw = math.clamp(Rig.Prediction.YawRate * Turn.LookAhead, -Turn.MaximumAngle, Turn.MaximumAngle)
@@ -361,12 +431,16 @@ local function PoseBody(Rig: Rig, DeltaTime: number, Now: number, LookDirection:
 		end
 		Rig.NeckYaw += (TargetYaw - Rig.NeckYaw) * (1 - math.exp(-Turn.Response * DeltaTime))
 		Rig.LookPitch += (TargetPitch - Rig.LookPitch) * (1 - math.exp(-Settings.RiderLook.Response * DeltaTime))
+		Rig.NeckPitch, Rig.NeckPitchVelocity = HorseSpringController.Step(Rig.NeckPitch, Rig.NeckPitchVelocity,
+			Idle + HeadPulse * Rig.Motion.NeckPitch * Weight, DeltaTime, Settings.HeadMotion.Frequency + 1.5, Settings.HeadMotion.Damping)
 		Rig.Neck.Transform = Rig.Original[Rig.Neck] * CFrame.fromAxisAngle(Rig.NeckYawAxis, Rig.NeckYaw)
 			* CFrame.fromAxisAngle(Rig.NeckAxis,
-			Idle * 0.012 + Pulse * Blend(0.025, Running.NeckPitch, Rig.Gallop) * Weight + Rig.Prediction.BodyPitch * 0.4 + Rig.LookPitch)
+			Rig.NeckPitch
+				+ Rig.Prediction.BodyPitch * 0.4 + Rig.LookPitch)
 	end
+	HorseExpressionController.Update(Rig.Expression, Time, Rig.Phase, Weight, Rig.Gallop, Rig.Sprint, DeltaTime)
 	HorseTailController.Update(Rig.TailMotion, Rig.Root.CFrame, Rig.Velocity, Rig.Prediction.YawRate,
-		Rig.Phase, Now - Rig.Epoch, DeltaTime)
+		Rig.Phase, Time, DeltaTime)
 end
 
 local function ProbeGround(Rig: Rig, Rest: Vector3, Point: Vector3): RaycastResult?
@@ -387,6 +461,10 @@ local function GetFootVelocity(Rig: Rig, Position: Vector3): Vector3
 end
 
 local function BeginSwing(Rig: Rig, Foot: Foot, Goal: Vector3, Forced: boolean, Duration: number)
+	if Foot.StartStep and not Forced then
+		Duration = math.min(Duration, Settings.StartStepDuration)
+		Foot.StartStep = false
+	end
 	Foot.SwingLocalStart = Rig.Root.CFrame:PointToObjectSpace(Foot.LastTarget)
 	Foot.SwingStartVelocity = -Rig.Root.CFrame:VectorToObjectSpace(GetFootVelocity(Rig, Foot.LastTarget))
 	Foot.SwingGoal = Goal
@@ -405,33 +483,66 @@ local function GetSwingPosition(Rig: Rig, Foot: Foot): Vector3
 	local Square, Cube = Alpha * Alpha, Alpha * Alpha * Alpha
 	local Goal = Rig.Root.CFrame:PointToObjectSpace(Foot.SwingGoal)
 	local EndVelocity = -Rig.Root.CFrame:VectorToObjectSpace(GetFootVelocity(Rig, Foot.SwingGoal))
-	-- Match the planted foot's velocity at both ends, in the moving body's frame.
+	local StartTangent = Foot.SwingStartVelocity * Foot.SwingDuration
+	local EndTangent = EndVelocity * Foot.SwingDuration
+	if Foot.Front then
+		-- High travel speeds must not pull the recovering leg beyond its shoulder's safe range.
+		local Limit = math.max(math.abs(Goal.Z - Foot.SwingLocalStart.Z), Rig.Scale) * Settings.FrontLeg.SwingTangentRatio
+		StartTangent = Vector3.new(StartTangent.X, StartTangent.Y, math.clamp(StartTangent.Z, -Limit, Limit))
+		EndTangent = Vector3.new(EndTangent.X, EndTangent.Y, math.clamp(EndTangent.Z, -Limit, Limit))
+	end
+	-- Interpolate the recovery arc with bounded tangents in the moving body's frame.
 	local Position = Foot.SwingLocalStart * (2 * Cube - 3 * Square + 1)
-		+ Foot.SwingStartVelocity * Foot.SwingDuration * (Cube - 2 * Square + Alpha)
+		+ StartTangent * (Cube - 2 * Square + Alpha)
 		+ Goal * (-2 * Cube + 3 * Square)
-		+ EndVelocity * Foot.SwingDuration * (Cube - Square)
-	if Foot.Front and not Rig.Resting then
-		-- Reach from the shoulder in late swing, returning to the planted target at touchdown.
-		local Reach = math.sin(math.clamp((Alpha - 0.35) / 0.65, 0, 1) * math.pi) ^ 2
-		Position -= Vector3.zAxis * Reach * Settings.FrontLeg.SwingReach * Rig.Scale
+		+ EndTangent * (Cube - Square)
+	if not Rig.Resting then
+		-- Extend the airborne stride independently of cadence, returning to the support target at touchdown.
+		local Reach = if Alpha < 0.65 then Ease(Alpha / 0.65) else Ease((1 - Alpha) / 0.35)
+		if Foot.Front then
+			-- Gather under the chest first, then reach forward with the carpus opening.
+			local Extension = if Alpha < Running.FrontExtensionPeak
+				then Ease((Alpha - Running.FrontExtensionStart) / (Running.FrontExtensionPeak - Running.FrontExtensionStart))
+				else Ease((1 - Alpha) / (1 - Running.FrontExtensionPeak))
+			Reach = Blend(Reach, Extension, Rig.Sprint)
+			-- Carry the foreleg farther behind the chest after push-off, then release into forward recovery.
+			local Retraction = if Alpha < Running.FrontRetractionPeak
+				then Ease(Alpha / Running.FrontRetractionPeak)
+				else Ease((Running.FrontRetractionEnd - Alpha) / (Running.FrontRetractionEnd - Running.FrontRetractionPeak))
+			Position += Vector3.zAxis * Retraction * Running.FrontRetractionReach * Rig.Sprint * Rig.Scale
+		end
+		local Distance = if Foot.Front then Blend(Settings.FrontLeg.SwingReach, Running.FrontSwingReach, Rig.Sprint)
+			else Running.BackSwingReach * Rig.Sprint
+		Position -= Vector3.zAxis * Reach * Distance * Rig.Scale
 	end
 	-- Preserve the contact endpoints on slopes; only constrain overshoot between them.
 	local ForwardLimit = if Foot.Front then Settings.FrontLeg.MaximumForwardReach else Settings.MaximumForwardReach
-	local Forward = math.max(ForwardLimit * Rig.Scale,
+	local Forward = math.max(Blend(ForwardLimit, Running.MaximumForwardReach, Rig.Sprint) * Rig.Scale,
 		Foot.Rest.Position.Z - Foot.SwingLocalStart.Z, Foot.Rest.Position.Z - Goal.Z)
-	local Backward = math.max(Settings.MaximumBackwardReach * Rig.Scale,
+	local Backward = math.max(Blend(Settings.MaximumBackwardReach, Running.MaximumBackwardReach, Rig.Sprint) * Rig.Scale,
 		Foot.SwingLocalStart.Z - Foot.Rest.Position.Z, Goal.Z - Foot.Rest.Position.Z)
 	local Side = 0.35 * Rig.Scale
 	Position = Vector3.new(math.clamp(Position.X,
 		math.min(Foot.Rest.Position.X - Side, Foot.SwingLocalStart.X, Goal.X),
 		math.max(Foot.Rest.Position.X + Side, Foot.SwingLocalStart.X, Goal.X)), Position.Y,
 		math.clamp(Position.Z, Foot.Rest.Position.Z - Forward, Foot.Rest.Position.Z + Backward))
-	local Lift = math.sin(Alpha * math.pi) ^ 2
+	local Canter = if Foot.Front and not Rig.Resting then Rig.Gallop * (1 - Rig.Sprint) else 0
+	local Peak = Blend(if Rig.Resting then 0.5 else Rig.Motion.SwingPeak, Settings.Gallop.FrontSwingPeak, Canter)
+	-- Lift early for clearance, then extend and settle with zero endpoint acceleration.
+	local Lift = if Alpha < Peak then Ease(Alpha / Peak) else Ease((1 - Alpha) / (1 - Peak))
+	if Foot.Front and not Rig.Resting then
+		local ExtensionLift = Ease(Alpha / Peak) * (if Alpha < Running.FrontExtensionPeak then 1
+			else Ease((1 - Alpha) / (1 - Running.FrontExtensionPeak))) * Running.FrontExtensionLift
+		Lift = Blend(Lift, math.max(Lift, ExtensionLift), Rig.Sprint)
+	end
 	local Height = if Rig.Resting and Foot.ForcedSwing then Settings.Idle.StepHeight
-		else Blend(Settings.StepHeight, Running.StepHeight, Rig.Gallop)
+		else Rig.Motion.StepHeight
+	-- Keep the forehoof raised while it passes forward in the collected gallop.
+	Height = Blend(Height, Settings.Gallop.FrontStepHeight, Canter)
+	local LiftMultiplier = if Foot.Front and not Rig.Resting then Blend(1, Settings.FrontLeg.RunningLiftMultiplier, Rig.Sprint) else 1
 
 	return Rig.Root.CFrame:PointToWorldSpace(Position)
-		+ Rig.Root.CFrame.UpVector * Lift * math.min(Height * Rig.Scale
+		+ Rig.Root.CFrame.UpVector * Lift * math.min(Height * LiftMultiplier * Rig.Scale
 			+ Foot.Prediction.ExtraLift, Settings.Prediction.MaximumLift * Rig.Scale)
 end
 
@@ -482,14 +593,16 @@ local function UpdateFoot(Rig: Rig, Foot: Foot, DeltaTime: number, Frequency: nu
 	local Moving = Rig.Speed > Settings.MoveThreshold and not Rig.Resting
 	local Phase = Foot.Cycle
 	local WantsSwing = Moving and Phase >= Stance
-	if not WantsSwing then
+	if not WantsSwing and not Foot.InSwing then
 		Foot.SwingReady = true
 	end
 	local Plant = GetPlant(Foot)
 	-- The outside legs travel farther around a turn than the inside legs.
 	local ForwardSpeed = GetFootVelocity(Rig, Rest):Dot(Rig.Root.CFrame.LookVector)
+	local PlantReach = if Foot.Front then Blend(Settings.MaximumForwardReach, Settings.FrontLeg.PlantReach, Rig.Gallop)
+		else Settings.MaximumForwardReach
 	local Reach = math.clamp(ForwardSpeed * Stance * 0.5 / Frequency,
-		-Settings.MaximumBackwardReach * Rig.Scale, Settings.MaximumForwardReach * Rig.Scale)
+		-Settings.MaximumBackwardReach * Rig.Scale, PlantReach * Rig.Scale)
 	local Landing = Rest + Rig.Root.CFrame.LookVector * (if Moving then Reach else 0)
 	if Foot.InSwing then
 		Foot.SwingGoal = Landing
@@ -545,6 +658,14 @@ local function UpdateFoot(Rig: Rig, Foot: Foot, DeltaTime: number, Frequency: nu
 			Plant = Ground
 		end
 
+		if Moving and Foot.Front and Plant and not Foot.InSwing then
+			-- Release contact before the fixed shoulder would pull the planted hoof beyond reach.
+			local Shoulder = Foot.Joints[Foot.SolveRoot].Bone.TransformedWorldCFrame.Position
+			local NextShoulder = Shoulder + GetFootVelocity(Rig, Shoulder) * DeltaTime
+			WantsSwing = WantsSwing or ((Plant - Shoulder):Dot(Rig.Root.CFrame.LookVector) < 0
+				and (Plant - NextShoulder).Magnitude > Foot.MaximumReach)
+		end
+
 		if WantsSwing and Foot.SwingReady and not Foot.InSwing then
 			BeginSwing(Rig, Foot, Landing, false, (1 - Phase) / Frequency)
 		elseif (not Moving and Foot.InSwing and not Foot.ForcedSwing) or (Rig.Resting and Plant and not Foot.InSwing
@@ -592,26 +713,60 @@ local function UpdateFoot(Rig: Rig, Foot: Foot, DeltaTime: number, Frequency: nu
 	Foot.Target.WorldCFrame = CFrame.new(Position) * Rig.Root.CFrame.Rotation * Foot.Rest.Rotation
 end
 
+local function GetContactStance(Rig: Rig, Frequency: number): number
+	local Travel = math.min(Rig.Motion.PlantDistance * 2, Settings.MaximumForwardReach + Settings.MaximumBackwardReach)
+
+	return math.min(Rig.Motion.Stance, Travel * Rig.Scale * Frequency / math.max(Rig.Speed, 1))
+end
+
 local function GetFrontFlexion(Rig: Rig, Foot: Foot): number
 	if Rig.Resting then
 		return 0
 	end
 	local Alpha = Foot.SwingAlpha
 	if not Foot.SolverEnabled then
-		local Distance = Blend(Settings.PlantDistance, Running.PlantDistance, Rig.Gallop)
-		local Stance = math.min(Blend(Settings.StanceFraction, Running.StanceFraction, Rig.Gallop),
-			Distance * Rig.Scale * 2 * Rig.Frequency / math.max(Rig.Speed, 1))
+		local Stance = GetContactStance(Rig, Rig.Frequency)
 		Alpha = math.clamp((Foot.Cycle - Stance) / (1 - Stance), 0, 1)
 	elseif not Foot.InSwing then
 		return if Foot.Grounded then 0 else 0.5
 	end
-	local Fold = math.clamp(Alpha / Settings.FrontLeg.FoldEnd, 0, 1)
-	local Extend = math.clamp((Alpha - Settings.FrontLeg.ExtendStart)
-		/ (Settings.FrontLeg.ExtendEnd - Settings.FrontLeg.ExtendStart), 0, 1)
+	local FoldEnd = Blend(Settings.FrontLeg.FoldEnd, Settings.FrontLeg.RunningFoldEnd, Rig.Sprint)
+	local ExtendStart = Blend(Settings.FrontLeg.ExtendStart, Settings.FrontLeg.RunningExtendStart, Rig.Sprint)
+	local ExtendEnd = Blend(Settings.FrontLeg.ExtendEnd, Settings.FrontLeg.RunningExtendEnd, Rig.Sprint)
+	local Fold = math.clamp(Alpha / FoldEnd, 0, 1)
+	local Extend = math.clamp((Alpha - ExtendStart) / (ExtendEnd - ExtendStart), 0, 1)
 	Fold = Fold * Fold * (3 - 2 * Fold)
 	Extend = Extend * Extend * (3 - 2 * Extend)
 
 	return Fold * (1 - Extend)
+end
+
+local function GetFrontSwingBend(Rig: Rig): number
+	local Bend = Blend(Settings.FrontLeg.SwingBend, Settings.FrontLeg.RunningSwingBend, Rig.Sprint)
+
+	return Blend(Bend, Settings.Gallop.FrontSwingBend, Rig.Gallop * (1 - Rig.Sprint))
+end
+
+local function GetShoulderSeeds(Rig: Rig, Foot: Foot, DeltaTime: number): (number, number)
+	local RootJoint = Foot.Joints[Foot.SolveRoot]
+	local Parent = RootJoint.Bone.Parent :: Bone
+	local Frame = Parent.TransformedWorldCFrame * RootJoint.Bone.CFrame * RootJoint.Rest
+	local Down = Frame:VectorToWorldSpace(Foot.DownAxis).Unit
+	local Hinge = Frame:VectorToWorldSpace(RootJoint.Axis).Unit
+	local Forward = Hinge:Cross(Down).Unit
+	local NextTravel = if Foot.InSwing then Vector3.zero else GetFootVelocity(Rig, Foot.LastTarget) * DeltaTime
+	local Offset = Foot.LastTarget - Frame.Position - NextTravel
+	local Y, Z = Offset:Dot(Down), Offset:Dot(Forward)
+	local Upper, Lower = Foot.UpperLength, Foot.LowerLength
+	local Distance = math.clamp(math.sqrt(Y * Y + Z * Z), math.abs(Upper - Lower) + 0.001, Upper + Lower - 0.001)
+	local Fold = math.acos(math.clamp((Distance * Distance - Upper * Upper - Lower * Lower) / (2 * Upper * Lower), -1, 1))
+	local Shoulder = math.atan2(Z, Y) + math.atan2(Lower * math.sin(Fold), Upper + Lower * math.cos(Fold))
+	local Angle = math.clamp(Shoulder - Foot.UpperRestAngle, RootJoint.Minimum, RootJoint.Maximum)
+	local UpperAngle = Foot.UpperRestAngle + Angle
+	-- Aim the lower chain from the constrained upper arm, rather than seeding an unreachable chest pose.
+	local LowerAngle = math.atan2(Z - Upper * math.sin(UpperAngle), Y - Upper * math.cos(UpperAngle))
+
+	return Angle, (LowerAngle - UpperAngle - Foot.ElbowRestAngle + math.pi) % (math.pi * 2) - math.pi
 end
 
 local function SeedLeg(Rig: Rig, Foot: Foot, DeltaTime: number)
@@ -628,15 +783,28 @@ local function SeedLeg(Rig: Rig, Foot: Foot, DeltaTime: number)
 	end
 	Swing *= Blend(1, 1.2, Rig.Gallop)
 	local FrontFlexion = if Foot.Front then GetFrontFlexion(Rig, Foot) else 0
+	local SupportWeight, ShoulderSeed, ElbowSeed = 0, Hip, FrontFlexion * 0.12
+	if Foot.Front and Foot.Grounded then
+		SupportWeight = (1 - FrontFlexion) * (1 - Rig.IdleWeight)
+		local Shoulder, Elbow = GetShoulderSeeds(Rig, Foot, DeltaTime)
+		ShoulderSeed = Blend(Hip, Shoulder, SupportWeight)
+		ElbowSeed = Blend(ElbowSeed, Elbow, SupportWeight)
+	end
 
 	for Index, Joint in Foot.Joints do
+		if Index < Foot.SolveRoot then
+			-- Solve from a stable chest frame; apply the shoulder's skin motion after the leg is solved.
+			Joint.Angle = 0
+			Joint.Bone.Transform = Joint.Rest
+			continue
+		end
 		local Seed = 0
-		if Index == 1 then
-			Seed = Hip
+		if Index == Foot.SolveRoot then
+			Seed = if Foot.Front then ShoulderSeed else Hip
 		elseif Foot.Front and Index == 3 then
-			Seed = FrontFlexion * 0.12
+			Seed = ElbowSeed
 		elseif Foot.Front and Index == 4 then
-			Seed = -Settings.FrontLeg.SwingBend * FrontFlexion
+			Seed = -GetFrontSwingBend(Rig) * FrontFlexion
 		elseif not Foot.Front and Index == 2 then
 			Seed = -0.08 - Swing * 0.6
 		elseif not Foot.Front and Index == 3 then
@@ -648,6 +816,9 @@ local function SeedLeg(Rig: Rig, Foot: Foot, DeltaTime: number)
 		local Response = Blend(Settings.PoseSeedResponse, Settings.Idle.PoseResponse, Rig.IdleWeight)
 		if Foot.Front then
 			Response = math.max(Response, Settings.FrontLeg.Response)
+			if SupportWeight > 0 and (Index == 2 or Index == 3) then
+				Response = math.max(Response, Settings.FrontLeg.Response * 2)
+			end
 		end
 		local Angle = if Foot.SolverEnabled and Foot.Seeded and Index ~= 1
 			then Joint.Angle + (Seed - Joint.Angle) * (1 - math.exp(-Response * DeltaTime)) else Seed
@@ -657,33 +828,40 @@ local function SeedLeg(Rig: Rig, Foot: Foot, DeltaTime: number)
 end
 
 local function SolveLeg(Rig: Rig, Foot: Foot, Cache: { [Instance]: CFrame }, DeltaTime: number)
+	if Foot.Front then
+		Foot.Joints[1].Bone.Transform = Foot.Joints[1].Rest
+	end
+
 	local FrontFlexion = if Foot.Front then GetFrontFlexion(Rig, Foot) else 0
 	local SupportBend = Settings.FrontLeg.SupportBend
 	if Foot.Front and Foot.Grounded then
 		local Rest = Rig.Root.CFrame:PointToWorldSpace(Foot.Rest.Position)
-		local Raised = (Foot.LastTarget - Rest):Dot(Rig.Root.CFrame.UpVector) / Rig.Scale
+		local Contact = if Foot.InSwing then Foot.SwingGoal else Foot.LastTarget
+		local Raised = (Contact - Rest):Dot(Rig.Root.CFrame.UpVector) / Rig.Scale
 		SupportBend += Settings.FrontLeg.TerrainBend * math.clamp((Raised - 0.2) / Settings.Prediction.MaximumFootRaise, 0, 1)
 	end
 	for Index, Joint in Foot.Joints do
 		Joint.FrameAngle = Joint.Angle
 		local Speed = if Index == 1 then Settings.MaximumHipSpeed
-			else Blend(Settings.MaximumJointSpeed, Running.MaximumJointSpeed, Rig.Gallop)
+			else Blend(Settings.MaximumJointSpeed, Running.MaximumJointSpeed, Rig.Sprint)
 		Joint.AngleStep = if Foot.Seeded then Speed * DeltaTime else math.huge
 	end
 	SeedLeg(Rig, Foot, DeltaTime)
 	for _, Joint in Foot.Joints do
 		Joint.Angle = math.clamp(Joint.Angle, Joint.FrameAngle - Joint.AngleStep, Joint.FrameAngle + Joint.AngleStep)
 	end
-	local Parent = Foot.Joints[1].Bone.Parent :: Bone
+	local RootJoint = Foot.Joints[Foot.SolveRoot]
+	local Parent = RootJoint.Bone.Parent :: Bone
 	local ParentFrame = GetBoneFrame(Parent, Cache)
 	local Hinge = ParentFrame:VectorToWorldSpace(Foot.ParentAxis).Unit
 	local Up = Rig.Root.CFrame.UpVector
 	Up = (Up - Hinge * Up:Dot(Hinge)).Unit
 	local Back = Hinge:Cross(Up).Unit
 	local Frame = ParentFrame
-	local Origin = (Frame * Foot.Joints[1].Bone.CFrame).Position
+	local Origin = (Frame * RootJoint.Bone.CFrame).Position
 
-	for _, Joint in Foot.Joints do
+	for Index = Foot.SolveRoot, #Foot.Joints do
+		local Joint = Foot.Joints[Index]
 		Frame *= Joint.Bone.CFrame * Joint.Rest * CFrame.fromAxisAngle(Joint.Axis, Joint.Angle)
 		local Offset = Frame.Position - Origin
 		Joint.Point = Vector2.new(Offset:Dot(Up), Offset:Dot(Back))
@@ -697,28 +875,30 @@ local function SolveLeg(Rig: Rig, Foot: Foot, Cache: { [Instance]: CFrame }, Del
 		end
 		local Last = #Foot.Joints
 		local SolveCount = if Foot.Front then 4 else 3
-		local HipSeed = Foot.Joints[1].Angle
+		local HipSeed = RootJoint.Angle
 		local Iterations = if Foot.Grounded and not Foot.InSwing
 			then math.round(Blend(Settings.IKIterations, Running.IKIterations, Rig.Gallop)) else Settings.IKIterations
 		for _ = 1, Iterations do
-			if (Foot.Joints[Last].Point - Target).Magnitude < 0.04 then
+			if (Foot.Joints[Last].Point - Target).Magnitude < (if Rig.IdleWeight > 0.9 then 0.008 else 0.04) then
 				break
 			end
-			for Index = SolveCount, 1, -1 do
+			for Index = SolveCount, Foot.SolveRoot, -1 do
 				local Joint = Foot.Joints[Index]
 				local ToTip = Foot.Joints[Last].Point - Joint.Point
 				local ToGoal = Target - Joint.Point
 				local Delta = math.atan2(ToTip.X * ToGoal.Y - ToTip.Y * ToGoal.X, ToTip:Dot(ToGoal))
 				local Minimum = math.max(Joint.Minimum, Joint.FrameAngle - Joint.AngleStep)
 				local Maximum = math.min(Joint.Maximum, Joint.FrameAngle + Joint.AngleStep)
-				if Index == 1 then
+				if Index == Foot.SolveRoot and not Foot.Front then
 					Minimum = math.max(Minimum, HipSeed - 0.2)
 					Maximum = math.min(Maximum, HipSeed + 0.2)
 				elseif Foot.Front and Index == 4 then
-					local Bend = Blend(SupportBend, -Joint.Minimum, FrontFlexion)
+					local SwingBend = GetFrontSwingBend(Rig)
+					local TerrainAllowance = math.max(0, SupportBend - Settings.FrontLeg.SupportBend)
+					local Bend = Blend(SupportBend, math.min(-Joint.Minimum, SwingBend + TerrainAllowance), FrontFlexion)
 					-- Release the carpus before touchdown without exceeding this frame's angular speed.
 					Minimum = math.max(Minimum, math.min(-Bend, Joint.FrameAngle + Joint.AngleStep))
-					Maximum = math.min(Maximum, math.max(-Settings.FrontLeg.SwingBend * FrontFlexion
+					Maximum = math.min(Maximum, math.max(-SwingBend * FrontFlexion
 						+ SupportBend, Joint.FrameAngle - Joint.AngleStep))
 				end
 				local Angle = math.clamp(Joint.Angle + Delta, Minimum, Maximum)
@@ -748,6 +928,40 @@ local function SolveLeg(Rig: Rig, Foot: Foot, Cache: { [Instance]: CFrame }, Del
 	end
 end
 
+local function PoseShoulder(Rig: Rig, Foot: Foot, DeltaTime: number)
+	if not Foot.Front then
+		return
+	end
+	local Shoulder, Upper = Foot.Joints[1], Foot.Joints[2]
+	local Rest = (Rig.Root.CFrame * Rig.BodyMotion):PointToWorldSpace(Foot.Rest.Position)
+	local Forward = (Foot.Hoof.TransformedWorldCFrame.Position - Rest):Dot(Rig.Root.CFrame.LookVector)
+	local Target = math.clamp(math.atan2(Forward, Foot.MaximumReach) * Settings.FrontLeg.ShoulderFollow,
+		-Settings.FrontLeg.ShoulderMaximumAngle, Settings.FrontLeg.ShoulderMaximumAngle) * (1 - Rig.IdleWeight)
+	Foot.ShoulderAngle += (Target - Foot.ShoulderAngle) * (1 - math.exp(-Settings.FrontLeg.ShoulderResponse * DeltaTime))
+	local Motion = CFrame.fromAxisAngle(Shoulder.Axis, Foot.ShoulderAngle)
+	Shoulder.Bone.Transform = Shoulder.Rest * Motion
+
+	-- Deform the shoulder muscle while preserving the solved upper-arm position and orientation.
+	local Bind = Upper.Bone.CFrame
+	Upper.Bone.Transform = Bind:Inverse() * Motion:Inverse() * Bind * Upper.Bone.Transform
+end
+
+local function StartWalking(Rig: Rig)
+	for _, Foot in Rig.Feet do
+		if Foot.InSwing then
+			return
+		end
+	end
+
+	-- Begin with one diagonal pair recovering, independent of the gait phase retained before stopping.
+	Rig.Phase = Settings.StanceFraction
+	for _, Foot in Rig.Feet do
+		Foot.Cycle = (Rig.Phase + Foot.Phase) % 1
+		Foot.SwingReady = true
+		Foot.StartStep = true
+	end
+end
+
 function HorseRigController.Update(Rig: Rig, DeltaTime: number, Now: number, Quality: number, Smooth: boolean?, LookDirection: Vector3?)
 	HorseRigController.SetQuality(Rig, Quality)
 	local SmoothRider = Smooth == true
@@ -758,6 +972,7 @@ function HorseRigController.Update(Rig: Rig, DeltaTime: number, Now: number, Qua
 	if Quality == 0 then
 		return
 	end
+	Rig.MotionTime += DeltaTime
 
 	local Frame = Rig.Root.CFrame
 	local Displacement = Frame.Position - Rig.LastFrame.Position
@@ -775,7 +990,11 @@ function HorseRigController.Update(Rig: Rig, DeltaTime: number, Now: number, Qua
 	Rig.Velocity = Rig.Velocity:Lerp(Measured, Response)
 	local HorizontalSpeed = (Measured * Vector3.new(1, 0, 1)).Magnitude
 	Rig.Speed += (HorizontalSpeed - Rig.Speed) * Response
+	local WasResting = Rig.Resting
 	Rig.Resting = HorizontalSpeed < Settings.MoveThreshold and Rig.Speed < Settings.Idle.BlendSpeed
+	if WasResting and not Rig.Resting then
+		StartWalking(Rig)
+	end
 	local Idle = 1 - math.clamp(Rig.Speed / Settings.Idle.BlendSpeed, 0, 1)
 	if Rig.Resting then
 		Idle = 1
@@ -784,20 +1003,14 @@ function HorseRigController.Update(Rig: Rig, DeltaTime: number, Now: number, Qua
 	HorseTerrainPredictionController.UpdateMotion(Rig.Prediction, Frame, Rig.Velocity,
 		if Rig.Root.Anchored then nil else Rig.Root.AssemblyAngularVelocity.Y, DeltaTime)
 	local Tier = Rig.Model:GetAttribute("HorseTier")
-	local Stats = if typeof(Tier) == "number" then HorseConfig.GetTier(Tier) else nil
-	local StartSpeed = if Stats then Stats.Speed * HorseConfig.Gaits.AnimationStartRatio else Running.StartSpeed * Rig.Scale
-	local FullSpeed = if Stats then Stats.Speed * HorseConfig.Gaits.AnimationFullRatio else Running.FullSpeed * Rig.Scale
-	local RunWeight = math.clamp((Rig.Speed - StartSpeed) / (FullSpeed - StartSpeed), 0, 1)
-	RunWeight = RunWeight * RunWeight * (3 - 2 * RunWeight)
-	Rig.Gallop += (RunWeight - Rig.Gallop) * (1 - math.exp(-Running.BlendResponse * DeltaTime))
-	local TrotFrequency = math.clamp(Rig.Speed / (Settings.StrideLength * Rig.Scale), Settings.MinimumFrequency, Settings.MaximumFrequency)
-	local RunFrequency = math.clamp(Rig.Speed / (Running.StrideLength * Rig.Scale), Running.MinimumFrequency, Running.MaximumFrequency)
-	local Frequency = Blend(TrotFrequency, RunFrequency, Rig.Gallop)
+	HorseMotionController.Update(Rig.Motion, Rig.Speed, Rig.Scale, if typeof(Tier) == "number" then Tier else nil, DeltaTime)
+	Rig.Gallop, Rig.Sprint = Rig.Motion.Gallop, Rig.Motion.Sprint
+	local Frequency = Rig.Motion.Frequency
 	Rig.Frequency = Frequency
 	if Rig.Speed > Settings.MoveThreshold then
 		Rig.Phase = (Rig.Phase + Frequency * DeltaTime) % 1
 		for _, Foot in Rig.Feet do
-			local Offset = Blend(Foot.Phase, Foot.RunPhase, Rig.Gallop)
+			local Offset = HorseMotionController.Phase(Rig.Motion, Foot.Phase, Foot.GallopPhase, Foot.RunPhase)
 			local Predicted = (Foot.Cycle + Frequency * DeltaTime) % 1
 			local Error = (Rig.Phase + Offset - Predicted + 0.5) % 1 - 0.5
 			-- Retiming never rewinds a leg or resets its planted contact.
@@ -811,9 +1024,7 @@ function HorseRigController.Update(Rig: Rig, DeltaTime: number, Now: number, Qua
 	local Probe = Rig.ProbeElapsed >= Settings.FullInterval
 	local Predict = Settings.Prediction.Enabled and Rig.PredictionElapsed >= Settings.Prediction.Interval
 	if Quality == 2 and (Rig.Smooth or Probe) then
-		local PlantDistance = Blend(Settings.PlantDistance, Running.PlantDistance, Rig.Gallop)
-		local Stance = math.min(Blend(Settings.StanceFraction, Running.StanceFraction, Rig.Gallop),
-			PlantDistance * Rig.Scale * 2 * Frequency / math.max(Rig.Speed, 1))
+		local Stance = GetContactStance(Rig, Frequency)
 		local Normal = Vector3.zero
 		local Contacts = 0
 		for _, Foot in Rig.Feet do
@@ -839,6 +1050,8 @@ function HorseRigController.Update(Rig: Rig, DeltaTime: number, Now: number, Qua
 
 	PoseBody(Rig, DeltaTime, Now, LookDirection)
 	local Cache: { [Instance]: CFrame } = {}
+	Rig.SaddleMotion = Rig.Root.CFrame:ToObjectSpace(GetBoneFrame(Rig.SaddleBone, Cache)) * Rig.SaddleRest:Inverse()
+	HorseRiderController.Update(Rig.Rider, Rig.Model, Rig.SaddleMotion)
 	for _, Foot in Rig.Feet do
 		-- Support transforms can change between the 30 Hz ground probes.
 		if Foot.Grounded and not Foot.InSwing then
@@ -850,11 +1063,16 @@ function HorseRigController.Update(Rig: Rig, DeltaTime: number, Now: number, Qua
 		end
 
 		SolveLeg(Rig, Foot, Cache, DeltaTime)
+		PoseShoulder(Rig, Foot, DeltaTime)
+		HorseHoofSoundController.Update(Foot.Sound, Foot, Rig.Root, Rig.Params, Rig.Speed, Rig.Sprint, DeltaTime)
 	end
 end
 
 function HorseRigController.Destroy(Rig: Rig)
 	HorseRiderController.Reset(Rig.Rider)
+	for _, Foot in Rig.Feet do
+		HorseHoofSoundController.Destroy(Foot.Sound)
+	end
 	for _, Pose in Rig.Poses do
 		if Pose.Bone.Parent then
 			Pose.Bone.Transform = Pose.Transform

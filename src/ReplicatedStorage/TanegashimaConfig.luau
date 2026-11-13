@@ -27,6 +27,7 @@ TanegashimaConfig.SwayHorizontalFrequency = 1.4
 TanegashimaConfig.SwayVerticalFrequency = 1.1
 TanegashimaConfig.CameraSwayScale = 0
 TanegashimaConfig.ShotSound = "rbxassetid://258905365"
+TanegashimaConfig.ShotSoundMaxDistance = 1500
 TanegashimaConfig.AimSound = "rbxassetid://619578856"
 TanegashimaConfig.StopAimSound = "rbxassetid://619576578"
 TanegashimaConfig.ReadySound = "rbxassetid://160608684"
@@ -46,9 +47,12 @@ TanegashimaConfig.BackPosition = Vector3.new(0.8, 1.5, 0.85)
 TanegashimaConfig.BackRotationDegrees = Vector3.new(0, 0, 90)
 
 TanegashimaConfig.Animations = {
+	Equip = { Name = "Tanegashima Equip", Id = "rbxassetid://74172989184897" },
+	Unequip = { Name = "Tanegashima Unequip", Id = "rbxassetid://112413821251880" },
 	Pose = { Name = "Tanegashima Idle", Id = "rbxassetid://74556246588821" },
 	Hold = { Name = "Tanegashima Aim Idle", Id = "rbxassetid://101002976026315" },
 	Shot = { Name = "Tanegashima Shot", Id = "rbxassetid://72976780845517" },
+	Reload = { Name = "Tanegashima Reload", Id = "rbxassetid://74850295135270" },
 }
 
 local function GetOffset(Position: Vector3, Rotation: Vector3): CFrame

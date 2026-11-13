@@ -1,52 +1,47 @@
-local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+local TiltController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.TiltController)
+
+local Character = script.Parent.Parent.Parent :: Model
 local Humanoid = Character:WaitForChild("Humanoid") :: Humanoid
-local RootPart = Character.PrimaryPart
-if not RootPart then
+if not Character.PrimaryPart then
 	Character:GetPropertyChangedSignal("PrimaryPart"):Wait()
-	RootPart = Character.PrimaryPart
 end
-if not RootPart then
+local Root = Character.PrimaryPart
+if not Root then
 	return
 end
-local RootJoint = RootPart:WaitForChild("RootJoint") :: Motor6D
-local RootC1 = RootJoint.C1
+Root:WaitForChild("RootJoint")
 
---[[
-	Inclina o character em relação a direção que está andando
-]]
+local State = TiltController.Create(Character)
+if not State then
+	return
+end
 
-local MaxTiltAngle = 5
-local Tilt = CFrame.new()
-local DefaultTilt = CFrame.new()
-
-RunService.RenderStepped:Connect(function(Delta: number)
-	if
-
-		Character:GetAttribute("Mounted")
-		or Character:GetAttribute("Ragdoll")
-		or Humanoid:GetState() == Enum.HumanoidStateType.Seated
-		or Character:GetAttribute("Died")
-		or Character:GetAttribute("Downed")
-		or Character:GetAttribute("PostureBreak")
-		or Character:GetAttribute("Meditating")
-	then
-		Tilt = DefaultTilt
-		RootJoint.C1 = RootC1 * Tilt
+local Binding = "LocalCharacterTilt_" .. HttpService:GenerateGUID(false)
+RunService:BindToRenderStep(Binding, Enum.RenderPriority.Camera.Value + 7, function(DeltaTime: number)
+	if Players.LocalPlayer.Character ~= Character or not Character:IsDescendantOf(workspace) then
+		TiltController.Reset(State)
 		return
 	end
 
-	if Character:GetAttribute("Climbing") then
-		MaxTiltAngle = 15
-	else
-		MaxTiltAngle = 10
-	end
-	local MoveDirection = RootPart.CFrame:VectorToObjectSpace(Humanoid.MoveDirection)
-	Tilt = Tilt:Lerp(
-		CFrame.Angles(math.rad(-MoveDirection.Z) * MaxTiltAngle, math.rad(-MoveDirection.X) * MaxTiltAngle, 0),
-		0.4 ^ (1 / (Delta * 60))
-	)
-	RootJoint.C1 = RootC1 * (Tilt:Inverse())
+	TiltController.Update(State, Humanoid.MoveDirection, DeltaTime)
 end)
+local RemovingConnection: RBXScriptConnection?
+local function Cleanup()
+	RunService:UnbindFromRenderStep(Binding)
+	TiltController.Reset(State)
+	if RemovingConnection then
+		RemovingConnection:Disconnect()
+		RemovingConnection = nil
+	end
+end
+
+RemovingConnection = Players.LocalPlayer.CharacterRemoving:Connect(function(Removing: Model)
+	if Removing == Character then
+		Cleanup()
+	end
+end)
+Character.Destroying:Once(Cleanup)

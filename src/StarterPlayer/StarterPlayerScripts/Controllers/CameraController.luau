@@ -11,6 +11,7 @@ local CameraShaker = require(ReplicatedStorage.Assets.Libraries.CameraShaker)
 local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
 local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
 local ShouldFaceAim = require(ReplicatedStorage.Shared.Utils.ShouldFaceAim)
+local MountedAim = require(ReplicatedStorage.Shared.Utils.MountedAim)
 local CameraUtils = require(Players.LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")
 	:WaitForChild("CameraModule"):WaitForChild("CameraUtils") :: ModuleScript)
 
@@ -465,6 +466,12 @@ local function PrepareNativeCamera(DeltaTime: number)
 	UpdateFollowSubject(DeltaTime)
 end
 
+local function ConstrainMountedCamera()
+	if Camera and Camera.CameraType == Enum.CameraType.Custom and RootPart and MountedAim.IsActive(Character) then
+		Camera.CFrame = MountedAim.ClampCamera(RootPart.CFrame, Camera.CFrame, Camera.Focus.Position)
+	end
+end
+
 local function UpdateShoulderCamera(DeltaTime: number)
 	ApplyForcedShiftLock()
 	SmoothedShoulderSide += (ShoulderSide - SmoothedShoulderSide) * SmoothingAlpha(SHOULDER_RESPONSE, DeltaTime)
@@ -503,6 +510,10 @@ local function UpdateShoulderCamera(DeltaTime: number)
 	local Focus = BaseFocus + Offset
 	local Pose = CFrame.new(BaseCFrame.Position + Offset) * BaseCFrame.Rotation * CFrame.Angles(0, 0, CameraRoll)
 	Pose, Focus = ApplyTransition(Pose, Focus, DeltaTime)
+	if MountedAim.IsActive(Character) then
+		Pose = MountedAim.ClampCamera(RootPart.CFrame, Pose, Focus)
+	end
+
 	if ShoulderBlend > 0.001 or TransitionOffset then
 		local Position = CameraController:GetCollisionSafePosition(HeadSubject.Position, Pose.Position)
 		Pose = CFrame.new(Position) * Pose.Rotation
@@ -561,11 +572,13 @@ function CameraController:BindShiftLock()
 	self:UnbindShiftLock()
 
 	RunService:BindToRenderStep("CameraUpdateFirst", Enum.RenderPriority.Camera.Value - 2, PrepareNativeCamera)
+	RunService:BindToRenderStep("MountedAimCamera", Enum.RenderPriority.Camera.Value + 1, ConstrainMountedCamera)
 	RunService:BindToRenderStep("CameraLockUpdate", Enum.RenderPriority.Camera.Value + 2, UpdateCharacterRotation)
 	RunService:BindToRenderStep("CinematicShoulderCamera", Enum.RenderPriority.Camera.Value + 3, UpdateShoulderCamera)
 end
 
 function CameraController:UnbindShiftLock()
+	RunService:UnbindFromRenderStep("MountedAimCamera")
 	RunService:UnbindFromRenderStep("CameraLockUpdate")
 	RunService:UnbindFromRenderStep("CameraUpdateFirst")
 	RunService:UnbindFromRenderStep("CinematicShoulderCamera")
@@ -739,6 +752,7 @@ function CameraController.KnitStart()
 			math.clamp(Yaw, -math.rad(4), math.rad(4)),
 			math.clamp(Roll, -math.rad(1.5), math.rad(1.5))
 		)
+		ConstrainMountedCamera()
 		ShakeCamera = Camera
 		UnshakenCFrame = BeforeShake
 		ShakenCFrame = Camera.CFrame

@@ -5,6 +5,7 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
 local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
 local BowRaycast = require(ReplicatedStorage.Shared.Utils.BowRaycast)
+local MountedAim = require(ReplicatedStorage.Shared.Utils.MountedAim)
 local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 local Validate = require(ReplicatedStorage.Shared.Validate)
 local FastCast = require(ReplicatedStorage.Assets.Libraries.FastCast)
@@ -73,7 +74,7 @@ local function SetAim(State: BowState, Aim: any)
 	local Root = State.Character.PrimaryPart
 	local Config = RangedWeaponConfig.GetForCharacter(State.Character)
 	if Root and (Aim - Root.Position).Magnitude <= Config.MaxDistance + 100 then
-		State.Aim = Aim
+		State.Aim = MountedAim.ClampTarget(State.Character, Root.Position, Aim)
 	end
 end
 
@@ -346,6 +347,10 @@ function BowService:Release(Player: Player, Aim: any?, Focused: boolean?)
 	local ShotSeed = if Config.IsFirearm then RandomGenerator:NextInteger(1, 1000000000) else State.Seed
 	local Focusing = Config.IsFirearm and Focused == true and RangedWeaponConfig.CanFocus(State.Character, true)
 	local Velocity = Config.GetVelocity(Origin, State.Aim, Elapsed, ShotSeed, Focusing, State.Seed)
+	-- Revalidate the current horse heading and include overdraw sway/firearm spread in the limit.
+	if MountedAim.IsActive(State.Character) then
+		Velocity = MountedAim.ClampDirection(Root.CFrame, Velocity)
+	end
 	local Charge = Config.GetCharge(Elapsed)
 	State.LastShot = Now
 	if not Config.IsFirearm then
@@ -359,12 +364,7 @@ function BowService:Release(Player: Player, Aim: any?, Focused: boolean?)
 
 	local Params = RaycastParams.new()
 	Params.FilterType = Enum.RaycastFilterType.Exclude
-	local Excluded: { Instance } = { State.Character }
-	local Effects = workspace:FindFirstChild("VFX")
-	if Effects then
-		table.insert(Excluded, Effects)
-	end
-	Params.FilterDescendantsInstances = Excluded
+	Params.FilterDescendantsInstances = BowRaycast.GetExclusions(State.Character)
 	local Behavior = FastCast.newBehavior()
 	Behavior.RaycastParams = Params
 	Behavior.CanPierceFunction = BowRaycast.CanPierce

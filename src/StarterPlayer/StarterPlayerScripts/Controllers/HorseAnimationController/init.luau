@@ -6,6 +6,7 @@ local RunService = game:GetService("RunService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local HorseConfig = require(ReplicatedStorage.Shared.HorseConfig)
 local HorseRigController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseAnimationController.HorseRigController)
+local HorseHoofSoundController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.HorseAnimationController.HorseHoofSoundController)
 
 local HorseAnimationController = Knit.CreateController({ Name = "HorseAnimationController" })
 local Settings = HorseConfig.Animation
@@ -70,7 +71,7 @@ local function GetQuality(Root: BasePart, Camera: Camera): number
 		return 0
 	end
 	if Distance > 30 and Offset.Unit:Dot(Camera.CFrame.LookVector) < -0.15 then
-		return 0
+		return if Distance <= HorseConfig.HoofSounds.RollOffMaxDistance then 1 else 0
 	end
 
 	return if Distance <= Settings.FullDistance then 2 else 1
@@ -118,6 +119,7 @@ local function Animate(DeltaTime: number, RenderPass: boolean)
 end
 
 function HorseAnimationController.KnitStart()
+	HorseHoofSoundController.Preload()
 	LookEvent = ReplicatedStorage.Assets.Events:WaitForChild("HorseLook") :: UnreliableRemoteEvent
 	TargetFolder = Instance.new("Folder")
 	TargetFolder.Name = "ClientHorseAnimation"
