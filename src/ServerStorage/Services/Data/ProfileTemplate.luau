@@ -52,6 +52,13 @@ return {
 	Quest = {},
 	Hotbar = {},
 	Inventory = {},
+	Backpack = {
+		Version = 0,
+		Columns = 8,
+		Rows = 6,
+		Revision = 0,
+		Positions = {},
+	},
 
 	SelectedStance = nil,
 	Stances = {

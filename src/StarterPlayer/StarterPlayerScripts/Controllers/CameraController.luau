@@ -66,6 +66,7 @@ local SavedMouseIcon: boolean? = nil
 local ForcedMouseApplied = false
 local MenuMouseApplied = false
 local SavedMenuMouseIcon: boolean? = nil
+local HotbarController
 local BowDrawStarted: number? = nil
 local BowDrawSeed = 0
 local BowFocusZoom = false
@@ -82,7 +83,7 @@ local function IsMenuMouseUnlocked(): boolean
 	local Menus = PlayerGui and PlayerGui:FindFirstChild("Menu")
 	local MainMenu = PlayerGui and (PlayerGui:FindFirstChild("MainMenu") or (Menus and Menus:FindFirstChild("MainMenu"))) :: ScreenGui?
 
-	return MainMenu ~= nil and MainMenu.Enabled
+	return (MainMenu ~= nil and MainMenu.Enabled) or (HotbarController ~= nil and HotbarController:IsSelectingSlot())
 end
 
 function CameraController:IsMouseUnlocked(): boolean
@@ -719,6 +720,10 @@ local function UpdateCharacter(NewCharacter: Model)
 
 	UpdateSubject()
 	CameraController:BindShiftLock()
+end
+
+function CameraController.KnitInit()
+	HotbarController = Knit.GetController("HotbarController")
 end
 
 function CameraController.KnitStart()

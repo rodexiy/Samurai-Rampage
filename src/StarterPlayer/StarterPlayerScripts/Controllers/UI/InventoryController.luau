@@ -5,8 +5,10 @@ local TweenService = game:GetService("TweenService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local Items = require(ReplicatedStorage.Shared.Index.Items)
 local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
+local InventoryGrid = require(ReplicatedStorage.Shared.Utils.InventoryGrid)
 
 type ItemData = { [string]: any }
+type RenderedItem = { Button: ImageButton, Item: ItemData }
 
 local InventoryController = Knit.CreateController({
 	Name = "InventoryController",
@@ -19,15 +21,22 @@ local HotbarController
 local MenuController
 local ViewportRotationController
 local StatsController
+local InventoryDragController
+local InventoryLayout: ItemData?
+local RenderedItems: { [string]: RenderedItem } = {}
+local VisibleEntries: { ItemData } = {}
 
 local DISPLAY_DISTANCE_SCALE = 0.8
 
 local MainMenu: ScreenGui
 local Inventory: Frame
-local Templates: Frame
+local Equipments: Frame
+local BackpackPanel: Frame
+local BackpackTemplates: Folder
+local GridCanvas: Frame
+local ContentScroll: ScrollingFrame
 local Tabs: GuiObject
-local Content: ScrollingFrame
-local ContentLayout: UIListLayout
+local Content: Frame
 local ItemInfo: Frame
 local Description: TextLabel
 local ItemName: TextLabel
@@ -42,6 +51,11 @@ local SelectedItemData: ItemData? = nil
 local RenderRevision = 0
 local EquippedVisuals = {}
 local SelectedVisuals = {}
+local EquipmentButtons: { [string]: ImageButton } = {}
+local EquippedItems: { [string]: ItemData } = {}
+local PendingEquipmentSlots: { [string]: boolean } = {}
+local GridColumns = 8
+local GridRows = 6
 
 local RarityColors = {
 	Common = Color3.fromRGB(230, 230, 230),
@@ -81,7 +95,7 @@ local function ClearViewport(Viewport: ViewportFrame)
 	end
 end
 
-local function FitViewportCamera(Viewport: ViewportFrame, Model: Model, Distance: number?, DistanceScale: number?)
+local function FitViewportCamera(Viewport: ViewportFrame, Model: Model, Distance: number?, DistanceScale: number?, FitRectangle: boolean?)
 	local Camera = Viewport.CurrentCamera
 	if not Camera then
 		return
@@ -93,9 +107,44 @@ local function FitViewportCamera(Viewport: ViewportFrame, Model: Model, Distance
 	local HorizontalAngle = math.atan(math.tan(VerticalAngle) * AspectRatio)
 	local Radius = Size.Magnitude / 2
 	local CameraDistance = Distance or math.max(1.1, Radius / math.sin(math.min(VerticalAngle, HorizontalAngle)) * 1.1)
+	if FitRectangle then
+		local HalfRight = Bounds.RightVector * Size.X / 2
+		local HalfUp = Bounds.UpVector * Size.Y / 2
+		local HalfLook = Bounds.LookVector * Size.Z / 2
+		local HalfWidth = math.abs(HalfRight.X) + math.abs(HalfUp.X) + math.abs(HalfLook.X)
+		local HalfHeight = math.abs(HalfRight.Y) + math.abs(HalfUp.Y) + math.abs(HalfLook.Y)
+		local HalfDepth = math.abs(HalfRight.Z) + math.abs(HalfUp.Z) + math.abs(HalfLook.Z)
+		CameraDistance = (math.max(HalfWidth / math.tan(HorizontalAngle), HalfHeight / math.tan(VerticalAngle)) + HalfDepth) * 1.1
+	end
+
 	CameraDistance *= DistanceScale or 1
 
 	Camera.CFrame = CFrame.new(Bounds.Position + Vector3.new(0, 0, CameraDistance))
+end
+
+local function OrientGridModel(Model: Model, Placement: InventoryGrid.Placement)
+	if Placement.Width == Placement.Height then
+		if Placement.Rotated then
+			Model:PivotTo(CFrame.Angles(0, 0, math.pi / 2) * Model:GetPivot())
+		end
+		return
+	end
+
+	local Bounds, Size = Model:GetBoundingBox()
+	local Rotation = CFrame.identity
+	if Placement.Width > Placement.Height then
+		if Size.Y >= Size.X and Size.Y >= Size.Z then
+			Rotation = CFrame.Angles(0, 0, -math.pi / 2)
+		elseif Size.Z >= Size.X then
+			Rotation = CFrame.Angles(0, math.pi / 2, 0)
+		end
+	elseif Size.X >= Size.Y and Size.X >= Size.Z then
+		Rotation = CFrame.Angles(0, 0, math.pi / 2)
+	elseif Size.Z >= Size.Y then
+		Rotation = CFrame.Angles(math.pi / 2, 0, 0)
+	end
+
+	Model:PivotTo(Rotation * Bounds:ToObjectSpace(Model:GetPivot()))
 end
 
 local function GetItemData(Item: ItemData): ItemData
@@ -112,6 +161,69 @@ local function SetButtonText(Button: ImageButton, Text: string)
 	if Label then
 		Label.Text = Text
 	end
+end
+
+local function BindEntryFeedback(Button: ImageButton)
+	local Style = Button:GetAttribute("Style")
+	local StyleNames = {}
+	if typeof(Style) == "string" then
+		for Name in Style:gmatch("%S+") do
+			if Name ~= "Button" and Name ~= "-Button" then
+				table.insert(StyleNames, Name)
+			end
+		end
+	end
+	table.insert(StyleNames, "-Button")
+	Button:SetAttribute("Style", table.concat(StyleNames, " "))
+
+	for _, LegacyFeedback in Button:GetChildren() do
+		if LegacyFeedback.Name == "Button" and LegacyFeedback:IsA("LocalScript") then
+			LegacyFeedback:Destroy()
+		end
+	end
+
+	local BaseTransparency = Button.BackgroundTransparency
+	local HoverTween: Tween?
+	local function Hover(Entered: boolean)
+		if HoverTween then
+			HoverTween:Cancel()
+		end
+
+		HoverTween = TweenService:Create(Button, TweenInfo.new(0.15, Enum.EasingStyle.Sine), {
+			BackgroundTransparency = if Entered then math.clamp(BaseTransparency - 0.15, 0, 1) else BaseTransparency,
+		})
+		HoverTween:Play()
+	end
+
+	Button.MouseEnter:Connect(function()
+		Hover(true)
+	end)
+	Button.MouseLeave:Connect(function()
+		Hover(false)
+	end)
+end
+
+local function PlayEntryClick()
+	local PlayerGui = Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+	local Temporary = PlayerGui and PlayerGui:FindFirstChild("Temporary")
+	local Circle = Temporary and Temporary:FindFirstChild("Circle")
+	local Template = Circle and Circle:FindFirstChild("Template") :: GuiObject?
+	if not Template or not Circle then
+		return
+	end
+
+	local Effect = Template:Clone()
+	local Mouse = Players.LocalPlayer:GetMouse()
+	Effect.Position = UDim2.fromOffset(Mouse.X, Mouse.Y)
+	Effect.Visible = true
+	Effect.Parent = Circle
+	local Tween = TweenService:Create(Effect, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+		Size = UDim2.fromScale(0.085, 0.085), BackgroundTransparency = 1,
+	})
+	Tween.Completed:Once(function()
+		Effect:Destroy()
+	end)
+	Tween:Play()
 end
 
 function InventoryController:IsOpen(): boolean
@@ -141,6 +253,7 @@ function InventoryController:Unselect()
 	if ItemInfo then
 		ItemInfo.Visible = false
 		Description.Visible = false
+		Equipments.Visible = CurrentTab == "Items"
 
 		local Viewport = Display:FindFirstChildWhichIsA("ViewportFrame")
 		if Viewport then
@@ -153,9 +266,15 @@ function InventoryController:Unselect()
 end
 
 function InventoryController:ClearContent()
+	if InventoryDragController then
+		InventoryDragController:Cancel()
+	end
+
 	RenderRevision += 1
 	self:Unselect()
 	ClearVisuals(EquippedVisuals)
+	table.clear(RenderedItems)
+	table.clear(VisibleEntries)
 
 	if not Content then
 		return
@@ -169,7 +288,8 @@ function InventoryController:ClearContent()
 end
 
 function InventoryController:ConfigureViewport(Template: GuiObject): ViewportFrame?
-	local Viewport = Template:FindFirstChildWhichIsA("ViewportFrame")
+	local Visual = Template:FindFirstChild("Visual") or Template
+	local Viewport = Visual:FindFirstChildWhichIsA("ViewportFrame")
 	if not Viewport then
 		return nil
 	end
@@ -187,7 +307,12 @@ function InventoryController:ConfigureViewport(Template: GuiObject): ViewportFra
 	return Viewport
 end
 
-function InventoryController:AddModelToViewport(Viewport: ViewportFrame, Item: ItemData, DistanceScale: number?)
+function InventoryController:AddModelToViewport(
+	Viewport: ViewportFrame,
+	Item: ItemData,
+	DistanceScale: number?,
+	Placement: InventoryGrid.Placement?
+)
 	ClearViewport(Viewport)
 
 	local Source = ReplicatedStorage.Assets.Tools:FindFirstChild(Item.Name)
@@ -239,7 +364,177 @@ function InventoryController:AddModelToViewport(Viewport: ViewportFrame, Item: I
 	Model:PivotTo(CFrame.new(0, 0, -Distance) * Rotation * Offset)
 	Model.Parent = Viewport
 
-	FitViewportCamera(Viewport, Model, Source:GetAttribute("InventoryDistance"), DistanceScale)
+	if Placement then
+		OrientGridModel(Model, Placement)
+
+		local function FitGridModel()
+			FitViewportCamera(Viewport, Model, nil, nil, true)
+		end
+
+		FitGridModel()
+		local ResizeConnection = Viewport:GetPropertyChangedSignal("AbsoluteSize"):Connect(FitGridModel)
+		Model.Destroying:Once(function()
+			ResizeConnection:Disconnect()
+		end)
+	else
+		FitViewportCamera(Viewport, Model, Source:GetAttribute("InventoryDistance"), DistanceScale)
+	end
+end
+
+function InventoryController:RefreshEquipmentSlots(Entries: { ItemData })
+	table.clear(EquippedItems)
+
+	for _, Entry in Entries do
+		if Entry.Class == "Equipable" and Entry.Equipped then
+			EquippedItems[Entry.Type] = GetItemData(Entry)
+		end
+	end
+
+	for SlotName, Button in EquipmentButtons do
+		local Item = EquippedItems[SlotName]
+		local Name = Item and Item.Name
+		local Viewport = self:ConfigureViewport(Button)
+		if Viewport then
+			if Button:GetAttribute("ItemName") ~= Name then
+				if Item then
+					self:AddModelToViewport(Viewport, Item)
+				else
+					ClearViewport(Viewport)
+				end
+			end
+
+			Viewport.Visible = Item ~= nil
+		end
+
+		local EmptyIcon = Button:FindFirstChild("EmptyIcon") :: ImageLabel?
+		if EmptyIcon then
+			EmptyIcon.Visible = Item == nil
+		end
+
+		local Outline = Button:FindFirstChild("SelectionStroke") :: UIStroke?
+		if Outline then
+			Outline.Enabled = Item ~= nil
+			Outline.Color = if Item then RarityColors[Item.Rarity or "Common"] or RarityColors.Common else RarityColors.Common
+		end
+
+		Button:SetAttribute("ItemName", Name)
+		Button.Interactable = Item ~= nil
+	end
+end
+
+function InventoryController:ChangeEquipment(Item: ItemData, Unequip: boolean?)
+	local SlotName = Item.Type
+	if PendingEquipmentSlots[SlotName] then
+		return
+	end
+
+	PendingEquipmentSlots[SlotName] = true
+	local Success, Error = pcall(function()
+		if Unequip then
+			InventoryService:UnequipEquipmentSlot(SlotName, Item.Name)
+		else
+			InventoryService:EquipUnequipItem(Item.Name)
+		end
+	end)
+	PendingEquipmentSlots[SlotName] = nil
+
+	if not Success then
+		warn("Could not change equipment: " .. tostring(Error))
+	end
+end
+
+function InventoryController:UnequipEquipmentSlot(SlotName: string)
+	local Item = EquippedItems[SlotName]
+	if not self:IsOpen() or CurrentTab ~= "Items" or not Item then
+		return
+	end
+
+	self:ChangeEquipment(Item, true)
+end
+
+function InventoryController:UpdateBackpackGrid(VisibleItems: { ItemData }): { InventoryGrid.Placement }
+	local Snapshot = if CurrentTab == "Items" then InventoryLayout else nil
+	GridColumns = if Snapshot then Snapshot.Columns else math.max(1, BackpackPanel:GetAttribute("Columns") or 8)
+	local BaseRows = if Snapshot then Snapshot.Rows else math.max(1, BackpackPanel:GetAttribute("Rows") or 6)
+	local LayoutResult = {Placements = {}, Rows = BaseRows}
+	if Snapshot then
+		local Overflow, Indices = {}, {}
+		for Index, Item in VisibleItems do
+			if Snapshot.Positions[Item.Name] then
+				LayoutResult.Placements[Index] = Snapshot.Positions[Item.Name]
+			else
+				table.insert(Overflow, Item)
+				table.insert(Indices, Index)
+			end
+		end
+
+		if #Overflow > 0 then
+			local Extra = InventoryGrid.Arrange(Overflow, GridColumns, 1)
+			LayoutResult.Rows = BaseRows + 1 + Extra.Rows
+			for Index, Placement in Extra.Placements do
+				Placement.Row += BaseRows + 1
+				LayoutResult.Placements[Indices[Index]] = Placement
+			end
+		end
+	else
+		LayoutResult = InventoryGrid.Arrange(VisibleItems, GridColumns, BaseRows, true)
+	end
+	GridRows = LayoutResult.Rows
+
+	local Ratio = GridCanvas:FindFirstChildWhichIsA("UIAspectRatioConstraint") :: UIAspectRatioConstraint
+	Ratio.AspectRatio = GridColumns / GridRows
+
+	local Cells = GridCanvas:FindFirstChild("CellsLayer") :: Frame
+	local CellRows = if Snapshot then BaseRows else GridRows
+	Cells.Size = UDim2.fromScale(1, CellRows / GridRows)
+	local Layout = Cells:FindFirstChildWhichIsA("UIGridLayout") :: UIGridLayout
+	local CellSize = UDim2.fromScale(1 / GridColumns, 1 / CellRows)
+	local Rebuild = Layout.FillDirectionMaxCells ~= GridColumns or #Cells:GetChildren() - 1 ~= GridColumns * CellRows
+	Layout.CellSize = CellSize
+	Layout.CellPadding = UDim2.fromOffset(0, 0)
+	Layout.FillDirectionMaxCells = GridColumns
+
+	local Preview = GridCanvas:FindFirstChild("PlacementPreview") :: Frame
+	Preview.Size = CellSize
+	local Dimensions = BackpackPanel:FindFirstChild("Dimensions") :: TextLabel
+	Dimensions.Text = tostring(GridColumns) .. " × " .. tostring(CellRows)
+	local OverflowNotice = GridCanvas:FindFirstChild("OverflowNotice") :: TextLabel?
+	if not OverflowNotice then
+		OverflowNotice = BackpackPanel.RotateHint:Clone()
+		OverflowNotice.Name = "OverflowNotice"
+		OverflowNotice.Text = "EXTRA ITEMS — FREE UP BACKPACK SPACE"
+		OverflowNotice.TextColor3 = Color3.fromRGB(240, 90, 90)
+		OverflowNotice.ZIndex = 8
+		OverflowNotice.Parent = GridCanvas
+	end
+	OverflowNotice.Visible = Snapshot ~= nil and GridRows > BaseRows
+	OverflowNotice.Position = UDim2.fromScale(0, BaseRows / GridRows)
+	OverflowNotice.Size = UDim2.fromScale(1, 1 / GridRows)
+
+	if not Rebuild then
+		return LayoutResult.Placements
+	end
+
+	for _, Cell in Cells:GetChildren() do
+		if Cell:IsA("GuiObject") then
+			Cell:Destroy()
+		end
+	end
+
+	local CellTemplate = BackpackTemplates:FindFirstChild("CellTemplate") :: Frame
+	for Row = 1, CellRows do
+		for Column = 1, GridColumns do
+			local Cell = CellTemplate:Clone()
+			Cell.Name = string.format("Cell_%02d_%02d", Row, Column)
+			Cell.LayoutOrder = (Row - 1) * GridColumns + Column
+			Cell:SetAttribute("Column", Column)
+			Cell:SetAttribute("Row", Row)
+			Cell.Visible = true
+			Cell.Parent = Cells
+		end
+	end
+
+	return LayoutResult.Placements
 end
 
 function InventoryController:LoadStanceViewport(Viewport: ViewportFrame, Stance: ItemData)
@@ -322,6 +617,7 @@ function InventoryController:Select(Button: ImageButton, Data: ItemData?)
 	SetButtonText(EquipLeftButton, if Item.EquippedLeft then "UNEQUIP LEFT" else "EQUIP LEFT")
 
 	ItemInfo.Visible = true
+	Equipments.Visible = false
 	self:RefreshHotbar()
 end
 
@@ -340,7 +636,9 @@ function InventoryController:EquipItem()
 			StanceService:EquipStance(Item.Name)
 			self:UpdateContent()
 		end
-	elseif Item.Class == "Weapon" or Item.Class == "Equipable" then
+	elseif Item.Class == "Equipable" then
+		self:ChangeEquipment(Item)
+	elseif Item.Class == "Weapon" then
 		InventoryService:EquipUnequipItem(Item.Name)
 	elseif self:CanAssignToHotbar() then
 		HotbarController:BeginSlotSelection(Item.Name)
@@ -354,25 +652,97 @@ function InventoryController:EquipLeftItem()
 	end
 end
 
-function InventoryController:CreateEntry(Item: ItemData, TemplateName: string, Index: number): ImageButton
-	local Template = Templates:FindFirstChild(TemplateName .. "Wrapper") :: Frame
-	local Wrapper = Template:Clone()
-	local Button = Wrapper:FindFirstChild(TemplateName) :: ImageButton
-	Wrapper.Name = Item.Name
-	Wrapper.LayoutOrder = Index + (if Item.Equipped or Item.EquippedLeft then 0 else 1000)
+function InventoryController:ApplyEntryPlacement(Button: ImageButton, Placement: InventoryGrid.Placement)
+	local PreviousRotation = Button:GetAttribute("Rotated")
+	local Size = UDim2.fromScale(Placement.Width / GridColumns, Placement.Height / GridRows)
+	local Resized = Button.Size ~= Size
+	Button.Position = UDim2.fromScale((Placement.Column - 1) / GridColumns, (Placement.Row - 1) / GridRows)
+	Button.Size = Size
+	Button:SetAttribute("Column", Placement.Column)
+	Button:SetAttribute("Row", Placement.Row)
+	Button:SetAttribute("Width", Placement.Width)
+	Button:SetAttribute("Height", Placement.Height)
+	Button:SetAttribute("Rotated", Placement.Rotated)
 
+	if PreviousRotation == nil or (PreviousRotation == Placement.Rotated and not Resized) then
+		return
+	end
+
+	local Visual = Button:FindFirstChild("Visual")
+	local Viewport = Visual and Visual:FindFirstChildWhichIsA("ViewportFrame")
+	local Model = Viewport and Viewport:FindFirstChildWhichIsA("Model")
+	if Viewport and Model then
+		if PreviousRotation ~= Placement.Rotated then
+			local Bounds = Model:GetBoundingBox()
+			local Angle = if Placement.Rotated then math.pi / 2 else -math.pi / 2
+			Model:PivotTo(CFrame.new(Bounds.Position) * CFrame.Angles(0, 0, Angle) * CFrame.new(-Bounds.Position) * Model:GetPivot())
+		end
+
+		FitViewportCamera(Viewport, Model, nil, nil, true)
+	end
+end
+
+function InventoryController:ApplyLayout(Snapshot: ItemData): boolean
+	if not self:CanDragItems() then
+		return true
+	end
+	if not InventoryLayout then
+		return false
+	end
+	if Snapshot.Revision < InventoryLayout.Revision then
+		return true
+	end
+
+	for Name in Snapshot.Positions do
+		if not RenderedItems[Name] then
+			return false
+		end
+	end
+	for Name in RenderedItems do
+		if not Snapshot.Positions[Name] and not table.find(Snapshot.Overflow, Name) then
+			return false
+		end
+	end
+
+	local ResizeGrid = Snapshot.Columns ~= InventoryLayout.Columns or Snapshot.Rows ~= InventoryLayout.Rows
+		or #Snapshot.Overflow ~= #InventoryLayout.Overflow
+	InventoryLayout = Snapshot
+	local Placements = if ResizeGrid then self:UpdateBackpackGrid(VisibleEntries) else nil
+	for Index, Item in VisibleEntries do
+		local Placement = if Placements then Placements[Index] else Snapshot.Positions[Item.Name]
+		local Entry = RenderedItems[Item.Name]
+		if Entry and Placement then
+			Item.InventoryPosition = Snapshot.Positions[Item.Name]
+			Item.Rotated = Placement.Rotated
+			local Button = Entry.Button
+			if ResizeGrid or Button:GetAttribute("Column") ~= Placement.Column or Button:GetAttribute("Row") ~= Placement.Row
+				or Button:GetAttribute("Rotated") ~= Placement.Rotated then
+				self:ApplyEntryPlacement(Button, Placement)
+			end
+		end
+	end
+
+	InventoryDragController:UpdateLayout(Snapshot)
+	return true
+end
+
+function InventoryController:CreateEntry(Item: ItemData, Placement: InventoryGrid.Placement): ImageButton
+	local Template = BackpackTemplates:FindFirstChild("ItemTemplate") :: ImageButton
+	local Button = Template:Clone()
 	Button.Name = Item.Name
+	BindEntryFeedback(Button)
+	self:ApplyEntryPlacement(Button, Placement)
 	Button:SetAttribute("Name", Item.Name)
 	Button:SetAttribute("ItemClass", Item.Class)
 	Button:SetAttribute("ItemType", Item.Type)
 	Button:SetAttribute("Rarity", Item.Rarity or "Common")
 
-	local Label = Button:FindFirstChild("ItemName") or Button:FindFirstChild("StanceName")
+	local Label = Button:FindFirstChild("ItemName") :: TextLabel?
 	if Label and Label:IsA("TextLabel") then
 		Label.Text = Item.DisplayName or Item.Name
 	end
 
-	local Amount = Button:FindFirstChild("Amount") :: TextLabel?
+	local Amount = Button:FindFirstChild("Quantity") :: TextLabel?
 	if Amount then
 		Amount.Visible = (Item.Stack or 1) > 1
 		Amount.Text = tostring(Item.Stack or 1) .. "x"
@@ -405,26 +775,33 @@ function InventoryController:CreateEntry(Item: ItemData, TemplateName: string, I
 		table.insert(EquippedVisuals, CreateOutline(Button, RarityColors[Rarity] or RarityColors.Common, 1))
 	end
 
+	Button.Visible = true
+	Button.Parent = Content
+
 	local Viewport = self:ConfigureViewport(Button)
 	if Viewport then
+		Viewport.Visible = true
 		if Item.Class == "Stance" then
 			self:LoadStanceViewport(Viewport, Item)
 		else
-			self:AddModelToViewport(Viewport, Item)
+			self:AddModelToViewport(Viewport, Item, nil, Placement)
 		end
 	end
 
 	Button.Activated:Connect(function()
+		if InventoryDragController:ConsumesClick(Button) then
+			return
+		end
+
+		PlayEntryClick()
 		if SelectedItem == Button then
 			self:Unselect()
 		else
 			self:Select(Button, Item)
 		end
 	end)
-
-	Button.Visible = true
-	Wrapper.Visible = true
-	Wrapper.Parent = Content
+	InventoryDragController:BindItem(Button, Item)
+	RenderedItems[Item.Name] = {Button = Button, Item = Item}
 
 	return Button
 end
@@ -433,6 +810,10 @@ function InventoryController:UpdateStatus()
 	if StatsController then
 		StatsController:RefreshOtherStats()
 	end
+end
+
+function InventoryController:CanDragItems(): boolean
+	return self:IsOpen() and CurrentTab == "Items"
 end
 
 function InventoryController:UpdateContent()
@@ -447,10 +828,7 @@ function InventoryController:UpdateContent()
 	Inventory.Visible = Tab ~= "Stats"
 	StatsController:SetVisible(Tab == "Stats")
 
-	Content.CanvasPosition = Vector2.zero
-	ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	ContentLayout.FillDirection = Enum.FillDirection.Horizontal
-	ContentLayout.Wraps = true
+	ContentScroll.CanvasPosition = Vector2.zero
 
 	for _, Button in Tabs:GetChildren() do
 		if Button:IsA("TextButton") then
@@ -464,10 +842,21 @@ function InventoryController:UpdateContent()
 		return
 	end
 
-	local Entries = if Tab == "Stances" then StanceService:GetPlayerStances() else InventoryService:GetInventory()
+	local Entries, Snapshot
+	if Tab == "Stances" then
+		Entries = StanceService:GetPlayerStances()
+	else
+		Entries, Snapshot = InventoryService:GetInventory()
+	end
 	if Revision ~= RenderRevision or Tab ~= CurrentTab or not self:IsOpen() then
 		return
 	end
+
+	if Tab ~= "Stances" then
+		self:RefreshEquipmentSlots(Entries)
+	end
+	InventoryLayout = Snapshot
+	InventoryDragController:SetLayout(Entries, if Tab == "Items" then Snapshot else nil)
 
 	if Tab == "Stances" and not SelectedName then
 		for _, Entry in Entries do
@@ -478,14 +867,22 @@ function InventoryController:UpdateContent()
 		end
 	end
 
-	for Index, Entry in Entries do
+	local VisibleItems = {}
+	for _, Entry in Entries do
 		local Item = GetItemData(Entry)
-		if Item.Hidden or (Tab == "Skills" and Item.Class ~= "Skill") or (Tab == "Items" and Item.Class == "Skill") then
+		if Item.Hidden
+			or (Tab == "Skills" and Item.Class ~= "Skill")
+			or (Tab == "Items" and (Item.Class == "Skill" or (Item.Class == "Equipable" and Item.Equipped))) then
 			continue
 		end
 
-		local TemplateName = if Tab == "Stances" then "StanceTemplate" elseif Tab == "Skills" then "SkillTemplate" else "ItemTemplate"
-		local Button = self:CreateEntry(Item, TemplateName, Index)
+		table.insert(VisibleItems, Item)
+	end
+
+	local Placements = self:UpdateBackpackGrid(VisibleItems)
+	VisibleEntries = VisibleItems
+	for Index, Item in VisibleItems do
+		local Button = self:CreateEntry(Item, Placements[Index])
 		if Item.Name == SelectedName then
 			self:Select(Button, Item)
 		end
@@ -509,6 +906,7 @@ function InventoryController.KnitInit()
 	MenuController = Knit.GetController("MenuController")
 	ViewportRotationController = Knit.GetController("ViewportRotationController")
 	StatsController = Knit.GetController("StatsController")
+	InventoryDragController = Knit.GetController("InventoryDragController")
 end
 
 function InventoryController.KnitStart()
@@ -516,18 +914,23 @@ function InventoryController.KnitStart()
 	local Menus = PlayerGui:WaitForChild("Menu") :: ScreenGui
 	MainMenu = (PlayerGui:FindFirstChild("MainMenu") or Menus:WaitForChild("MainMenu")) :: ScreenGui
 	local CloseButton = MainMenu:WaitForChild("Close") :: ImageButton
-	CloseButton.Modal = true
+	CloseButton.Modal = false
 	Inventory = MainMenu:WaitForChild("Inventory") :: Frame
-	Templates = Inventory:WaitForChild("Templates") :: Frame
+	Equipments = Inventory:WaitForChild("Equipments") :: Frame
+	BackpackPanel = Inventory:WaitForChild("BackpackPanel") :: Frame
+	BackpackTemplates = BackpackPanel:WaitForChild("Templates") :: Folder
 	Tabs = MainMenu:WaitForChild("Tabs") :: GuiObject
-	local Background = Inventory:WaitForChild("Background") :: Frame
-	Content = Background:WaitForChild("Content") :: ScrollingFrame
-	ContentLayout = Content:FindFirstChildWhichIsA("UIListLayout") :: UIListLayout
+	ContentScroll = BackpackPanel:WaitForChild("Scroll") :: ScrollingFrame
+	GridCanvas = ContentScroll:WaitForChild("GridCanvas") :: Frame
+	Content = GridCanvas:WaitForChild("ItemsLayer") :: Frame
 	ItemInfo = Inventory:WaitForChild("ItemInfo") :: Frame
-	Description = Inventory:WaitForChild("Description") :: TextLabel
+	Description = ItemInfo:WaitForChild("Description") :: TextLabel
 	ItemName = ItemInfo:WaitForChild("TextLabel") :: TextLabel
 	BasicStats = ItemInfo:WaitForChild("BasicStats") :: Frame
 	Display = ItemInfo:WaitForChild("Display") :: Frame
+	InventoryDragController:Configure({
+		Main = MainMenu, Panel = BackpackPanel, Canvas = GridCanvas, Scroll = ContentScroll, EquipmentButtons = EquipmentButtons,
+	})
 	local Viewport = Display:FindFirstChildWhichIsA("ViewportFrame")
 	if Viewport then
 		ViewportRotationController:BindViewport(Viewport)
@@ -537,12 +940,27 @@ function InventoryController.KnitStart()
 	EquipButton = Buttons:WaitForChild("Equip") :: ImageButton
 	EquipLeftButton = Buttons:WaitForChild("EquipLeft") :: ImageButton
 
-	Templates.Visible = false
+	local LegacyTemplates = Inventory:FindFirstChild("Templates") :: Frame?
+	if LegacyTemplates then
+		LegacyTemplates.Visible = false
+	end
+
 	MainMenu.Enabled = false
 	Inventory.Visible = true
 	StatsController:SetVisible(false)
-	Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	ContentScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	InventoryController:ClearContent()
+
+	local EquipmentScroll = Equipments:WaitForChild("Scroll") :: ScrollingFrame
+	for _, Button in EquipmentScroll:QueryDescendants("ImageButton") do
+		local SlotName = Button:GetAttribute("EquipmentSlot")
+		if typeof(SlotName) == "string" then
+			EquipmentButtons[SlotName] = Button
+			Button.Activated:Connect(function()
+				InventoryController:UnequipEquipmentSlot(SlotName)
+			end)
+		end
+	end
 
 	for _, Button in Tabs:GetChildren() do
 		if Button:IsA("TextButton") then
@@ -568,7 +986,11 @@ function InventoryController.KnitStart()
 	end)
 
 	MainMenu:GetPropertyChangedSignal("Enabled"):Connect(function()
+		CloseButton.Modal = MainMenu.Enabled
+
 		if MainMenu.Enabled then
+			CurrentTab = "Items"
+			InventoryController:Unselect()
 			HotbarController:CancelSlotSelection()
 			MenuController:SetHudFocus(true)
 			HotbarController:UpdateVisibility()
@@ -586,6 +1008,11 @@ function InventoryController.KnitStart()
 
 	InventoryService.InventoryUpdated:Connect(function()
 		if CurrentTab ~= "Stances" and CurrentTab ~= "Stats" then
+			InventoryController:UpdateContent()
+		end
+	end)
+	InventoryService.InventoryLayoutUpdated:Connect(function(Snapshot: ItemData)
+		if not InventoryController:ApplyLayout(Snapshot) then
 			InventoryController:UpdateContent()
 		end
 	end)

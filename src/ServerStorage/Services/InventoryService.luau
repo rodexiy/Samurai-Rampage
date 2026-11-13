@@ -1,12 +1,17 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
+type ItemData = { [string]: any }
+
 local InventoryService = Knit.CreateService({
 	Name = "InventoryService",
 	Client = {
 		InventoryUpdated = Knit.CreateSignal(),
 		HotbarUpdated = Knit.CreateSignal(),
 		ItemAdded = Knit.CreateSignal(),
+		InventoryAction = Knit.CreateSignal(),
+		InventoryActionResult = Knit.CreateSignal(),
+		InventoryLayoutUpdated = Knit.CreateSignal(),
 	},
 })
 
@@ -20,10 +25,11 @@ local AlertService
 local GamepassService
 local StanceService
 local BowService
+local InventoryGridService
 
 local DeepCopy = require(ReplicatedStorage.Shared.Utils.DeepCopy)
 
-local function CanChangeEquippedItems(Character: Model?)
+local function CanChangeEquippedItems(Character: Model?): boolean
 	if not Character then
 		return true
 	end
@@ -70,8 +76,11 @@ function InventoryService:GetRawPlayerItemByName(Player: Player, ItemName: strin
 	end
 end
 
-function InventoryService:GiveItemToPlayer(Player: Player, Item: { any })
+function InventoryService:GiveItemToPlayer(Player: Player, Item: { any }): number
 	local PlayerData = DataService:GetData(Player)
+	if not InventoryGridService:CanAdd(Player, Item) then
+		return 0
+	end
 
 	local ItemData = ItemService:GetItemData(Item.Name)
 	local AmountToAdd = Item.Stack
@@ -138,6 +147,10 @@ function InventoryService:RemoveItemFromHotbar(Player: Player, Index: number, up
 			end
 
 			ArtifactName = ToolInIndex.Name
+			if not InventoryGridService:CanAdd(Player, {Name = ArtifactName, Stack = 1}) then
+				AlertService:AlertPlayer(Player, "Not enough backpack space.", "Warn")
+				return
+			end
 
 			ToolService:RemoveToolFromPlayer(Player, ArtifactName)
 
@@ -302,7 +315,7 @@ function InventoryService:IsEquipped(Player: Player, ItemName: string)
 	return false
 end
 
-function InventoryService:EquipUnequipItem(Player: Player, ItemName: string)
+function InventoryService:EquipUnequipItem(Player: Player, ItemName: string): (boolean?, string?)
 	local PlayerData = DataService:GetData(Player)
 	local ItemData = ItemService:GetItemData(ItemName)
 
@@ -314,6 +327,14 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string)
 
 	if not CanChangeEquippedItems(Character) then
 		return
+	end
+
+	if ItemData.Class == "Equipable" then
+		if PlayerData.Equipped[ItemData.Type] == ItemName then
+			return self:UnequipEquipmentSlot(Player, ItemData.Type, ItemName)
+		end
+
+		return self:EquipEquipmentSlot(Player, ItemData.Type, ItemName)
 	end
 
 	if ItemData.Class == "Weapon" and ItemData.Type == "Bow" then
@@ -365,33 +386,58 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string)
 				ValuesService:UpdateDamage(Character)
 			end
 		end
-	elseif not self:IsEquipped(Player, ItemName) then
-		if ItemData.Class == "Equipable" then
-			if Character then
-				PlayerData.Equipped[ItemData.Type] = ItemName
-				if Character then
-					EquipmentService:LoadEquipment(Character, ItemData.Type, ItemName)
-					ValuesService:UpdateEquipableValues(Character)
-				end
-			end
-		end
-	else
-		if ItemData.Class == "Equipable" then
-			PlayerData.Equipped[ItemData.Type] = nil
-
-			if Character then
-				if Character then
-					EquipmentService:UnloadEquipment(Character, ItemData.Type)
-					ValuesService:UpdateEquipableValues(Character)
-				end
-			end
-		end
 	end
 
 	self:UpdateUI(Player)
 end
 function InventoryService.Client:EquipUnequipItem(Player: Player, ItemName: string)
 	self.Server:EquipUnequipItem(Player, ItemName)
+end
+
+function InventoryService:EquipEquipmentSlot(Player: Player, SlotName: string, ItemName: string): (boolean, string?)
+	if not CanChangeEquippedItems(Player.Character) then
+		return false, "You cannot change equipment right now."
+	end
+
+	local Success, Reason = InventoryGridService:SetEquipment(Player, SlotName, ItemName)
+	if not Success then
+		AlertService:AlertPlayer(Player, Reason, "Warn")
+		return false, Reason
+	end
+
+	local Character = Player.Character
+	if Character then
+		EquipmentService:LoadEquipment(Character, SlotName, ItemName)
+		ValuesService:UpdateEquipableValues(Character)
+	end
+
+	self:UpdateUI(Player)
+	return true
+end
+
+function InventoryService:UnequipEquipmentSlot(Player: Player, SlotName: string, ItemName: string): (boolean, string?)
+	if not CanChangeEquippedItems(Player.Character) then
+		return false, "You cannot change equipment right now."
+	end
+
+	local Success, Reason = InventoryGridService:SetEquipment(Player, SlotName, nil, ItemName)
+	if not Success then
+		AlertService:AlertPlayer(Player, Reason, "Warn")
+		return false, Reason
+	end
+
+	local Character = Player.Character
+	if Character then
+		EquipmentService:UnloadEquipment(Character, SlotName)
+		ValuesService:UpdateEquipableValues(Character)
+	end
+
+	self:UpdateUI(Player)
+	return true
+end
+
+function InventoryService.Client:UnequipEquipmentSlot(Player: Player, SlotName: string, ItemName: string)
+	self.Server:UnequipEquipmentSlot(Player, SlotName, ItemName)
 end
 
 function InventoryService:UnequipLeftWeapon(Player: Player, UpdateUI: boolean?, LoadFallback: boolean?)
@@ -479,8 +525,9 @@ function InventoryService.Client:EquipUnequipLeftItem(Player: Player, ItemName: 
 	self.Server:EquipUnequipLeftItem(Player, ItemName)
 end
 
-function InventoryService:GetInventory(Player: Player)
+function InventoryService:GetInventory(Player: Player): ({ ItemData }, ItemData)
 	local PlayerData = DataService:GetData(Player)
+	local Layout = InventoryGridService:GetLayout(Player)
 	local InventoryCopy = DeepCopy(PlayerData.Inventory)
 	local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
 
@@ -492,6 +539,8 @@ function InventoryService:GetInventory(Player: Player)
 		Item.Type = ItemData.Type
 		Item.Class = ItemData.Class
 		Item.Hidden = ItemData.Hidden
+		Item.InventoryPosition = Layout.Positions[Item.Name]
+		Item.Rotated = Item.InventoryPosition and Item.InventoryPosition.Rotated or false
 
 		if Item.Class ~= "Equipable" and Item.Class ~= "Weapon" then
 			continue
@@ -514,9 +563,9 @@ function InventoryService:GetInventory(Player: Player)
 		end
 	end
 
-	return InventoryCopy
+	return InventoryCopy, Layout
 end
-function InventoryService.Client:GetInventory(Player: Player)
+function InventoryService.Client:GetInventory(Player: Player): ({ ItemData }, ItemData)
 	return self.Server:GetInventory(Player)
 end
 
@@ -531,8 +580,43 @@ function InventoryService.KnitInit()
 	GamepassService = Knit.GetService("GamepassService")
 	StanceService = Knit.GetService("StanceService")
 	BowService = Knit.GetService("BowService")
+	InventoryGridService = Knit.GetService("InventoryGridService")
 end
 
-function InventoryService.KnitStart() end
+function InventoryService:HandleInventoryAction(Player: Player, Request: any)
+	if typeof(Request) ~= "table" or typeof(Request.Id) ~= "number" or Request.Id % 1 ~= 0
+		or Request.Id < 1 or Request.Id > 2147483647 or typeof(Request.Name) ~= "string" then
+		return
+	end
+
+	local Data = DataService:GetData(Player)
+	if not Data then
+		return
+	end
+
+	local Layout = InventoryGridService:GetLayout(Player)
+	local Success, Reason = false, "Inventory changed. Try again."
+	if Request.Revision == Layout.Revision then
+		if Request.Kind == "Move" then
+			Success, Reason = InventoryGridService:Move(Player, Request.Name, Request.Column, Request.Row, Request.Rotated, Request.Revision)
+			if Success then
+				self.Client.InventoryLayoutUpdated:Fire(Player, InventoryGridService:GetLayout(Player))
+			end
+		elseif Request.Kind == "Equip" then
+			Success, Reason = self:EquipEquipmentSlot(Player, Request.Slot, Request.Name)
+		elseif Request.Kind == "Unequip" then
+			Success, Reason = self:UnequipEquipmentSlot(Player, Request.Slot, Request.Name)
+		end
+	end
+
+	local Correction = if Success then nil else InventoryGridService:GetLayout(Player)
+	self.Client.InventoryActionResult:Fire(Player, Request.Id, Success, Reason, Correction)
+end
+
+function InventoryService.KnitStart()
+	InventoryService.Client.InventoryAction:Connect(function(Player: Player, Request: any)
+		InventoryService:HandleInventoryAction(Player, Request)
+	end)
+end
 
 return InventoryService
