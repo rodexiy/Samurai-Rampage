@@ -18,6 +18,7 @@ local Shots: { [number]: Shot } = {}
 local Container: Folder
 local Template: BasePart
 local TracerTemplate: BasePart
+local BirdController
 
 local function DestroyShot(Id: number, Shot: Shot)
 	if Shots[Id] ~= Shot then
@@ -108,6 +109,10 @@ local function Launch(Id: number, Shooter: Player, Origin: Vector3, Velocity: Ve
 	end)
 end
 
+function BowProjectileController.KnitInit()
+	BirdController = Knit.GetController("BirdController")
+end
+
 function BowProjectileController.KnitStart()
 	Container = Instance.new("Folder")
 	Container.Name = "BowProjectiles"
@@ -134,7 +139,12 @@ function BowProjectileController.KnitStart()
 	TracerTemplate.CanQuery = false
 	TracerTemplate.Massless = true
 
-	Caster.LengthChanged:Connect(function(_Cast: any, LastPoint: Vector3, Direction: Vector3, Length: number, Velocity: Vector3, Arrow: BasePart?)
+	Caster.LengthChanged:Connect(function(Cast: any, LastPoint: Vector3, Direction: Vector3, Length: number, Velocity: Vector3, Arrow: BasePart?)
+		local Shot = Shots[Cast.UserData.Id]
+		if Shot then
+			BirdController:HitByProjectile(LastPoint, Direction * Length, Velocity)
+		end
+
 		if Arrow then
 			local Facing = if Velocity.Magnitude > 0.001 then Velocity else Direction
 			Arrow.CFrame = BowConfig.GetArrowCFrame(LastPoint + Direction * Length, Facing, Arrow.Size.Z)

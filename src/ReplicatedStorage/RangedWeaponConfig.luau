@@ -13,6 +13,15 @@ function RangedWeaponConfig.GetForCharacter(Character: Model?): any
 	return RangedWeaponConfig.Get(if Character then Character:GetAttribute("Bow") else nil)
 end
 
+function RangedWeaponConfig.GetShotCooldown(Config: any, Player: Player?): number
+	local Override = if Player and Config.WeaponName == "Tanegashima" then Player:GetAttribute("TanegashimaCooldown") else nil
+	if typeof(Override) == "number" and Override >= 0 and Override < math.huge then
+		return Override
+	end
+
+	return Config.ShotCooldown
+end
+
 function RangedWeaponConfig.CanFocus(Character: Model, Active: boolean?): boolean
 	local Config = RangedWeaponConfig.GetForCharacter(Character)
 	local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")

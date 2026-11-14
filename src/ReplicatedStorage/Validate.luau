@@ -62,6 +62,7 @@ function Validate:CanRun(Character: Model)
 	local Humanoid = Character:FindFirstChild("Humanoid")
 	return isFalse(Character, GeneralCantAttributes)
 		and isFalse(Character, {
+			"Crouching",
 			"BowDrawing",
 			"UsingSkillCantAttack",
 			"Blocking",

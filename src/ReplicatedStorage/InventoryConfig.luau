@@ -7,8 +7,17 @@ export type ItemData = { [string]: any }
 
 local InventoryConfig = {}
 
-InventoryConfig.Columns = 8
-InventoryConfig.Rows = 6
+InventoryConfig.Columns = 6
+InventoryConfig.DefaultBackpackTier = 1
+
+InventoryConfig.Backpacks = {
+	{ Name = "Starter", Rows = 8 },
+	{ Name = "Medium", Rows = 12 },
+	{ Name = "Large", Rows = 16 },
+	{ Name = "Admin", Rows = 100 },
+}
+
+InventoryConfig.Rows = InventoryConfig.Backpacks[InventoryConfig.DefaultBackpackTier].Rows
 
 InventoryConfig.DefaultSize = { Width = 1, Height = 1 }
 

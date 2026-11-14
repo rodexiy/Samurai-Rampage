@@ -1,3 +1,8 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local InventoryConfig = require(ReplicatedStorage.Shared.InventoryConfig)
+local HorseConfig = require(ReplicatedStorage.Shared.HorseConfig)
+
 return {
 	FreePoints = 0,
 	UnlockedNodes = {},
@@ -54,11 +59,14 @@ return {
 	Inventory = {},
 	Backpack = {
 		Version = 0,
-		Columns = 8,
-		Rows = 6,
+		Tier = InventoryConfig.DefaultBackpackTier,
+		Columns = InventoryConfig.Columns,
+		Rows = InventoryConfig.Rows,
 		Revision = 0,
 		Positions = {},
 	},
+
+	HorseTier = HorseConfig.DefaultTier,
 
 	SelectedStance = nil,
 	Stances = {

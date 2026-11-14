@@ -36,14 +36,24 @@ function InventoryGridService:GetLayout(Player: Player): ItemData
 	local Items = GetItems(Data)
 	local Backpack = Data.Backpack
 	if not Backpack then
-		Backpack = {Version = 0, Columns = InventoryConfig.Columns, Rows = InventoryConfig.Rows, Revision = 0, Positions = {}}
+		Backpack = {Version = 0, Tier = InventoryConfig.DefaultBackpackTier, Columns = InventoryConfig.Columns, Rows = InventoryConfig.Rows, Revision = 0, Positions = {}}
 		Data.Backpack = Backpack
+	end
+
+	local Changed = Backpack.Columns == 8
+	if Changed then
+		Backpack.Columns = InventoryConfig.Columns
+	end
+
+	Backpack.Tier = Backpack.Tier or InventoryConfig.DefaultBackpackTier
+	if Backpack.Tier == InventoryConfig.DefaultBackpackTier and Backpack.Rows == 6 then
+		Backpack.Rows = InventoryConfig.Rows
+		Changed = true
 	end
 
 	if Backpack.Version == 0 then
 		-- Preserve existing inventories during the one-time migration, without deleting excess items.
 		local Legacy = InventoryGrid.Arrange(Items, Backpack.Columns, Backpack.Rows)
-		Backpack.Rows = Legacy.Rows
 		for Index, Item in Items do
 			Backpack.Positions[Item.Name] = Legacy.Placements[Index]
 		end
@@ -73,7 +83,6 @@ function InventoryGridService:GetLayout(Player: Player): ItemData
 		end
 	end
 
-	local Changed = false
 	for Name, Position in Positions do
 		local Previous = Backpack.Positions[Name]
 		if not Previous or Previous.Column ~= Position.Column or Previous.Row ~= Position.Row or Previous.Rotated ~= Position.Rotated then
@@ -90,7 +99,33 @@ function InventoryGridService:GetLayout(Player: Player): ItemData
 	end
 
 	Backpack.Positions = Positions
-	return {Columns = Backpack.Columns, Rows = Backpack.Rows, Revision = Backpack.Revision, Positions = DeepCopy(Positions), Overflow = Overflow}
+	return {Tier = Backpack.Tier, Columns = Backpack.Columns, Rows = Backpack.Rows, Revision = Backpack.Revision, Positions = DeepCopy(Positions), Overflow = Overflow}
+end
+
+function InventoryGridService:SetBackpackTier(Player: Player, Tier: any): (boolean, string?)
+	if not InventoryGrid.IsInteger(Tier) or not InventoryConfig.Backpacks[Tier] then
+		return false, "Invalid backpack tier. Choose 1, 2, 3 or 4 (admin)."
+	end
+
+	local Data = DataService:GetData(Player)
+	if not Data then
+		return false, "Player data is not ready."
+	end
+
+	self:GetLayout(Player)
+	local Backpack = Data.Backpack
+	local Definition = InventoryConfig.Backpacks[Tier]
+	if Backpack.Tier == Tier and Backpack.Columns == InventoryConfig.Columns and Backpack.Rows == Definition.Rows then
+		return true
+	end
+
+	Backpack.Tier = Tier
+	Backpack.Columns = InventoryConfig.Columns
+	Backpack.Rows = Definition.Rows
+	Backpack.Revision += 1
+	self:GetLayout(Player)
+
+	return true
 end
 
 function InventoryGridService:Move(Player: Player, Name: any, Column: any, Row: any, Rotated: any, Revision: any): (boolean, string?)

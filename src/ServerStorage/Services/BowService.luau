@@ -252,6 +252,23 @@ function BowService:EquipItem(Player: Player, ItemName: string): (boolean, strin
 	return InventoryService:EquipUnequipItem(Player, ItemName)
 end
 
+function BowService:SetTanegashimaCooldown(Player: Player, Seconds: any): (boolean, string?)
+	if typeof(Seconds) ~= "number" or Seconds < 0 or Seconds >= math.huge or Seconds ~= Seconds then
+		return false, "Cooldown must be a finite number of seconds greater than or equal to zero."
+	end
+	if Player.Parent ~= Players then
+		return false, "Player is not connected."
+	end
+
+	Player:SetAttribute("TanegashimaCooldown", Seconds)
+	local State = GetState(Player)
+	if State and State.LastShot > -math.huge then
+		self.Client.Feedback:Fire(Player, "Cooldown", State.LastShot + Seconds, nil, "Tanegashima")
+	end
+
+	return true
+end
+
 function BowService:BeginDraw(Player: Player, Aim: any)
 	local State = GetState(Player)
 	if not State or State.Started or not State.Character:GetAttribute("BowEquipped") then
@@ -266,7 +283,7 @@ function BowService:BeginDraw(Player: Player, Aim: any)
 	end
 	State.LastBegin = Now
 	if not CanUse(Player, State) or (not Config.IsFirearm
-		and (Now - State.LastShot < Config.ShotCooldown or not HasAmmo(Player, Config))) then
+		and (Now - State.LastShot < RangedWeaponConfig.GetShotCooldown(Config, Player) or not HasAmmo(Player, Config))) then
 		self.Client.Feedback:Fire(Player, "Cancel")
 		if not HasAmmo(Player, Config) then
 			AlertService:AlertPlayer(Player, Config.AmmoWarning, "Warn")
@@ -313,7 +330,8 @@ function BowService:Release(Player: Player, Aim: any?, Focused: boolean?)
 	end
 
 	local Now = workspace:GetServerTimeNow()
-	if Now - State.LastShot < Config.ShotCooldown then
+	local Cooldown = RangedWeaponConfig.GetShotCooldown(Config, Player)
+	if Now - State.LastShot < Cooldown then
 		return
 	end
 	if not HasAmmo(Player, Config) then
@@ -386,7 +404,7 @@ function BowService:Release(Player: Player, Aim: any?, Focused: boolean?)
 			Cast:Terminate()
 		end
 	end)
-	self.Client.Feedback:Fire(Player, "Shot", Charge, nil, Config.WeaponName)
+	self.Client.Feedback:Fire(Player, "Shot", Charge, nil, Config.WeaponName, Now + Cooldown)
 	self.Client.Projectile:FireAll("Launch", ShotId, Player, Origin, Velocity, Behavior.Acceleration, Now, Config.WeaponName)
 end
 

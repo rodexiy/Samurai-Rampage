@@ -3,9 +3,9 @@ local RunService = game:GetService("RunService")
 
 return function(Controller: any, Main: ScreenGui, Context: any): string
 	local Checks = 0
-	local Canvas = Main.Inventory.BackpackPanel.Scroll.GridCanvas
+	local Canvas = Main.Inventory.BackpackPanel.ScrollWrapper.Scroll.GridCanvas
 	local Content = Canvas.ItemsLayer
-	local Scroll = Main.Inventory.BackpackPanel.Scroll
+	local Scroll = Main.Inventory.BackpackPanel.ScrollWrapper.Scroll
 	local References = {}
 	local Changes = 0
 	local Connections = {}

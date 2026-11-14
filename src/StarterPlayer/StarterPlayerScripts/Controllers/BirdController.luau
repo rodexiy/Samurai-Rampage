@@ -1,11 +1,10 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
-
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
+
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local BirdController = Knit.CreateController({
 	Name = "BirdController",
@@ -34,11 +33,16 @@ local NIGHT_END_TIME = 5.4
 local WING_LOD_DISTANCE_SQUARED = 100 * 100
 local WING_FLAP_SPEED = 28
 local WING_FLAP_ANGLE = math.rad(38)
+local SHOT_LIFETIME = 5
+local SHOT_IMPULSE = 12
+local HITBOX_SCALE = 2
 
-local clientBirdFolder
-local idleTemplate
-local flyingTemplate
-local birds = {}
+type Bird = { [string]: any }
+
+local clientBirdFolder: Folder
+local idleTemplate: Model
+local flyingTemplate: Model
+local birds: { Bird } = {}
 local simulationAccumulator = 0
 local spawnAccumulator = SPAWN_INTERVAL
 local scareAccumulator = 0
@@ -47,6 +51,10 @@ local raycastParams = RaycastParams.new()
 raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 raycastParams.IgnoreWater = false
 raycastParams.RespectCanCollide = true
+
+local birdHitParams = RaycastParams.new()
+birdHitParams.FilterType = Enum.RaycastFilterType.Include
+birdHitParams.RespectCanCollide = false
 
 local function horizontalUnit(vector, fallback)
 	local horizontal = Vector3.new(vector.X, 0, vector.Z)
@@ -88,12 +96,12 @@ local function refreshRaycastFilter()
 		table.insert(filter, LOCAL_PLAYER.Character)
 	end
 
-	local characters = Workspace:FindFirstChild("Characters")
+	local characters = workspace:FindFirstChild("Characters")
 	if characters then
 		table.insert(filter, characters)
 	end
 
-	local npcs = Workspace:FindFirstChild("NPCs")
+	local npcs = workspace:FindFirstChild("NPCs")
 	if npcs then
 		table.insert(filter, npcs)
 	end
@@ -104,7 +112,7 @@ end
 local function findGround(position)
 	refreshRaycastFilter()
 	local origin = position + Vector3.new(0, 120, 0)
-	local result = Workspace:Raycast(origin, Vector3.new(0, -320, 0), raycastParams)
+	local result = workspace:Raycast(origin, Vector3.new(0, -320, 0), raycastParams)
 	if not result or result.Material == Enum.Material.Water or result.Normal.Y < 0.72 then
 		return nil
 	end
@@ -116,16 +124,28 @@ local function findGround(position)
 	return result.Position + Vector3.new(0, GROUND_OFFSET, 0)
 end
 
-local function configureModel(model)
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			descendant.Anchored = true
-			descendant.CanCollide = false
-			descendant.CanQuery = false
-			descendant.CanTouch = false
-			descendant.Massless = true
-		end
+local function configureModel(model: Model)
+	for _, descendant in model:QueryDescendants("BasePart") :: { BasePart } do
+		descendant.Anchored = true
+		descendant.CanCollide = false
+		descendant.CanQuery = true
+		descendant.CanTouch = false
+		descendant.Massless = true
 	end
+
+	local bounds, size = model:GetBoundingBox()
+	local hitbox = Instance.new("Part")
+	hitbox.Name = "ProjectileHitbox"
+	hitbox.Size = size * HITBOX_SCALE
+	hitbox.CFrame = bounds
+	hitbox.Transparency = 1
+	hitbox.Anchored = true
+	hitbox.CanCollide = false
+	hitbox.CanQuery = true
+	hitbox.CanTouch = false
+	hitbox.Massless = true
+	hitbox.CastShadow = false
+	hitbox.Parent = model
 end
 
 local function setupFlyingWings(model)
@@ -172,7 +192,7 @@ local function updateWingLOD(bird, birdCFrame, now)
 		return
 	end
 
-	local camera = Workspace.CurrentCamera
+	local camera = workspace.CurrentCamera
 	local isClose = camera
 		and (bird.position - camera.CFrame.Position).Magnitude ^ 2 <= WING_LOD_DISTANCE_SQUARED
 
@@ -204,7 +224,13 @@ local function setVariant(bird, variant)
 	bird.variant = variant
 end
 
-local function renderBird(bird, now)
+local function renderBird(bird: Bird, now: number)
+	if bird.state == "Shot" then
+		bird.cframe = CFrame.new(bird.position) * bird.shotRotation
+		bird.model:PivotTo(bird.cframe)
+		return
+	end
+
 	local direction = horizontalUnit(bird.velocity, bird.direction)
 	bird.direction = direction
 
@@ -258,20 +284,20 @@ local function chooseFlightTarget(bird, playerPosition)
 		baseY + RANDOM:NextNumber(FLIGHT_HEIGHT_MIN, FLIGHT_HEIGHT_MAX),
 		targetXZ.Z
 	)
-	bird.targetExpiresAt = Workspace.DistributedGameTime + math.clamp(travelDistance / bird.speed * 1.5, 4, 9)
+	bird.targetExpiresAt = workspace.DistributedGameTime + math.clamp(travelDistance / bird.speed * 1.5, 4, 9)
 end
 
 local function beginFlight(bird, frightened, playerPosition)
 	setVariant(bird, "Flying")
 	bird.state = "Flying"
-	bird.canLandAt = Workspace.DistributedGameTime + RANDOM:NextNumber(10, 24)
+	bird.canLandAt = workspace.DistributedGameTime + RANDOM:NextNumber(10, 24)
 
 	if frightened then
 		local away = horizontalUnit(bird.position - playerPosition, randomHorizontalDirection())
 		bird.velocity = away * bird.speed + Vector3.new(0, 9, 0)
 		bird.target = bird.position + away * RANDOM:NextNumber(80, 120) + Vector3.new(0, RANDOM:NextNumber(24, 40), 0)
-		bird.targetExpiresAt = Workspace.DistributedGameTime + 7
-		bird.fleeUntil = Workspace.DistributedGameTime + 5
+		bird.targetExpiresAt = workspace.DistributedGameTime + 7
+		bird.fleeUntil = workspace.DistributedGameTime + 5
 	else
 		bird.velocity = bird.direction * bird.speed + Vector3.new(0, 7, 0)
 		bird.fleeUntil = 0
@@ -289,7 +315,7 @@ local function beginLanding(bird)
 		return false
 	end
 
-	local now = Workspace.DistributedGameTime
+	local now = workspace.DistributedGameTime
 	local horizontalDistance = (Vector3.new(groundPosition.X, 0, groundPosition.Z) - Vector3.new(bird.position.X, 0, bird.position.Z)).Magnitude
 	local duration = math.clamp(horizontalDistance / LAND_SPEED, 2.25, 4)
 
@@ -307,7 +333,7 @@ local function finishLanding(bird)
 	bird.position = bird.target
 	bird.velocity = Vector3.zero
 	bird.state = "Perched"
-	bird.stateEndsAt = Workspace.DistributedGameTime + RANDOM:NextNumber(7, 22)
+	bird.stateEndsAt = workspace.DistributedGameTime + RANDOM:NextNumber(7, 22)
 	setVariant(bird, "Idle")
 end
 
@@ -333,7 +359,7 @@ local function birdsCanSpawn()
 	local isNight = clockTime >= NIGHT_START_TIME or clockTime < NIGHT_END_TIME
 	return LOCAL_PLAYER:GetAttribute("Birds") ~= false
 		and not isNight
-		and Workspace:GetAttribute("Season") ~= "Winter"
+		and workspace:GetAttribute("Season") ~= "Winter"
 end
 
 local function createBird(playerPosition)
@@ -385,17 +411,17 @@ local function createBird(playerPosition)
 
 	if startsPerched then
 		bird.state = "Perched"
-		bird.stateEndsAt = Workspace.DistributedGameTime + RANDOM:NextNumber(5, 18)
+		bird.stateEndsAt = workspace.DistributedGameTime + RANDOM:NextNumber(5, 18)
 		setVariant(bird, "Idle")
 	else
 		bird.position += Vector3.new(0, RANDOM:NextNumber(FLIGHT_HEIGHT_MIN, FLIGHT_HEIGHT_MAX), 0)
 		setVariant(bird, "Flying")
 		bird.state = "Flying"
-		bird.canLandAt = Workspace.DistributedGameTime + RANDOM:NextNumber(10, 25)
+		bird.canLandAt = workspace.DistributedGameTime + RANDOM:NextNumber(10, 25)
 		chooseFlightTarget(bird, playerPosition)
 	end
 
-	renderBird(bird, Workspace.DistributedGameTime)
+	renderBird(bird, workspace.DistributedGameTime)
 end
 
 local function updateFlyingBird(bird, playerPosition, now, deltaTime)
@@ -443,17 +469,70 @@ local function updateLandingBird(bird, playerPosition, now, deltaTime)
 	bird.position = nextPosition
 end
 
-local function simulate(playerPosition, now, deltaTime)
+local function updateShotBird(bird: Bird, deltaTime: number)
+	if bird.resting then
+		return
+	end
+
+	local gravity = Vector3.new(0, -workspace.Gravity, 0)
+	local displacement = bird.velocity * deltaTime + gravity * (0.5 * deltaTime * deltaTime)
+	refreshRaycastFilter()
+	local ground = workspace:Raycast(bird.position, displacement, raycastParams)
+	if ground then
+		bird.position = ground.Position + ground.Normal * 0.35
+		bird.velocity = Vector3.zero
+		bird.resting = true
+	else
+		bird.position += displacement
+		bird.velocity += gravity * deltaTime
+		bird.shotRotation *= CFrame.Angles(deltaTime * 5, 0, deltaTime * 3)
+	end
+end
+
+function BirdController:HitByProjectile(Origin: Vector3, Displacement: Vector3, Velocity: Vector3): boolean
+	if not clientBirdFolder or #birds == 0 or Displacement.Magnitude < 0.001 then
+		return false
+	end
+
+	local hit = workspace:Raycast(Origin, Displacement, birdHitParams)
+	if not hit then
+		return false
+	end
+
+	for _, bird in birds do
+		if bird.state == "Shot" or not hit.Instance:IsDescendantOf(bird.model) then
+			continue
+		end
+
+		bird.state = "Shot"
+		bird.stateEndsAt = workspace.DistributedGameTime + SHOT_LIFETIME
+		bird.shotRotation = bird.model:GetPivot().Rotation
+		bird.resting = false
+		local direction = if Velocity.Magnitude > 0.001 then Velocity.Unit else Displacement.Unit
+		bird.velocity = bird.velocity * 0.25 + direction * SHOT_IMPULSE
+		for _, part in bird.model:QueryDescendants("BasePart") :: { BasePart } do
+			part.CanQuery = false
+		end
+
+		return true
+	end
+
+	return false
+end
+
+local function simulate(playerPosition: Vector3, now: number, deltaTime: number)
 	for index = #birds, 1, -1 do
 		local bird = birds[index]
 		local distanceFromPlayer = (bird.position - playerPosition).Magnitude
 
-		if distanceFromPlayer > DESPAWN_DISTANCE then
+		if distanceFromPlayer > DESPAWN_DISTANCE or (bird.state == "Shot" and now >= bird.stateEndsAt) then
 			destroyBird(index)
 			continue
 		end
 
-		if bird.state == "Flying" then
+		if bird.state == "Shot" then
+			updateShotBird(bird, deltaTime)
+		elseif bird.state == "Flying" then
 			updateFlyingBird(bird, playerPosition, now, deltaTime)
 		elseif bird.state == "Landing" then
 			updateLandingBird(bird, playerPosition, now, deltaTime)
@@ -465,11 +544,16 @@ local function simulate(playerPosition, now, deltaTime)
 	end
 end
 
-local function scareNearbyBirds(playerPosition, now)
+local function scareNearbyBirds(playerPosition: Vector3, now: number)
 	for _, bird in birds do
-		if bird.state ~= "Flying" and (bird.position - playerPosition).Magnitude <= SCARE_DISTANCE then
-			beginFlight(bird, true, playerPosition)
-		elseif bird.state == "Flying" and now >= bird.fleeUntil and (bird.position - playerPosition).Magnitude <= SCARE_DISTANCE * 0.65 then
+		if bird.state == "Shot" then
+			continue
+		end
+
+		local distance = (bird.position - playerPosition).Magnitude
+		local shouldFlee = (bird.state ~= "Flying" and distance <= SCARE_DISTANCE)
+			or (bird.state == "Flying" and now >= bird.fleeUntil and distance <= SCARE_DISTANCE * 0.65)
+		if shouldFlee then
 			beginFlight(bird, true, playerPosition)
 		end
 	end
@@ -477,20 +561,21 @@ end
 
 function BirdController.KnitStart()
 	local birdAssets = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Models"):WaitForChild("Birds")
-	idleTemplate = birdAssets:WaitForChild("IdleBird")
-	flyingTemplate = birdAssets:WaitForChild("FlyingBird")
+	idleTemplate = birdAssets:WaitForChild("IdleBird") :: Model
+	flyingTemplate = birdAssets:WaitForChild("FlyingBird") :: Model
 
-	local existingFolder = Workspace:FindFirstChild("ClientBirds")
+	local existingFolder = workspace:FindFirstChild("ClientBirds")
 	if existingFolder then
 		existingFolder:Destroy()
 	end
 
 	clientBirdFolder = Instance.new("Folder")
 	clientBirdFolder.Name = "ClientBirds"
-	clientBirdFolder.Parent = Workspace
+	clientBirdFolder.Parent = workspace
+	birdHitParams.FilterDescendantsInstances = { clientBirdFolder }
 
-	RunService.Heartbeat:Connect(function(deltaTime)
-		if Workspace:GetAttribute("InMainMenu") or not birdsCanSpawn() then
+	RunService.Heartbeat:Connect(function(deltaTime: number)
+		if workspace:GetAttribute("InMainMenu") or not birdsCanSpawn() then
 			if #birds > 0 then
 				destroyAllBirds()
 			end
@@ -499,12 +584,12 @@ function BirdController.KnitStart()
 		end
 
 		local character = LOCAL_PLAYER.Character
-		local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+		local rootPart = character and character.PrimaryPart
 		if not rootPart then
 			return
 		end
 
-		local now = Workspace.DistributedGameTime
+		local now = workspace.DistributedGameTime
 		local playerPosition = rootPart.Position
 
 		simulationAccumulator += math.min(deltaTime, 0.1)

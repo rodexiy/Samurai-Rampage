@@ -603,6 +603,17 @@ function InventoryService:SetWeaponEquipmentSlot(Player: Player, SlotName: strin
 	end
 end
 
+function InventoryService:SetBackpackTier(Player: Player, Tier: any): (boolean, string?)
+	local Success, Reason = InventoryGridService:SetBackpackTier(Player, Tier)
+	if not Success then
+		return false, Reason
+	end
+
+	self.Client.InventoryLayoutUpdated:Fire(Player, self:GetInventoryLayout(Player))
+
+	return true
+end
+
 function InventoryService:GetInventoryLayout(Player: Player): ItemData
 	local Layout = InventoryGridService:GetLayout(Player)
 	local Data = DataService:GetData(Player)

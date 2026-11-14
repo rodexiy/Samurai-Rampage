@@ -5,6 +5,7 @@ local TweenService = game:GetService("TweenService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local Items = require(ReplicatedStorage.Shared.Index.Items)
 local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
+local InventoryConfig = require(ReplicatedStorage.Shared.InventoryConfig)
 local InventoryGrid = require(ReplicatedStorage.Shared.Utils.InventoryGrid)
 local InventoryEquipmentSlots = require(ReplicatedStorage.Shared.Utils.InventoryEquipmentSlots)
 
@@ -48,6 +49,7 @@ local EquipLeftButton: ImageButton
 
 local CurrentTab = "Items"
 local SelectedItem: ImageButton? = nil
+local SelectedItemZIndex: number? = nil
 local SelectedItemData: ItemData? = nil
 local RenderRevision = 0
 local EquippedVisuals = {}
@@ -55,8 +57,8 @@ local SelectedVisuals = {}
 local EquipmentButtons: { [string]: ImageButton } = {}
 local EquippedItems: { [string]: ItemData } = {}
 local PendingEquipmentSlots: { [string]: boolean } = {}
-local GridColumns = 8
-local GridRows = 6
+local GridColumns = InventoryConfig.Columns
+local GridRows = InventoryConfig.Rows
 
 local RarityColors = {
 	Common = Color3.fromRGB(230, 230, 230),
@@ -248,7 +250,12 @@ end
 
 function InventoryController:Unselect()
 	ClearVisuals(SelectedVisuals)
+	if SelectedItem and SelectedItemZIndex then
+		SelectedItem.ZIndex = SelectedItemZIndex
+	end
+
 	SelectedItem = nil
+	SelectedItemZIndex = nil
 	SelectedItemData = nil
 
 	if ItemInfo then
@@ -488,10 +495,21 @@ function InventoryController:UnequipEquipmentSlot(SlotName: string)
 	self:ChangeEquipment(Item, true, SlotName)
 end
 
+function InventoryController:ResizeBackpackCanvas()
+	local Width = ContentScroll.AbsoluteWindowSize.X
+	if Width <= 0 then
+		return
+	end
+
+	local Height = Width * GridRows / GridColumns
+	GridCanvas.Size = UDim2.fromOffset(Width, Height)
+	ContentScroll.CanvasSize = UDim2.fromOffset(0, Height)
+end
+
 function InventoryController:UpdateBackpackGrid(VisibleItems: { ItemData }): { InventoryGrid.Placement }
 	local Snapshot = if CurrentTab == "Items" then InventoryLayout else nil
-	GridColumns = if Snapshot then Snapshot.Columns else math.max(1, BackpackPanel:GetAttribute("Columns") or 8)
-	local BaseRows = if Snapshot then Snapshot.Rows else math.max(1, BackpackPanel:GetAttribute("Rows") or 6)
+	GridColumns = if Snapshot then Snapshot.Columns else math.max(1, BackpackPanel:GetAttribute("Columns") or InventoryConfig.Columns)
+	local BaseRows = if Snapshot then Snapshot.Rows else math.max(1, BackpackPanel:GetAttribute("Rows") or InventoryConfig.Rows)
 	local LayoutResult = {Placements = {}, Rows = BaseRows}
 	if Snapshot then
 		local Overflow, Indices = {}, {}
@@ -516,9 +534,7 @@ function InventoryController:UpdateBackpackGrid(VisibleItems: { ItemData }): { I
 		LayoutResult = InventoryGrid.Arrange(VisibleItems, GridColumns, BaseRows, true)
 	end
 	GridRows = LayoutResult.Rows
-
-	local Ratio = GridCanvas:FindFirstChildWhichIsA("UIAspectRatioConstraint") :: UIAspectRatioConstraint
-	Ratio.AspectRatio = GridColumns / GridRows
+	self:ResizeBackpackCanvas()
 
 	local Cells = GridCanvas:FindFirstChild("CellsLayer") :: Frame
 	local CellRows = if Snapshot then BaseRows else GridRows
@@ -612,7 +628,9 @@ function InventoryController:Select(Button: ImageButton, Data: ItemData?)
 
 	self:Unselect()
 	SelectedItem = Button
+	SelectedItemZIndex = Button.ZIndex
 	SelectedItemData = Item
+	Button.ZIndex += 1
 
 	ItemName.Text = Item.DisplayName or Item.Name
 	BasicStats.Amount.Text = tostring(Item.Stack or 1) .. "x"
@@ -779,7 +797,7 @@ function InventoryController:CreateEntry(Item: ItemData, Placement: InventoryGri
 
 	local Label = Button:FindFirstChild("ItemName") :: TextLabel?
 	if Label and Label:IsA("TextLabel") then
-		Label.Text = Item.DisplayName or Item.Name
+		Label.Visible = false
 	end
 
 	local Amount = Button:FindFirstChild("Quantity") :: TextLabel?
@@ -960,7 +978,8 @@ function InventoryController.KnitStart()
 	BackpackPanel = Inventory:WaitForChild("BackpackPanel") :: Frame
 	BackpackTemplates = BackpackPanel:WaitForChild("Templates") :: Folder
 	Tabs = MainMenu:WaitForChild("Tabs") :: GuiObject
-	ContentScroll = BackpackPanel:WaitForChild("Scroll") :: ScrollingFrame
+	local ScrollWrapper = BackpackPanel:WaitForChild("ScrollWrapper") :: Frame
+	ContentScroll = ScrollWrapper:WaitForChild("Scroll") :: ScrollingFrame
 	GridCanvas = ContentScroll:WaitForChild("GridCanvas") :: Frame
 	Content = GridCanvas:WaitForChild("ItemsLayer") :: Frame
 	ItemInfo = Inventory:WaitForChild("ItemInfo") :: Frame
@@ -988,7 +1007,18 @@ function InventoryController.KnitStart()
 	MainMenu.Enabled = false
 	Inventory.Visible = true
 	StatsController:SetVisible(false)
-	ContentScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	local GridRatio = GridCanvas:FindFirstChildWhichIsA("UIAspectRatioConstraint")
+	if GridRatio then
+		GridRatio:Destroy()
+	end
+
+	ContentScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+	ContentScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+	ContentScroll.ClipsDescendants = true
+	ContentScroll:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(function()
+		InventoryController:ResizeBackpackCanvas()
+	end)
+	InventoryController:ResizeBackpackCanvas()
 	InventoryController:ClearContent()
 
 	local EquipmentScroll = Equipments:WaitForChild("Scroll") :: ScrollingFrame

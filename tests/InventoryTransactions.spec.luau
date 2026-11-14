@@ -75,7 +75,7 @@ return function(GridService: any, InventoryService: any, Context: any, Player: a
 		table.insert(Context.Data.Inventory, {Name = "LegacyKatana" .. tostring(Index), Class = "Weapon", Type = "Katana", Stack = 1})
 	end
 	local Migrated = GridService:GetLayout(Player)
-	Check(Migrated.Rows >= 9 and #Context.Data.Inventory == 9, "Legacy migration must preserve oversized existing inventories")
+	Check(Migrated.Columns == 6 and Migrated.Rows == 8 and #Context.Data.Inventory == 9 and #Migrated.Overflow == 1, "Legacy migration must preserve oversized inventories in overflow without enlarging the starter backpack")
 	Check(Context.Data.Backpack.Version == 1, "Legacy migration must complete only once")
 
 	return tostring(Checks) .. " inventory transaction checks passed"

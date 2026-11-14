@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
+local CrouchConfig = require(ReplicatedStorage.Shared.CrouchConfig)
 
 local Shared = {}
 
@@ -31,6 +32,9 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 	local function SetWalkSpeed(Speed: number)
 		if Character:GetAttribute("BowDrawing") then
 			Speed = math.min(Speed, BowConfig.DrawWalkSpeed)
+		end
+		if Character:GetAttribute("Crouching") then
+			Speed = math.min(Speed, CrouchConfig.WalkSpeed)
 		end
 
 		if Character:GetAttribute("IsAI") then
@@ -123,7 +127,7 @@ function Shared:ChangeJumpPower(Character: Model, amount: number?, overwrite: st
 	if not humanoid then
 		return
 	end
-	if Character:GetAttribute("BowDrawing") then
+	if Character:GetAttribute("BowDrawing") or Character:GetAttribute("Crouching") then
 		humanoid.Jump = false
 		humanoid.JumpPower = 0
 		return

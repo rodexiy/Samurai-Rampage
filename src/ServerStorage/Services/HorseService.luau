@@ -42,6 +42,7 @@ local Horses: { [Player]: HorseState } = {}
 local LastSpawn: { [Player]: number } = {}
 local HorseFolder: Folder
 local LookEvent: UnreliableRemoteEvent
+local DataService
 
 local function GetGroundParams(Character: Model): RaycastParams
 	local Params = RaycastParams.new()
@@ -295,6 +296,31 @@ function HorseService:Despawn(Player: Player)
 	State.Model:Destroy()
 end
 
+function HorseService:GetTier(Player: Player): number
+	local Data = DataService:GetData(Player)
+	local Tier = Data and Data.HorseTier
+
+	return if typeof(Tier) == "number" and HorseConfig.GetTier(Tier) then Tier else HorseConfig.DefaultTier
+end
+
+function HorseService:SetTier(Player: Player, Tier: any): (boolean, string?)
+	if typeof(Tier) ~= "number" or Tier % 1 ~= 0 or not HorseConfig.GetTier(Tier) then
+		return false, "Invalid horse level. Choose a level from 1 to " .. tostring(#HorseConfig.Tiers) .. "."
+	end
+
+	local Data = DataService:GetData(Player)
+	if not Data then
+		return false, "Player data is not ready."
+	end
+
+	if Data.HorseTier ~= Tier then
+		Data.HorseTier = Tier
+		self:Despawn(Player)
+	end
+
+	return true
+end
+
 -- Tier is chosen by server code only; requests from clients never accept a tier.
 function HorseService:Spawn(Player: Player, Tier: number?)
 	local Character = Player.Character
@@ -314,7 +340,7 @@ function HorseService:Spawn(Player: Player, Tier: number?)
 	end
 	LastSpawn[Player] = Now
 
-	local HorseTier = Tier or HorseConfig.DefaultTier
+	local HorseTier = Tier or self:GetTier(Player)
 	local Stats = HorseConfig.GetTier(HorseTier)
 	if not Stats then
 		return
@@ -447,6 +473,8 @@ function HorseService:UpdateRiderLook(Player: Player, Direction: any)
 end
 
 function HorseService.KnitInit()
+	DataService = Knit.GetService("DataService")
+
 	local Events = ReplicatedStorage.Assets:FindFirstChild("Events")
 	if not Events then
 		Events = Instance.new("Folder")

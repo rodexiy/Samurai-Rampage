@@ -41,6 +41,7 @@ local ReloadSequence = 0
 local ReloadPending = false
 local ReloadShotConnection: RBXScriptConnection? = nil
 local ReloadEndConnection: RBXScriptConnection? = nil
+local ReloadLengthConnection: RBXScriptConnection? = nil
 local PlayTransitionAnimation: (boolean) -> ()
 local AimParams = RaycastParams.new()
 AimParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -64,11 +65,38 @@ local function StopReload()
 		ReloadEndConnection:Disconnect()
 		ReloadEndConnection = nil
 	end
+	if ReloadLengthConnection then
+		ReloadLengthConnection:Disconnect()
+		ReloadLengthConnection = nil
+	end
 
 	local Reload = Tracks.Reload
 	if Reload then
 		Reload:Stop(0.1)
 	end
+end
+
+local function UpdateReloadTiming()
+	local Reload = Tracks.Reload
+	if not ReloadPending or not Reload then
+		return
+	end
+
+	local Remaining = NextShot - workspace:GetServerTimeNow()
+	if Remaining <= 0 then
+		StopReload()
+		return
+	end
+	if Reload.IsPlaying and Reload.Length > 0 then
+		Reload:AdjustSpeed(math.max(0.001, Reload.Length - Reload.TimePosition) / Remaining)
+	end
+
+	local Sequence = ReloadSequence
+	task.delay(Remaining, function()
+		if Sequence == ReloadSequence and workspace:GetServerTimeNow() >= NextShot then
+			StopReload()
+		end
+	end)
 end
 
 local function StopEquipmentAnimations(Target: Model?)
@@ -150,6 +178,12 @@ local function ScheduleReload(Shot: AnimationTrack)
 
 	ReloadPending = true
 	local Sequence = ReloadSequence
+	ReloadLengthConnection = Reload:GetPropertyChangedSignal("Length"):Connect(UpdateReloadTiming)
+	UpdateReloadTiming()
+	if not ReloadPending then
+		return
+	end
+
 	local function IsCurrent(): boolean
 		return Sequence == ReloadSequence and Character == Shooter and Shooter.Parent ~= nil
 			and Tracks.Reload == Reload and BowConfig.WeaponName == ItemName
@@ -161,7 +195,7 @@ local function ScheduleReload(Shot: AnimationTrack)
 			return
 		end
 		ReloadShotConnection = nil
-		if not IsCurrent() then
+		if not IsCurrent() or workspace:GetServerTimeNow() >= NextShot then
 			StopReload()
 			return
 		end
@@ -177,6 +211,7 @@ local function ScheduleReload(Shot: AnimationTrack)
 			end
 		end)
 		Reload:Play(0.1, 1, 1)
+		UpdateReloadTiming()
 	end
 
 	if Shot.IsPlaying then
@@ -525,7 +560,7 @@ function BowController:ShootFirearm()
 	end
 
 	LoadTracks()
-	NextShot = workspace:GetServerTimeNow() + BowConfig.ShotCooldown
+	NextShot = workspace:GetServerTimeNow() + RangedWeaponConfig.GetShotCooldown(BowConfig, Player)
 	BowService.Request:Fire("Shoot", GetAimPoint(), FocusActive and CanFocusZoom())
 end
 
@@ -570,7 +605,7 @@ local function InputAction(Action: string, State: Enum.UserInputState): Enum.Con
 				BowController:CancelDraw()
 			else
 				BowService.Request:Fire("Release", GetAimPoint())
-				NextShot = Now + BowConfig.ShotCooldown
+				NextShot = Now + RangedWeaponConfig.GetShotCooldown(BowConfig, Player)
 				StopDraw()
 			end
 		elseif State == Enum.UserInputState.Cancel then
@@ -657,7 +692,7 @@ function BowController.KnitStart()
 	task.spawn(function()
 		UpdateAmmo(InventoryService:GetInventory())
 	end)
-	BowService.Feedback:Connect(function(Action: string, Value: number?, NewSeed: number?, WeaponName: string?)
+	BowService.Feedback:Connect(function(Action: string, Value: number?, NewSeed: number?, WeaponName: string?, ReadyAt: number?)
 		if Action == "Draw" then
 			if Holding then
 				Started = Value
@@ -670,7 +705,7 @@ function BowController.KnitStart()
 			if not ShotConfig.IsFirearm and SameWeapon then
 				StopDraw()
 			end
-			NextShot = workspace:GetServerTimeNow() + ShotConfig.ShotCooldown
+			NextShot = ReadyAt or (workspace:GetServerTimeNow() + RangedWeaponConfig.GetShotCooldown(ShotConfig, Player))
 			if ShotConfig.IsFirearm then
 				ScheduleReadySound(NextShot, ShotConfig.WeaponName)
 			end
@@ -682,6 +717,13 @@ function BowController.KnitStart()
 				if ShotConfig.IsFirearm then
 					ScheduleReload(Track)
 				end
+			end
+		elseif Action == "Cooldown" and WeaponName == "Tanegashima" and BowConfig.WeaponName == WeaponName and Value then
+			local WasReloading = ReloadPending or NextShot > workspace:GetServerTimeNow()
+			NextShot = Value
+			if WasReloading or NextShot > workspace:GetServerTimeNow() then
+				ScheduleReadySound(NextShot, WeaponName)
+				UpdateReloadTiming()
 			end
 		elseif Action == "Cancel" then
 			StopDraw()
