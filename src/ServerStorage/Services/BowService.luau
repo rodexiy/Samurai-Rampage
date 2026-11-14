@@ -157,13 +157,21 @@ function BowService:EquipSword(Player: Player)
 	WeaponService:Equip(State.Character, true, 0)
 end
 
-function BowService:UnequipItem(Player: Player)
-	self:SetInHand(Player, false)
-
+function BowService:UnequipItem(Player: Player): (boolean, string?)
 	local Data = DataService:GetData(Player)
-	Data.Equipped.Bow = nil
+	if Data.Equipped.Bow then
+		local NextEquipped = table.clone(Data.Equipped)
+		NextEquipped.Bow = nil
+		local Success, Reason = InventoryService:CommitEquipment(Player, NextEquipped)
+		if not Success then
+			return false, Reason
+		end
+	end
+
+	self:SetInHand(Player, false)
 	self:Unload(Player)
 	self.Client.Feedback:Fire(Player, "Unequipped")
+	return true
 end
 
 function BowService:LoadBow(Player: Player)
@@ -235,20 +243,13 @@ function BowService:LoadBow(Player: Player)
 	self:SetInHand(Player, false)
 end
 
-function BowService:EquipItem(Player: Player, ItemName: string)
-	local Item = InventoryService:GetRawPlayerItemByName(Player, ItemName)
+function BowService:EquipItem(Player: Player, ItemName: string): (boolean, string?)
 	local ItemData = ItemService:GetItemData(ItemName)
-	if not Item or Item.Stack <= 0 or not ItemData or ItemData.Type ~= "Bow" then
-		return
+	if not ItemData or ItemData.Type ~= "Bow" then
+		return false, "This item is not a ranged weapon."
 	end
 
-	local Data = DataService:GetData(Player)
-	if Data.Equipped.Bow == ItemName then
-		self:UnequipItem(Player)
-	else
-		Data.Equipped.Bow = ItemName
-		self:LoadBow(Player)
-	end
+	return InventoryService:EquipUnequipItem(Player, ItemName)
 end
 
 function BowService:BeginDraw(Player: Player, Aim: any)

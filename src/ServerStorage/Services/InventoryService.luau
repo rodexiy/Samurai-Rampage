@@ -28,6 +28,7 @@ local BowService
 local InventoryGridService
 
 local DeepCopy = require(ReplicatedStorage.Shared.Utils.DeepCopy)
+local InventoryEquipmentSlots = require(ReplicatedStorage.Shared.Utils.InventoryEquipmentSlots)
 
 local function CanChangeEquippedItems(Character: Model?): boolean
 	if not Character then
@@ -315,18 +316,27 @@ function InventoryService:IsEquipped(Player: Player, ItemName: string)
 	return false
 end
 
-function InventoryService:EquipUnequipItem(Player: Player, ItemName: string): (boolean?, string?)
+function InventoryService:CommitEquipment(Player: Player, NextEquipped: { [string]: string }, PreferredName: string?): (boolean, string?)
+	local Success, Reason = InventoryGridService:SetEquippedItems(Player, NextEquipped, PreferredName)
+	if not Success then
+		AlertService:AlertPlayer(Player, Reason, "Warn")
+	end
+
+	return Success, Reason
+end
+
+function InventoryService:EquipUnequipItem(Player: Player, ItemName: string): (boolean, string?)
 	local PlayerData = DataService:GetData(Player)
 	local ItemData = ItemService:GetItemData(ItemName)
 
 	if not ItemData then
-		return
+		return false, "This item is not in your inventory."
 	end
 
 	local Character = Player.Character
 
 	if not CanChangeEquippedItems(Character) then
-		return
+		return false, "You cannot change equipment right now."
 	end
 
 	if ItemData.Class == "Equipable" then
@@ -337,64 +347,72 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string): (b
 		return self:EquipEquipmentSlot(Player, ItemData.Type, ItemName)
 	end
 
-	if ItemData.Class == "Weapon" and ItemData.Type == "Bow" then
-		BowService:EquipItem(Player, ItemName)
-	elseif ItemData.Class == "Weapon" then
-		if PlayerData.Equipped.Weapon ~= ItemName then
-			local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
+	local Item = self:GetRawPlayerItemByName(Player, ItemName)
+	if ItemData.Class ~= "Weapon" or not Item or Item.Stack <= 0 then
+		return false, "This weapon is not in your inventory."
+	end
 
-			if not StanceData or StanceData.WeaponType ~= ItemData.Type then
-				AlertService:AlertPlayer(Player, "You cannot equip this weapon in this stance!", "Warn")
-				return
-			end
+	local Ranged = ItemData.Type == "Bow"
+	local WasEquipped = (if Ranged then PlayerData.Equipped.Bow else PlayerData.Equipped.Weapon) == ItemName
+	if not Ranged and not WasEquipped then
+		local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
 
-			if PlayerData.Equipped.LeftWeapon == ItemName then
-				self:UnequipLeftWeapon(Player, false, false)
-			end
-
-			PlayerData.Equipped.Weapon = ItemName
-
-			if Character then
-				if Character:GetAttribute("WeaponEquipped") then
-					WeaponService:Equip(Character, false, 1.5)
-				end
-				Character:SetAttribute("Weapon", ItemName)
-				Character:SetAttribute("WeaponType", ItemData.Type)
-				WeaponService:LoadWeapon(
-					Character,
-					PlayerData.Equipped.Weapon,
-					PlayerData.Equipped.LeftWeapon,
-					PlayerData.SelectedStance
-				)
-
-				Character:SetAttribute("WeaponEquipped", false)
-				ValuesService:UpdateDamage(Character)
-			end
-		else
-			PlayerData.Equipped.Weapon = nil
-			PlayerData.Equipped.LeftWeapon = nil
-			if Character then
-				if Character:GetAttribute("WeaponEquipped") then
-					WeaponService:Equip(Character, false, 1.5)
-				end
-				WeaponService:UnloadWeapon(Character)
-				Character:SetAttribute("Weapon", nil)
-				Character:SetAttribute("WeaponType", nil)
-				Character:SetAttribute("LeftWeapon", nil)
-				Character:SetAttribute("LeftWeaponType", nil)
-				Character:SetAttribute("WeaponEquipped", false)
-				ValuesService:UpdateDamage(Character)
-			end
+		if not StanceData or StanceData.WeaponType ~= ItemData.Type then
+			AlertService:AlertPlayer(Player, "You cannot equip this weapon in this stance!", "Warn")
+			return false, "You cannot equip this weapon in this stance!"
 		end
 	end
 
+	local NextEquipped = InventoryEquipmentSlots.WithSlot(PlayerData.Equipped, if Ranged then "Bow" else "Weapon", if WasEquipped then nil else ItemName)
+	local Success, Reason = self:CommitEquipment(Player, NextEquipped, if WasEquipped then nil else ItemName)
+	if not Success then
+		return false, Reason
+	end
+
+	if Ranged then
+		if WasEquipped then
+			BowService:UnequipItem(Player)
+		else
+			BowService:LoadBow(Player)
+		end
+	elseif Character then
+		if Character:GetAttribute("WeaponEquipped") then
+			WeaponService:Equip(Character, false, 1.5)
+		end
+
+		if not WasEquipped then
+			Character:SetAttribute("Weapon", ItemName)
+			Character:SetAttribute("WeaponType", ItemData.Type)
+			WeaponService:LoadWeapon(
+				Character,
+				PlayerData.Equipped.Weapon,
+				PlayerData.Equipped.LeftWeapon,
+				PlayerData.SelectedStance
+			)
+		else
+			WeaponService:UnloadWeapon(Character)
+			Character:SetAttribute("Weapon", nil)
+			Character:SetAttribute("WeaponType", nil)
+			Character:SetAttribute("LeftWeapon", nil)
+			Character:SetAttribute("LeftWeaponType", nil)
+		end
+
+		Character:SetAttribute("WeaponEquipped", false)
+		ValuesService:UpdateDamage(Character)
+	end
+
 	self:UpdateUI(Player)
+	return true
 end
 function InventoryService.Client:EquipUnequipItem(Player: Player, ItemName: string)
 	self.Server:EquipUnequipItem(Player, ItemName)
 end
 
 function InventoryService:EquipEquipmentSlot(Player: Player, SlotName: string, ItemName: string): (boolean, string?)
+	if InventoryEquipmentSlots.IsWeaponSlot(SlotName) then
+		return self:SetWeaponEquipmentSlot(Player, SlotName, ItemName)
+	end
+
 	if not CanChangeEquippedItems(Player.Character) then
 		return false, "You cannot change equipment right now."
 	end
@@ -416,6 +434,10 @@ function InventoryService:EquipEquipmentSlot(Player: Player, SlotName: string, I
 end
 
 function InventoryService:UnequipEquipmentSlot(Player: Player, SlotName: string, ItemName: string): (boolean, string?)
+	if InventoryEquipmentSlots.IsWeaponSlot(SlotName) then
+		return self:SetWeaponEquipmentSlot(Player, SlotName, ItemName, true)
+	end
+
 	if not CanChangeEquippedItems(Player.Character) then
 		return false, "You cannot change equipment right now."
 	end
@@ -440,9 +462,13 @@ function InventoryService.Client:UnequipEquipmentSlot(Player: Player, SlotName: 
 	self.Server:UnequipEquipmentSlot(Player, SlotName, ItemName)
 end
 
-function InventoryService:UnequipLeftWeapon(Player: Player, UpdateUI: boolean?, LoadFallback: boolean?)
+function InventoryService:UnequipLeftWeapon(Player: Player, UpdateUI: boolean?, LoadFallback: boolean?): (boolean, string?)
 	local PlayerData = DataService:GetData(Player)
-	PlayerData.Equipped.LeftWeapon = nil
+	local NextEquipped = InventoryEquipmentSlots.WithSlot(PlayerData.Equipped, "LeftWeapon", nil)
+	local Success, Reason = self:CommitEquipment(Player, NextEquipped)
+	if not Success then
+		return false, Reason
+	end
 
 	local Character = Player.Character
 	if Character then
@@ -464,48 +490,58 @@ function InventoryService:UnequipLeftWeapon(Player: Player, UpdateUI: boolean?, 
 	if UpdateUI ~= false then
 		self:UpdateUI(Player)
 	end
+
+	return true
 end
 
-function InventoryService:EquipUnequipLeftItem(Player: Player, ItemName: string)
+function InventoryService:EquipUnequipLeftItem(Player: Player, ItemName: string): (boolean, string?)
 	local PlayerData = DataService:GetData(Player)
 	local ItemData = ItemService:GetItemData(ItemName)
 
 	if not ItemData or ItemData.Class ~= "Weapon" or ItemData.Type == "Bow" then
-		return
+		return false, "This item is not a melee weapon."
 	end
 
 	local Character = Player.Character
 	if not CanChangeEquippedItems(Character) then
-		return
+		return false, "You cannot change equipment right now."
 	end
 
 	if PlayerData.Equipped.LeftWeapon == ItemName then
-		self:UnequipLeftWeapon(Player)
-		return
+		return self:UnequipLeftWeapon(Player)
 	end
 
 	local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
 	if not StanceData or not StanceData.DualWield then
 		AlertService:AlertPlayer(Player, "This stance cannot dual wield.", "Warn")
-		return
+		return false, "This stance cannot dual wield."
 	end
 
 	if StanceData.WeaponType ~= ItemData.Type then
 		AlertService:AlertPlayer(Player, "You cannot equip this weapon in this stance!", "Warn")
-		return
+		return false, "You cannot equip this weapon in this stance!"
 	end
 
 	if not PlayerData.Equipped.Weapon then
 		AlertService:AlertPlayer(Player, "Equip a right-hand weapon first.", "Warn")
-		return
+		return false, "Equip a right-hand weapon first."
 	end
 
 	if PlayerData.Equipped.Weapon == ItemName then
 		AlertService:AlertPlayer(Player, "This weapon is already in your right hand.", "Warn")
-		return
+		return false, "This weapon is already in your right hand."
 	end
 
-	PlayerData.Equipped.LeftWeapon = ItemName
+	local Item = self:GetRawPlayerItemByName(Player, ItemName)
+	if not Item or Item.Stack <= 0 then
+		return false, "This weapon is not in your inventory."
+	end
+
+	local NextEquipped = InventoryEquipmentSlots.WithSlot(PlayerData.Equipped, "LeftWeapon", ItemName)
+	local Success, Reason = self:CommitEquipment(Player, NextEquipped, ItemName)
+	if not Success then
+		return false, Reason
+	end
 
 	if Character then
 		Character:SetAttribute("LeftWeapon", ItemName)
@@ -520,14 +556,66 @@ function InventoryService:EquipUnequipLeftItem(Player: Player, ItemName: string)
 	end
 
 	self:UpdateUI(Player)
+	return true
 end
 function InventoryService.Client:EquipUnequipLeftItem(Player: Player, ItemName: string)
 	self.Server:EquipUnequipLeftItem(Player, ItemName)
 end
 
+function InventoryService:GetWeaponEquipment(Player: Player): InventoryEquipmentSlots.WeaponEquipment
+	local Data = DataService:GetData(Player)
+	return InventoryEquipmentSlots.Resolve(Data.Equipped, StanceService:GetStance(Data.SelectedStance), ItemService:GetItemData(Data.Equipped.Weapon))
+end
+
+function InventoryService:SetWeaponEquipmentSlot(Player: Player, SlotName: string, ItemName: string, Unequip: boolean?): (boolean, string?)
+	if not CanChangeEquippedItems(Player.Character) then
+		return false, "You cannot change equipment right now."
+	end
+
+	local Data = DataService:GetData(Player)
+	local Item = self:GetRawPlayerItemByName(Player, ItemName)
+	local ItemData = ItemService:GetItemData(ItemName)
+	local Equipment = self:GetWeaponEquipment(Player)
+	if not Item or Item.Stack <= 0 or not ItemData or not InventoryEquipmentSlots.IsWeaponSlot(SlotName)
+		or not InventoryEquipmentSlots.Accepts(ItemData, SlotName, Equipment) then
+		return false, "This item does not belong in that slot."
+	end
+	if Unequip and Equipment[SlotName] ~= ItemName then
+		return false, "Equipment changed. Try again."
+	end
+	if not Unequip and Equipment[SlotName] == ItemName then
+		return true
+	end
+
+	if SlotName == "SecondKatana" then
+		if Unequip or ItemName == Equipment.Katana then
+			return self:UnequipLeftWeapon(Player)
+		else
+			return self:EquipUnequipLeftItem(Player, ItemName)
+		end
+	else
+		local Stance = StanceService:GetStance(Data.SelectedStance)
+		if not Unequip and SlotName == "Katana" and (not Stance or Stance.WeaponType ~= "Katana") then
+			return false, "You cannot equip this weapon in this stance!"
+		end
+
+		return self:EquipUnequipItem(Player, ItemName)
+	end
+end
+
+function InventoryService:GetInventoryLayout(Player: Player): ItemData
+	local Layout = InventoryGridService:GetLayout(Player)
+	local Data = DataService:GetData(Player)
+	Layout.WeaponEquipment = self:GetWeaponEquipment(Player)
+	Layout.Equipped = DeepCopy(Data.Equipped)
+	Layout.Hotbar = DeepCopy(Data.Hotbar or {})
+
+	return Layout
+end
+
 function InventoryService:GetInventory(Player: Player): ({ ItemData }, ItemData)
 	local PlayerData = DataService:GetData(Player)
-	local Layout = InventoryGridService:GetLayout(Player)
+	local Layout = self:GetInventoryLayout(Player)
 	local InventoryCopy = DeepCopy(PlayerData.Inventory)
 	local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
 
@@ -539,6 +627,8 @@ function InventoryService:GetInventory(Player: Player): ({ ItemData }, ItemData)
 		Item.Type = ItemData.Type
 		Item.Class = ItemData.Class
 		Item.Hidden = ItemData.Hidden
+		Item.InHotbar = self:GetItemHotbarIndex(Player, Item.Name) ~= nil
+		Item.UsesInventoryGrid = InventoryEquipmentSlots.UsesGrid(Item, PlayerData.Equipped, PlayerData.Hotbar or {})
 		Item.InventoryPosition = Layout.Positions[Item.Name]
 		Item.Rotated = Item.InventoryPosition and Item.InventoryPosition.Rotated or false
 
@@ -552,7 +642,8 @@ function InventoryService:GetInventory(Player: Player): ({ ItemData }, ItemData)
 			Item.CanEquipLeft = false
 		elseif Item.Class == "Weapon" then
 			Item.Equipped = PlayerData.Equipped.Weapon == Item.Name
-			Item.EquippedLeft = PlayerData.Equipped.LeftWeapon == Item.Name
+			Item.EquippedLeft = Layout.WeaponEquipment.SecondKatana == Item.Name
+			Item.DefaultLeft = Item.EquippedLeft and PlayerData.Equipped.LeftWeapon == nil
 			Item.CanEquipLeft = StanceData
 				and StanceData.DualWield
 				and StanceData.WeaponType == Item.Type
@@ -594,13 +685,13 @@ function InventoryService:HandleInventoryAction(Player: Player, Request: any)
 		return
 	end
 
-	local Layout = InventoryGridService:GetLayout(Player)
+	local Layout = self:GetInventoryLayout(Player)
 	local Success, Reason = false, "Inventory changed. Try again."
 	if Request.Revision == Layout.Revision then
 		if Request.Kind == "Move" then
 			Success, Reason = InventoryGridService:Move(Player, Request.Name, Request.Column, Request.Row, Request.Rotated, Request.Revision)
 			if Success then
-				self.Client.InventoryLayoutUpdated:Fire(Player, InventoryGridService:GetLayout(Player))
+				self.Client.InventoryLayoutUpdated:Fire(Player, self:GetInventoryLayout(Player))
 			end
 		elseif Request.Kind == "Equip" then
 			Success, Reason = self:EquipEquipmentSlot(Player, Request.Slot, Request.Name)
@@ -609,7 +700,7 @@ function InventoryService:HandleInventoryAction(Player: Player, Request: any)
 		end
 	end
 
-	local Correction = if Success then nil else InventoryGridService:GetLayout(Player)
+	local Correction = if Success then nil else self:GetInventoryLayout(Player)
 	self.Client.InventoryActionResult:Fire(Player, Request.Id, Success, Reason, Correction)
 end
 

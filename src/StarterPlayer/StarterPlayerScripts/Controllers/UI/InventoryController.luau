@@ -6,6 +6,7 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local Items = require(ReplicatedStorage.Shared.Index.Items)
 local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
 local InventoryGrid = require(ReplicatedStorage.Shared.Utils.InventoryGrid)
+local InventoryEquipmentSlots = require(ReplicatedStorage.Shared.Utils.InventoryEquipmentSlots)
 
 type ItemData = { [string]: any }
 type RenderedItem = { Button: ImageButton, Item: ItemData }
@@ -381,13 +382,48 @@ function InventoryController:AddModelToViewport(
 	end
 end
 
-function InventoryController:RefreshEquipmentSlots(Entries: { ItemData })
+function InventoryController:CreateWeaponSlots(Scroll: ScrollingFrame)
+	local Template = Scroll:WaitForChild("HeadSlot") :: Frame
+	for _, Definition in InventoryEquipmentSlots.Weapons do
+		local Slot = Scroll:FindFirstChild(Definition.Name .. "Slot") :: Frame?
+		if not Slot then
+			Slot = Template:Clone()
+			Slot.Name = Definition.Name .. "Slot"
+			Slot.Parent = Scroll
+		end
+
+		Slot.LayoutOrder = Definition.Order
+		Slot:SetAttribute("EquipmentSlot", Definition.Name)
+		local Title = Slot:WaitForChild("Title") :: TextLabel
+		Title.Text = Definition.Title
+		local Button = Slot:WaitForChild("Button") :: ImageButton
+		Button:SetAttribute("EquipmentSlot", Definition.Name)
+		Slot.Visible = Definition.Name ~= "SecondKatana"
+	end
+end
+
+function InventoryController:RefreshEquipmentSlots(Entries: { ItemData }, Snapshot: ItemData?)
 	table.clear(EquippedItems)
+	local ByName: { [string]: ItemData } = {}
 
 	for _, Entry in Entries do
+		ByName[Entry.Name] = Entry
 		if Entry.Class == "Equipable" and Entry.Equipped then
 			EquippedItems[Entry.Type] = GetItemData(Entry)
 		end
+	end
+
+	local WeaponEquipment = Snapshot and Snapshot.WeaponEquipment
+	for _, Definition in InventoryEquipmentSlots.Weapons do
+		local Name = WeaponEquipment and WeaponEquipment[Definition.Name]
+		if Name and ByName[Name] then
+			EquippedItems[Definition.Name] = GetItemData(ByName[Name])
+		end
+	end
+	local SecondKatana = EquipmentButtons.SecondKatana
+	if SecondKatana then
+		local Slot = SecondKatana.Parent :: Frame
+		Slot.Visible = WeaponEquipment ~= nil and WeaponEquipment.DualWield == true
 	end
 
 	for SlotName, Button in EquipmentButtons do
@@ -422,8 +458,8 @@ function InventoryController:RefreshEquipmentSlots(Entries: { ItemData })
 	end
 end
 
-function InventoryController:ChangeEquipment(Item: ItemData, Unequip: boolean?)
-	local SlotName = Item.Type
+function InventoryController:ChangeEquipment(Item: ItemData, Unequip: boolean?, EquipmentSlot: string?)
+	local SlotName = EquipmentSlot or Item.Type
 	if PendingEquipmentSlots[SlotName] then
 		return
 	end
@@ -449,7 +485,7 @@ function InventoryController:UnequipEquipmentSlot(SlotName: string)
 		return
 	end
 
-	self:ChangeEquipment(Item, true)
+	self:ChangeEquipment(Item, true, SlotName)
 end
 
 function InventoryController:UpdateBackpackGrid(VisibleItems: { ItemData }): { InventoryGrid.Placement }
@@ -609,7 +645,7 @@ function InventoryController:Select(Button: ImageButton, Data: ItemData?)
 		or Item.Class == "Weapon"
 		or Item.Class == "Stance"
 		or self:CanAssignToHotbar()
-	EquipLeftButton.Visible = Item.Class == "Weapon" and (Item.CanEquipLeft == true or Item.EquippedLeft == true)
+	EquipLeftButton.Visible = Item.Class == "Weapon" and not Item.DefaultLeft and (Item.CanEquipLeft == true or Item.EquippedLeft == true)
 	SetButtonText(EquipButton, if Item.Equipped then "UNEQUIP" else "EQUIP")
 	if Item.Class == "Stance" and Item.Equipped then
 		SetButtonText(EquipButton, "EQUIPPED")
@@ -648,7 +684,11 @@ end
 function InventoryController:EquipLeftItem()
 	local Item = SelectedItemData
 	if Item and Item.Class == "Weapon" and (Item.CanEquipLeft or Item.EquippedLeft) then
-		InventoryService:EquipUnequipLeftItem(Item.Name)
+		if Item.EquippedLeft then
+			self:ChangeEquipment(Item, true, "SecondKatana")
+		else
+			InventoryService:EquipUnequipLeftItem(Item.Name)
+		end
 	end
 end
 
@@ -853,7 +893,7 @@ function InventoryController:UpdateContent()
 	end
 
 	if Tab ~= "Stances" then
-		self:RefreshEquipmentSlots(Entries)
+		self:RefreshEquipmentSlots(Entries, Snapshot)
 	end
 	InventoryLayout = Snapshot
 	InventoryDragController:SetLayout(Entries, if Tab == "Items" then Snapshot else nil)
@@ -872,7 +912,7 @@ function InventoryController:UpdateContent()
 		local Item = GetItemData(Entry)
 		if Item.Hidden
 			or (Tab == "Skills" and Item.Class ~= "Skill")
-			or (Tab == "Items" and (Item.Class == "Skill" or (Item.Class == "Equipable" and Item.Equipped))) then
+			or (Tab == "Items" and (Item.Class == "Skill" or Item.UsesInventoryGrid == false)) then
 			continue
 		end
 
@@ -952,6 +992,7 @@ function InventoryController.KnitStart()
 	InventoryController:ClearContent()
 
 	local EquipmentScroll = Equipments:WaitForChild("Scroll") :: ScrollingFrame
+	InventoryController:CreateWeaponSlots(EquipmentScroll)
 	for _, Button in EquipmentScroll:QueryDescendants("ImageButton") do
 		local SlotName = Button:GetAttribute("EquipmentSlot")
 		if typeof(SlotName) == "string" then

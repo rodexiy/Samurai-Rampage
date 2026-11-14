@@ -140,7 +140,9 @@ function AimPoseController.CanTurnHead(Character: Model): boolean
 		return Character:GetAttribute("BowDrawing") == true or not RidingFast
 	end
 
-	return Character:GetAttribute("Running") ~= true
+	local WeaponInHand = Character:GetAttribute("WeaponEquipped") == true or Character:GetAttribute("BowEquipped") == true
+
+	return Character:GetAttribute("Running") ~= true or not WeaponInHand
 end
 
 function AimPoseController.UpdateFromCFrame(State: State, Character: Model, CameraFrame: CFrame, DeltaTime: number): boolean

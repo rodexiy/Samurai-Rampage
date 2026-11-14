@@ -5,6 +5,7 @@ local GuiService = game:GetService("GuiService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local InventoryGrid = require(ReplicatedStorage.Shared.Utils.InventoryGrid)
+local InventoryEquipmentSlots = require(ReplicatedStorage.Shared.Utils.InventoryEquipmentSlots)
 
 type ItemData = { [string]: any }
 type DragState = {
@@ -28,6 +29,7 @@ local InventoryService
 local Context: ItemData?
 local Layout: ItemData?
 local Items: { [string]: ItemData } = {}
+local InventoryEntries: { ItemData } = {}
 local Equipped: { [string]: ItemData } = {}
 local Buttons: { [string]: ImageButton } = {}
 local State: DragState?
@@ -96,6 +98,7 @@ end
 
 function InventoryDragController:SetLayout(Entries: { ItemData }, Snapshot: ItemData?)
 	Layout = Snapshot
+	InventoryEntries = Entries
 	table.clear(Items)
 	table.clear(Equipped)
 	table.clear(Buttons)
@@ -104,6 +107,14 @@ function InventoryDragController:SetLayout(Entries: { ItemData }, Snapshot: Item
 		Items[Item.Name] = Item
 		if Item.Class == "Equipable" and Item.Equipped then
 			Equipped[Item.Type] = Item
+		end
+	end
+
+	local WeaponEquipment = Snapshot and Snapshot.WeaponEquipment
+	for _, Definition in InventoryEquipmentSlots.Weapons do
+		local Name = WeaponEquipment and WeaponEquipment[Definition.Name]
+		if Name then
+			Equipped[Definition.Name] = Items[Name]
 		end
 	end
 end
@@ -200,17 +211,19 @@ function InventoryDragController:PreviewEquipment(Drag: DragState): boolean
 	end
 
 	for Slot, Button in Context.EquipmentButtons do
-		if not Contains(Button, Drag.Pointer) then
+		local SlotFrame = Button.Parent :: GuiObject
+		if not Button.Visible or not SlotFrame.Visible or not Contains(Button, Drag.Pointer) then
 			continue
 		end
 
 		Drag.Slot = Slot
-		Drag.Valid = Drag.Item.Class == "Equipable" and Drag.Item.Type == Slot and not Drag.Item.Equipped
-		if Drag.Valid and Equipped[Slot] then
-			local Positions = table.clone(Layout.Positions)
-			local Preferred = Positions[Drag.Item.Name]
-			Positions[Drag.Item.Name] = nil
-			Drag.Valid = InventoryGrid.FindPlacement(Equipped[Slot], Positions, Layout.Columns, Layout.Rows, Preferred) ~= nil
+		local WeaponSlot = InventoryEquipmentSlots.IsWeaponSlot(Slot)
+		Drag.Valid = InventoryEquipmentSlots.Accepts(Drag.Item, Slot, Layout.WeaponEquipment)
+			and (if WeaponSlot then not Equipped[Slot] or Equipped[Slot].Name ~= Drag.Item.Name else not Drag.Item.Equipped)
+		if Drag.Valid then
+			local CurrentEquipment = Layout.Equipped or {}
+			local NextEquipment = InventoryEquipmentSlots.WithSlot(CurrentEquipment, Slot, Drag.Item.Name)
+			Drag.Valid = InventoryEquipmentSlots.PlanLayout(InventoryEntries, CurrentEquipment, NextEquipment, Layout.Hotbar or {}, Layout, Drag.Item.Name) ~= nil
 		end
 
 		local Layer = Context.DragLayer
@@ -309,6 +322,11 @@ function InventoryDragController:Drop()
 		Id = RequestId, Kind = if Drag.Slot then "Equip" else "Move", Name = Drag.Item.Name, Slot = Drag.Slot,
 		Column = Candidate and Candidate.Column, Row = Candidate and Candidate.Row, Rotated = Drag.Rotated, Revision = Layout.Revision,
 	}
+
+	if Candidate and not Drag.Slot then
+		InventoryController:ApplyEntryPlacement(Drag.Button, Candidate)
+	end
+
 	self:Cancel()
 	InventoryService.InventoryAction:Fire(Request)
 	local Id = RequestId

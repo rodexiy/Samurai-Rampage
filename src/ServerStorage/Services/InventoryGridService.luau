@@ -4,6 +4,7 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local InventoryConfig = require(ReplicatedStorage.Shared.InventoryConfig)
 local InventoryGrid = require(ReplicatedStorage.Shared.Utils.InventoryGrid)
 local DeepCopy = require(ReplicatedStorage.Shared.Utils.DeepCopy)
+local InventoryEquipmentSlots = require(ReplicatedStorage.Shared.Utils.InventoryEquipmentSlots)
 
 type ItemData = InventoryConfig.ItemData
 type Positions = { [string]: InventoryGrid.Placement }
@@ -12,17 +13,12 @@ local InventoryGridService = Knit.CreateService({Name = "InventoryGridService", 
 local DataService
 local ItemService
 
-local function UsesGrid(Item: ItemData, Equipped: { [string]: string }): boolean
-	return not Item.Hidden and Item.Class ~= "Skill" and Item.Class ~= "Stance"
-		and not (Item.Class == "Equipable" and Equipped[Item.Type] == Item.Name)
-end
-
 local function GetItems(Data: ItemData): ({ ItemData }, { [string]: ItemData })
 	local Items, ByName = {}, {}
 	for _, Raw in Data.Inventory do
 		local Item = ItemService:ImplementData(Raw)
 		ByName[Item.Name] = Item
-		if UsesGrid(Item, Data.Equipped) then
+		if InventoryEquipmentSlots.UsesGrid(Item, Data.Equipped, Data.Hotbar or {}) then
 			table.insert(Items, Item)
 		end
 	end
@@ -115,7 +111,7 @@ function InventoryGridService:Move(Player: Player, Name: any, Column: any, Row: 
 
 	local _, Items = GetItems(Data)
 	local Item = Items[Name]
-	if not Item or not UsesGrid(Item, Data.Equipped) then
+	if not Item or not InventoryEquipmentSlots.UsesGrid(Item, Data.Equipped, Data.Hotbar or {}) then
 		return false, "This item cannot be moved."
 	end
 
@@ -129,13 +125,46 @@ function InventoryGridService:Move(Player: Player, Name: any, Column: any, Row: 
 	return true
 end
 
+function InventoryGridService:SetEquippedItems(Player: Player, NextEquipped: { [string]: string }, PreferredName: string?): (boolean, string?)
+	local Data = DataService:GetData(Player)
+	local Changed = false
+	for Slot, Name in NextEquipped do
+		Changed = Changed or Data.Equipped[Slot] ~= Name
+	end
+	for Slot, Name in Data.Equipped do
+		Changed = Changed or NextEquipped[Slot] ~= Name
+	end
+	if not Changed then
+		return true
+	end
+
+	local Layout = self:GetLayout(Player)
+	local Entries = {}
+	for _, Raw in Data.Inventory do
+		table.insert(Entries, ItemService:ImplementData(Raw))
+	end
+
+	local Positions, Reason = InventoryEquipmentSlots.PlanLayout(Entries, Data.Equipped, NextEquipped, Data.Hotbar or {}, Layout, PreferredName)
+	if not Positions then
+		return false, Reason
+	end
+
+	Data.Backpack.Positions = Positions
+	Data.Backpack.Revision += 1
+	table.clear(Data.Equipped)
+	for Slot, Name in NextEquipped do
+		Data.Equipped[Slot] = Name
+	end
+
+	return true
+end
+
 function InventoryGridService:SetEquipment(Player: Player, Slot: any, NewName: any, ExpectedName: string?): (boolean, string?)
 	local Data = DataService:GetData(Player)
 	if not Data or typeof(Slot) ~= "string" or (NewName ~= nil and typeof(NewName) ~= "string") then
 		return false, "Invalid equipment."
 	end
 
-	local Layout = self:GetLayout(Player)
 	local _, Items = GetItems(Data)
 	local NewItem = NewName and Items[NewName]
 	local OldName = Data.Equipped[Slot]
@@ -143,7 +172,11 @@ function InventoryGridService:SetEquipment(Player: Player, Slot: any, NewName: a
 		return false, "Equipment changed. Try again."
 	end
 
-	if NewName and (not NewItem or NewItem.Class ~= "Equipable" or NewItem.Type ~= Slot) then
+	if NewName and (not NewItem or NewItem.Stack <= 0 or NewItem.Class ~= "Equipable" or NewItem.Type ~= Slot) then
+		return false, "This item does not belong in that slot."
+	end
+	local OldItem = OldName and Items[OldName]
+	if not NewName and OldName and (not OldItem or OldItem.Class ~= "Equipable" or OldItem.Type ~= Slot) then
 		return false, "This item does not belong in that slot."
 	end
 
@@ -151,32 +184,14 @@ function InventoryGridService:SetEquipment(Player: Player, Slot: any, NewName: a
 		return false, "This item is already equipped."
 	end
 
-	local Positions = Layout.Positions
-	local Preferred = NewName and Positions[NewName]
-	if NewName then
-		Positions[NewName] = nil
-	end
-
-	if OldName then
-		local OldItem = Items[OldName]
-		local Placement = OldItem and InventoryGrid.FindPlacement(OldItem, Positions, Layout.Columns, Layout.Rows, Preferred)
-		if not Placement then
-			return false, "Not enough backpack space for the equipped item."
-		end
-		Positions[OldName] = Placement
-	end
-
-	Data.Backpack.Positions = Positions
-	Data.Backpack.Revision += 1
-	Data.Equipped[Slot] = NewName
-	return true
+	return self:SetEquippedItems(Player, InventoryEquipmentSlots.WithSlot(Data.Equipped, Slot, NewName), NewName)
 end
 
 function InventoryGridService:CanAdd(Player: Player, Raw: ItemData): boolean
 	local Data = DataService:GetData(Player)
 	local Layout = self:GetLayout(Player)
 	local Item = ItemService:ImplementData(Raw)
-	if not UsesGrid(Item, Data.Equipped) then
+	if not InventoryEquipmentSlots.UsesGrid(Item, Data.Equipped, Data.Hotbar or {}) then
 		return true
 	end
 

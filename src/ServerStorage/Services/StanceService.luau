@@ -1,4 +1,7 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local InventoryEquipmentSlots = require(ReplicatedStorage.Shared.Utils.InventoryEquipmentSlots)
 
 local StanceService = Knit.CreateService({
 	Name = "StanceService",
@@ -7,7 +10,7 @@ local StanceService = Knit.CreateService({
 	},
 })
 
-local Stances = require(game.ReplicatedStorage.Shared.Index.Stances)
+local Stances = require(ReplicatedStorage.Shared.Index.Stances)
 
 local ValuesService
 local AlertService
@@ -18,8 +21,6 @@ local ItemService
 local DataService
 
 function StanceService:UpdateUI(Player: Player)
-	local PlayerData = DataService:GetData(Player)
-
 	StanceService.Client.UpdateUI:Fire(Player, self:GetPlayerStances(Player))
 end
 
@@ -30,15 +31,15 @@ end
 function StanceService:GetPlayerStances(Player: Player)
 	local PlayerData = DataService:GetData(Player)
 
-	local Stances = {}
+	local PlayerStances = {}
 	
 	for _, Stance in PlayerData.Stances do
 		local StanceData = table.clone(self:GetStance(Stance))
 		StanceData.Equipped = Stance == PlayerData.SelectedStance
-		table.insert(Stances, StanceData)
+		table.insert(PlayerStances, StanceData)
 	end
 
-	return Stances
+	return PlayerStances
 end
 function StanceService.Client:GetPlayerStances(Player: Player)
 	return self.Server:GetPlayerStances(Player)
@@ -54,16 +55,34 @@ function StanceService:GiveStance(Player: Player, StanceName: string)
 	end
 end
 
-function StanceService:EquipStance(Player: Player, StanceName: string)
+function StanceService:EquipStance(Player: Player, StanceName: string): (boolean?, string?)
 	local PlayerData = DataService:GetData(Player)
 
 	if table.find(PlayerData.Stances, StanceName) then
 		local DidChangeStance = PlayerData.SelectedStance ~= StanceName
-		PlayerData.SelectedStance = StanceName
+		local PreviousWeapon = PlayerData.Equipped.Weapon
+		local StanceData = self:GetStance(StanceName)
 		if DidChangeStance then
-			InventoryService:UnequipLeftWeapon(Player, false, false)
+			local NextEquipped = InventoryEquipmentSlots.WithSlot(PlayerData.Equipped, "LeftWeapon", nil)
+			local CurrentWeaponData = ItemService:GetItemData(PreviousWeapon)
+			if not CurrentWeaponData or CurrentWeaponData.Type ~= StanceData.WeaponType then
+				NextEquipped.Weapon = nil
+				for _, Item in PlayerData.Inventory do
+					local ItemData = ItemService:GetItemData(Item.Name)
+					if Item.Stack > 0 and ItemData and ItemData.Class == "Weapon" and ItemData.Type == StanceData.WeaponType then
+						NextEquipped.Weapon = Item.Name
+						break
+					end
+				end
+			end
+
+			local Success, Reason = InventoryService:CommitEquipment(Player, NextEquipped, NextEquipped.Weapon)
+			if not Success then
+				return false, Reason
+			end
 		end
 
+		PlayerData.SelectedStance = StanceName
 		local Character = Player.Character
 
 		if Character then
@@ -73,16 +92,15 @@ function StanceService:EquipStance(Player: Player, StanceName: string)
 					Character:SetAttribute("AnimationPreset", StanceName)
 				end
 
-				local StanceData = self:GetStance(StanceName)
-				local CurrentWeaponData = ItemService:GetItemData(PlayerData.Equipped.Weapon)
-
-				if not CurrentWeaponData or StanceData.WeaponType ~= CurrentWeaponData.Type then
-					for _, Item in PlayerData.Inventory do
-						local ItemData = ItemService:GetItemData(Item.Name)
-						if ItemData and ItemData.Type == StanceData.WeaponType then
-							InventoryService:EquipUnequipItem(Player, Item.Name)
-							break
-						end
+				if PreviousWeapon ~= PlayerData.Equipped.Weapon then
+					if Character:GetAttribute("WeaponEquipped") then
+						WeaponService:Equip(Character, false, 1.5)
+					end
+					Character:SetAttribute("Weapon", PlayerData.Equipped.Weapon)
+					if PlayerData.Equipped.Weapon then
+						WeaponService:LoadWeapon(Character, PlayerData.Equipped.Weapon, PlayerData.Equipped.LeftWeapon, StanceName)
+					else
+						WeaponService:UnloadWeapon(Character)
 					end
 				end
 
@@ -104,6 +122,8 @@ function StanceService:EquipStance(Player: Player, StanceName: string)
 		if DidChangeStance then
 			InventoryService:UpdateUI(Player)
 		end
+
+		return true
 	end
 end
 function StanceService.Client:EquipStance(Player: Player, StanceName: string)

@@ -1,4 +1,5 @@
 local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
@@ -16,6 +17,8 @@ local HudFocused = false
 local FocusedHud: ScreenGui? = nil
 local SavedHudStates: { [ScreenGui]: boolean } = {}
 local HudConnections: { [ScreenGui]: RBXScriptConnection } = {}
+local SavedPromptEnabled: boolean?
+local PromptMenus: { [ScreenGui]: boolean } = setmetatable({}, {__mode = "k"})
 
 local StandaloneHudNames = {
 	Compass = true,
@@ -91,6 +94,38 @@ function MenuController:GetMenu(MenuName: string): ScreenGui?
 	end
 
 	return Menus:FindFirstChild(MenuName) :: ScreenGui?
+end
+
+local function UpdatePromptAvailability()
+	local MainMenu = MenuController:GetMenu("MainMenu")
+	local MenuOpen = MainMenu ~= nil and MainMenu.Enabled
+	for _, Menu in Menus:GetChildren() do
+		if Menu:IsA("ScreenGui") and Menu.Enabled then
+			MenuOpen = true
+			break
+		end
+	end
+
+	if MenuOpen then
+		if SavedPromptEnabled == nil then
+			SavedPromptEnabled = ProximityPromptService.Enabled
+		end
+
+		ProximityPromptService.Enabled = false
+	elseif SavedPromptEnabled ~= nil then
+		ProximityPromptService.Enabled = SavedPromptEnabled
+		SavedPromptEnabled = nil
+	end
+end
+
+local function BindPromptMenu(Menu: Instance)
+	if not Menu:IsA("ScreenGui") or PromptMenus[Menu] then
+		return
+	end
+
+	PromptMenus[Menu] = true
+	Menu:GetPropertyChangedSignal("Enabled"):Connect(UpdatePromptAvailability)
+	UpdatePromptAvailability()
 end
 
 function MenuController:CloseAllMenus()
@@ -181,6 +216,18 @@ function MenuController.KnitStart()
 	PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
 	Menus = PlayerGui:WaitForChild("Menu") :: ScreenGui
 	Hud = PlayerGui:WaitForChild("Hud") :: ScreenGui
+
+	for _, Menu in Menus:GetChildren() do
+		BindPromptMenu(Menu)
+	end
+	local MainMenu = MenuController:GetMenu("MainMenu")
+	if MainMenu then
+		BindPromptMenu(MainMenu)
+	end
+	Menus.ChildAdded:Connect(BindPromptMenu)
+	Menus.ChildRemoved:Connect(UpdatePromptAvailability)
+	UpdatePromptAvailability()
+
 	local Shortcut = (Hud:FindFirstChild("MainMenuShortcut") or Hud:WaitForChild("Level")) :: ScreenGui
 	Shortcut.Name = "MainMenuShortcut"
 	local ShortcutContent = Shortcut:WaitForChild("content") :: ImageLabel
@@ -211,6 +258,8 @@ function MenuController.KnitStart()
 	PlayerGui.ChildAdded:Connect(function(Child: Instance)
 		if IsStandaloneHud(Child) then
 			FocusHudGui(Child :: ScreenGui)
+		elseif Child.Name == "MainMenu" then
+			BindPromptMenu(Child)
 		end
 	end)
 end
