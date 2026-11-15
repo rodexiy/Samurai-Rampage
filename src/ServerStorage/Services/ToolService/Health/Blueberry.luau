@@ -1,6 +1,7 @@
 local Bandage = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 local InventoryService = Knit.GetService("InventoryService")
 local DebounceService = Knit.GetService("DebounceService")
 local AlertService = Knit.GetService("AlertService")
@@ -9,7 +10,7 @@ local Players = game:GetService("Players")
 
 local StaminaRegen = 10
 
-function Bandage.Activated(Character: Model, Data: { any })
+function Bandage.Activated(Character: Model, _Data: { any })
 	local Player = Players:GetPlayerFromCharacter(Character)
 
 	if Character:GetAttribute("BlueberryDebounce") then
@@ -20,7 +21,7 @@ function Bandage.Activated(Character: Model, Data: { any })
 	DebounceService:AddDebounce(Character, "BlueberryDebounce", 2.5)
 
 	if Player then
-		InventoryService:RemoveItemFromPlayer(Player, "Blueberry", 1)
+		InventoryService:ConsumeToolItem(Player, "Blueberry", 1)
 	end
 
 	Character:SetAttribute(

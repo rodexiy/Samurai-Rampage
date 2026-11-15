@@ -6,8 +6,8 @@ local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
 local TanegashimaConfig: any = table.clone(BowConfig)
 TanegashimaConfig.WeaponName = "Tanegashima"
 TanegashimaConfig.IsFirearm = true
-TanegashimaConfig.Ammunition = { Gunpowder = 1, IronBullet = 1 }
-TanegashimaConfig.AmmoWarning = "You need gunpowder and an iron bullet to fire the Tanegashima."
+TanegashimaConfig.Ammunition = { GunAmmo = 1 }
+TanegashimaConfig.AmmoWarning = "You need Gun Ammo to fire the Tanegashima."
 TanegashimaConfig.ShotCooldown = 7
 TanegashimaConfig.MinDrawTime = 0
 TanegashimaConfig.AimTransitionTime = 0.12

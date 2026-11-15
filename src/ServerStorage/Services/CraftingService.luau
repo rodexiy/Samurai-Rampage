@@ -1,4 +1,5 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local CraftingService = Knit.CreateService({
 	Name = "CraftingService",
@@ -9,6 +10,7 @@ local DataService
 local AlertService
 local ItemService
 local InventoryService
+local InventoryGridService
 local QuestService
 
 local DEFAULT_RECIPE_TYPE = "Crafting"
@@ -128,12 +130,6 @@ function CraftingService:GetMaxCraftable(
 
 	local _, MaxCraftable = ResolveRequirements(Player, ItemData, SelectedOptions)
 
-	local AmountPerCraft = ItemData.AmountPerCraft or 1
-	local CraftedItem = InventoryService:GetPlayerItemByName(Player, ItemToCraft)
-	local CurrentStack = if CraftedItem then CraftedItem.Stack else 0
-	local RemainingCapacity = (ItemData.MaxStack or 1) - CurrentStack
-	MaxCraftable = math.min(MaxCraftable, math.floor(RemainingCapacity / AmountPerCraft))
-
 	return math.max(0, MaxCraftable)
 end
 
@@ -162,10 +158,6 @@ function CraftingService:Craft(
 	end
 
 	local AmountPerCraft = ItemData.AmountPerCraft or 1
-	local CraftedItem = InventoryService:GetPlayerItemByName(Player, ItemToCraft)
-	local CurrentStack = if CraftedItem then CraftedItem.Stack else 0
-	local RemainingCapacity = (ItemData.MaxStack or 1) - CurrentStack
-	MaxCraftable = math.min(MaxCraftable, math.floor(RemainingCapacity / AmountPerCraft))
 
 	if MaxCraftable <= 0 then
 		AlertService:AlertPlayer(Player, "You do not have the required items to craft this item.", "Error")
@@ -178,6 +170,11 @@ function CraftingService:Craft(
 
 	if Amount <= 0 then
 		AlertService:AlertPlayer(Player, "You do not have the required items to craft this item.", "Error")
+		return 0
+	end
+
+	if not InventoryGridService:CanCraft(Player, Requirements, Amount, ItemData) then
+		AlertService:AlertPlayer(Player, "Not enough backpack space for the crafted item.", "Warn")
 		return 0
 	end
 
@@ -254,6 +251,7 @@ function CraftingService.KnitInit()
 	AlertService = Knit.GetService("AlertService")
 	DataService = Knit.GetService("DataService")
 	InventoryService = Knit.GetService("InventoryService")
+	InventoryGridService = Knit.GetService("InventoryGridService")
 	QuestService = Knit.GetService("QuestService")
 end
 

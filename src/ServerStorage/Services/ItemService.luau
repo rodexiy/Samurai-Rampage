@@ -1,13 +1,13 @@
-local HttpService = game:GetService("HttpService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local ItemService = Knit.CreateService({
 	Name = "ItemService",
 	Client = {},
 })
 
-local Items = require(game.ReplicatedStorage.Shared.Index.Items)
-local DeepCopy = require(game.ReplicatedStorage.Shared.Utils.DeepCopy)
+local Items = require(ReplicatedStorage.Shared.Index.Items)
+local DeepCopy = require(ReplicatedStorage.Shared.Utils.DeepCopy)
 
 function ItemService:GetItemData(ItemName: string)
 	return Items[ItemName]
@@ -40,7 +40,7 @@ function ItemService:CreateItem(Name: string, Amount: number)
 	local Item = {}
 	Item.Name = Name
 
-	Item.Stack = math.min(ItemData.MaxStack or 1, Amount)
+	Item.Stack = Amount
 	return Item
 end
 

@@ -1,6 +1,7 @@
 local Confetti = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local InventoryService = Knit.GetService("InventoryService")
 local Players = game:GetService("Players")
@@ -8,7 +9,7 @@ local BloodService = Knit.GetService("BloodService")
 local DebounceService = Knit.GetService("DebounceService")
 local TweenService = game:GetService("TweenService")
 
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
+local Collector = require(ReplicatedStorage.Shared.Collector)
 
 local function GetBladeSwordTrail(Blade: BasePart): Trail?
 	local DirectTrail = Blade:FindFirstChild("SwordTrail")
@@ -67,7 +68,7 @@ local function DisableConfettiVFX(ConfettiVFX: Instance)
 	end
 end
 
-function Confetti.Activated(Character: Model, Data: { any })
+function Confetti.Activated(Character: Model, _Data: { any })
 	local Player = Players:GetPlayerFromCharacter(Character)
 
 	if
@@ -88,7 +89,7 @@ function Confetti.Activated(Character: Model, Data: { any })
 	DebounceService:AddDebounce(Character, "ConfettiOnSword", 30)
 
 	if Player then
-		InventoryService:RemoveItemFromPlayer(Player, "Confetti", 1)
+		InventoryService:ConsumeToolItem(Player, "Confetti", 1)
 		task.defer(function()
 			Character.Humanoid:UnequipTools()
 		end)

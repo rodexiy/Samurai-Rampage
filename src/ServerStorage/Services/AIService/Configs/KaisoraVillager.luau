@@ -25,7 +25,7 @@ return {
 	Equipment = {
 		Weapon = {"None"},
 		Head = { "None", "None", "None", "SantaHat" },
-		Torso = { "BeigeKimono", "RedKimono", "BlueKimono", "DarkKimono", "GreenKimono" },
+		Torso = { "VillagerShirt" },
 		Legs = { "VillagerPants", "NoblePants" },
 	},
 }

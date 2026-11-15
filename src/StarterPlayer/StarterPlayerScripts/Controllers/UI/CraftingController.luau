@@ -1,11 +1,13 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local CraftingController = Knit.CreateController({
 	Name = "CraftingController",
 })
 
-local Player = game.Players.LocalPlayer
-local Items = require(game.ReplicatedStorage.Shared.Index.Items)
+local Player = Players.LocalPlayer
+local Items = require(ReplicatedStorage.Shared.Index.Items)
 
 local CraftingService
 local InventoryService
@@ -14,8 +16,6 @@ local MenuController
 
 local HotbarGui
 local InventoryAmounts = {}
-
-local NotoSerifJPFont = nil
 
 local Stations = {
 	Crafting = {
@@ -119,7 +119,7 @@ local function ConfigureScrollingList(Container: Instance)
 
 	Container.AnchorPoint = Vector2.zero
 	Container.Position = UDim2.fromScale(0, 0)
-	Container.Size = UDim2.new(1, 0, 1, 0)
+	Container.Size = UDim2.fromScale(1, 1)
 	Container.LayoutOrder = 0
 	Container.Rotation = 0
 	Container.ClipsDescendants = false
@@ -187,10 +187,6 @@ local function GetMaxCraftable(Station): number
 
 	local MaxCraftable = GetMaxCraftableForRequirements(Requirements)
 
-	local CurrentStack = GetOwnedAmount(Station.SelectedRecipe.Name)
-	local RemainingCapacity = (Station.SelectedRecipe.MaxStack or 1) - CurrentStack
-	MaxCraftable = math.min(MaxCraftable, math.floor(RemainingCapacity / (Station.SelectedRecipe.AmountPerCraft or 1)))
-
 	return math.max(0, MaxCraftable)
 end
 
@@ -234,7 +230,7 @@ end
 function CraftingController:RefreshInventory()
 	table.clear(InventoryAmounts)
 	for _, Item in InventoryService:GetInventory(Player) do
-		InventoryAmounts[Item.Name] = Item.Stack
+		InventoryAmounts[Item.Name] = (InventoryAmounts[Item.Name] or 0) + Item.Stack
 	end
 end
 
@@ -256,13 +252,6 @@ function CraftingController:RefreshRecipeDetails(Station)
 
 	ClearGenerated(Station.Requirements, Station.IngredientTemplate)
 	local RequirementGroups = GetRequirementGroups(Station.SelectedRecipe)
-	local HasAlternativeRequirements = false
-	for _, Options in RequirementGroups do
-		if #Options > 1 then
-			HasAlternativeRequirements = true
-			break
-		end
-	end
 	Station.RecipeDescription.Text = Station.SelectedRecipe.Description or ""
 
 	for GroupIndex, Options in RequirementGroups do
@@ -454,7 +443,6 @@ function CraftingController:BindStation(Menus: Instance, Station)
 		if Station.Gui.Enabled then
 			Station.HotbarWasEnabled = HotbarGui.Enabled
 			HotbarGui.Enabled = false
-			NotoSerifJPFont = Header.Title.Font
 			self:RefreshInventory()
 			self:RefreshRecipes(Station)
 		elseif Station.HotbarWasEnabled ~= nil then

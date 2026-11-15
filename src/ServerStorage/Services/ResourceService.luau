@@ -1,6 +1,7 @@
 local Debris = game:GetService("Debris")
 local TweenService = game:GetService("TweenService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local ResourceService = Knit.CreateService({
 	Name = "ResourceService",
@@ -11,7 +12,6 @@ local RewardService
 local PickableService
 local ItemService
 local InventoryService
-local RenderService
 local QuestService
 local RealmService
 local MissionBoardService
@@ -21,14 +21,6 @@ local ResourceTypes = {
 		Name = "Normal Tree",
 		Rewards = {
 			{ Name = "WoodLog", Amount = { 4, 8 }, Weight = 100 },
-		},
-		RespawnTime = { 5, 10 },
-	},
-
-	Crystal = {
-		Name = "Crystal",
-		Rewards = {
-			{ Name = "Crystal", Amount = 1, Weight = 100 },
 		},
 		RespawnTime = { 5, 10 },
 	},
@@ -67,7 +59,7 @@ local ResourceTypes = {
 }
 
 local PickablesParams = OverlapParams.new()
-PickablesParams.FilterType = Enum.RaycastFilterType.Whitelist
+PickablesParams.FilterType = Enum.RaycastFilterType.Include
 PickablesParams.FilterDescendantsInstances = { workspace:FindFirstChild("Pickable") }
 
 local FadeOutInfo = TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
@@ -125,8 +117,8 @@ local CustomFunctions = {
 		local PickablexInArea = workspace:GetPartBoundsInBox(cf, size, PickablesParams)
 
 		local Apples = {}
-		for _, Pickable in PickablexInArea do
-			local Pickable = Pickable:FindFirstAncestorWhichIsA("Model")
+		for _, PickablePart in PickablexInArea do
+			local Pickable = PickablePart:FindFirstAncestorWhichIsA("Model")
 			if Pickable and Pickable.Name == "Apple" and not table.find(Apples, Pickable) then
 				table.insert(Apples, Pickable)
 				PickableService:Pick(Player, Pickable)
@@ -144,8 +136,8 @@ function ResourceService:BreakResource(Player: Player, Resource: Model)
 		return
 	end
 
-	local CustomFunctions = CustomFunctions[Resource.Name] or CustomFunctions["NormalTree"]
-	CustomFunctions(Player, Resource)
+	local CustomFunction = CustomFunctions[Resource.Name] or CustomFunctions["NormalTree"]
+	CustomFunction(Player, Resource)
 
 	local Clone = Resource:Clone()
 	local OldParent = Resource.Parent
@@ -176,7 +168,6 @@ function ResourceService.KnitInit()
 	PickableService = Knit.GetService("PickableService")
 	ItemService = Knit.GetService("ItemService")
 	InventoryService = Knit.GetService("InventoryService")
-	RenderService = Knit.GetService("RenderService")
 	QuestService = Knit.GetService("QuestService")
 	MissionBoardService = Knit.GetService("MissionBoardService")
 end

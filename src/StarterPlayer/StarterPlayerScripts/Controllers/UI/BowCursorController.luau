@@ -43,7 +43,7 @@ function BowCursorController:Update(Position: Vector2, Elapsed: number?, ArrowCo
 	Ammo.Text = string.format("%d ARROWS", ArrowCount)
 	if Config.IsFirearm then
 		Status.Text = if Elapsed then "AIMING" else ""
-		Ammo.Text = string.format("%d BULLETS / %d GUNPOWDER", AmmoCounts.IronBullet or 0, AmmoCounts.Gunpowder or 0)
+		Ammo.Text = string.format("%d ROUNDS", AmmoCounts.GunAmmo or 0)
 	end
 end
 

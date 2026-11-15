@@ -117,16 +117,7 @@ function RewardService:GiveRewards(Character: Model, Position: Vector3)
 			end
 
 			if Position then
-				local ItemInInventory = InventoryService:GetPlayerItemByName(Player, ItemName)
-				if ItemInInventory then
-					local ItemData = ItemService:GetItemData(ItemName)
-					if ItemInInventory.MaxStack == 1 then
-						return
-					end
-					Amount = math.min(Amount, ItemData.MaxStack - ItemInInventory.Stack)
-				else
-					FloorDropService:DropItems({ { Name = ItemName, Amount = Amount } }, Position, Player)
-				end
+				FloorDropService:DropItems({ { Name = ItemName, Amount = Amount } }, Position, Player)
 			else
 				local Item = ItemService:CreateItem(ItemName, Amount)
 				InventoryService:GiveItemToPlayer(Player, Item)

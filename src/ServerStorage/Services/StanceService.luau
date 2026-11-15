@@ -32,7 +32,7 @@ function StanceService:GetPlayerStances(Player: Player)
 	local PlayerData = DataService:GetData(Player)
 
 	local PlayerStances = {}
-	
+
 	for _, Stance in PlayerData.Stances do
 		local StanceData = table.clone(self:GetStance(Stance))
 		StanceData.Equipped = Stance == PlayerData.SelectedStance
@@ -49,6 +49,7 @@ function StanceService:GiveStance(Player: Player, StanceName: string)
 	local PlayerData = DataService:GetData(Player)
 	if not table.find(PlayerData.Stances, StanceName) then
 		table.insert(PlayerData.Stances, StanceName)
+		self:UpdateUI(Player)
 		AlertService:AlertPlayer(Player, "You unlocked the " .. StanceName .. " Stance.", "Success")
 	else
 		AlertService:AlertPlayer(Player, "You already have this stance.", "Error")
@@ -63,14 +64,23 @@ function StanceService:EquipStance(Player: Player, StanceName: string): (boolean
 		local PreviousWeapon = PlayerData.Equipped.Weapon
 		local StanceData = self:GetStance(StanceName)
 		if DidChangeStance then
-			local NextEquipped = InventoryEquipmentSlots.WithSlot(PlayerData.Equipped, "LeftWeapon", nil)
+			local NextEquipped = InventoryEquipmentSlots.WithSlot(
+				InventoryService:GetInventoryLayout(Player).Equipped,
+				"LeftWeapon",
+				nil
+			)
 			local CurrentWeaponData = ItemService:GetItemData(PreviousWeapon)
 			if not CurrentWeaponData or CurrentWeaponData.Type ~= StanceData.WeaponType then
 				NextEquipped.Weapon = nil
 				for _, Item in PlayerData.Inventory do
 					local ItemData = ItemService:GetItemData(Item.Name)
-					if Item.Stack > 0 and ItemData and ItemData.Class == "Weapon" and ItemData.Type == StanceData.WeaponType then
-						NextEquipped.Weapon = Item.Name
+					if
+						Item.Stack > 0
+						and ItemData
+						and ItemData.Class == "Weapon"
+						and ItemData.Type == StanceData.WeaponType
+					then
+						NextEquipped.Weapon = Item.Id or Item.Name
 						break
 					end
 				end
@@ -98,7 +108,12 @@ function StanceService:EquipStance(Player: Player, StanceName: string): (boolean
 					end
 					Character:SetAttribute("Weapon", PlayerData.Equipped.Weapon)
 					if PlayerData.Equipped.Weapon then
-						WeaponService:LoadWeapon(Character, PlayerData.Equipped.Weapon, PlayerData.Equipped.LeftWeapon, StanceName)
+						WeaponService:LoadWeapon(
+							Character,
+							PlayerData.Equipped.Weapon,
+							PlayerData.Equipped.LeftWeapon,
+							StanceName
+						)
 					else
 						WeaponService:UnloadWeapon(Character)
 					end

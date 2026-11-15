@@ -122,7 +122,7 @@ local function GetOtherValue(CurrentCharacter: Model, Key: string): number?
 		local Speed = GetNumber(CurrentCharacter, "DefaultWalkSpeed", 12)
 		if Key == "RunSpeed" then
 			Speed = GetNumber(CurrentCharacter, "RunningWalkSpeed", 24)
-				* GetNumber(CurrentCharacter, "RunSpeedMultiplier", 1)
+					* GetNumber(CurrentCharacter, "RunSpeedMultiplier", 1)
 				+ GetNumber(CurrentCharacter, "RunSpeedIncrease", 0)
 		end
 
@@ -271,7 +271,11 @@ end
 function StatsController.KnitStart()
 	local PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
 	local Menus = PlayerGui:WaitForChild("Menu") :: ScreenGui
-	MainMenu = (PlayerGui:FindFirstChild("MainMenu") or Menus:WaitForChild("MainMenu")) :: ScreenGui
+	MainMenu = (
+		PlayerGui:FindFirstChild("MainMenu")
+		or Menus:FindFirstChild("MainMenu")
+		or PlayerGui:WaitForChild("MainMenu")
+	) :: ScreenGui
 	Panel = MainMenu:WaitForChild("Stats") :: Frame
 	Info = Panel:WaitForChild("Info") :: TextLabel
 	Info.AnchorPoint = Vector2.new(0.5, 0)

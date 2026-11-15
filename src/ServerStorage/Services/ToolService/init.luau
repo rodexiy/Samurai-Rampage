@@ -1,4 +1,5 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local ToolService = Knit.CreateService({
 	Name = "ToolService",
@@ -52,9 +53,17 @@ function ToolService:CopyAttributesToTool(Tool: Tool, Data: { any })
 	end
 end
 
-local ItemTools = game.ReplicatedStorage.Assets.Tools
-function ToolService:GiveToolToPlayer(Player: Player, ToolName: string, index: number, ignoreCheck: boolean)
-	local ItemData = InventoryService:GetPlayerItemByName(Player, ToolName)
+local ItemTools = ReplicatedStorage.Assets.Tools
+function ToolService:GiveToolToPlayer(
+	Player: Player,
+	ToolName: string,
+	index: number,
+	ignoreCheck: boolean,
+	StackId: string?
+)
+	local Data = DataService:GetData(Player)
+	StackId = StackId or (Data.HotbarStackIds or {})[tostring(index)] or ToolName
+	local ItemData = InventoryService:GetPlayerStack(Player, StackId)
 	if not ItemData then
 		if not ignoreCheck then
 			return
@@ -82,11 +91,13 @@ function ToolService:GiveToolToPlayer(Player: Player, ToolName: string, index: n
 	self:CopyAttributesToTool(Tool, FullItemData)
 	self:CopyAttributesToTool(Tool, ItemData)
 	Tool:SetAttribute("HotbarIndex", tonumber(index))
+	Tool:SetAttribute("Id", StackId)
 
 	Tool.Parent = Player.Backpack
 end
 
 function ToolService:LoadPlayerTools(Player: Player)
+	InventoryService:GetInventoryLayout(Player)
 	local PlayerData = DataService:GetData(Player)
 
 	for index, ToolName in PlayerData.Hotbar do
@@ -94,30 +105,44 @@ function ToolService:LoadPlayerTools(Player: Player)
 	end
 end
 
-function ToolService:RemoveToolFromCharacter(Character: Model, ToolName: string?)
+function ToolService:RemoveToolFromCharacter(Character: Model, ToolName: string?, StackId: string?)
 	if not Character then
 		return
 	end
 
 	local Tool = Character:FindFirstChildWhichIsA("Tool")
-	if Tool and (not ToolName or Tool.Name == ToolName) then
+	if
+		Tool
+		and (not ToolName or Tool.Name == ToolName)
+		and (not StackId or (Tool:GetAttribute("Id") or Tool.Name) == StackId)
+	then
 		Tool:Destroy()
 	end
 end
 
-function ToolService:RemoveToolFromPlayer(Player: Player, ToolName: string)
-	local Tool = Player.Backpack:FindFirstChild(ToolName)
-	if Tool then
-		Tool:Destroy()
+function ToolService:RemoveToolFromPlayer(Player: Player, ToolName: string, StackId: string?)
+	for _, Tool in Player.Backpack:GetChildren() do
+		if
+			Tool:IsA("Tool")
+			and Tool.Name == ToolName
+			and (not StackId or (Tool:GetAttribute("Id") or Tool.Name) == StackId)
+		then
+			Tool:Destroy()
+		end
 	end
 
-	self:RemoveToolFromCharacter(Player.Character, ToolName)
+	self:RemoveToolFromCharacter(Player.Character, ToolName, StackId)
 end
 
-function ToolService:GetToolFromPlayer(Player: Player, ToolName: string)
-	local Tool = Player.Backpack:FindFirstChild(ToolName)
-	if Tool then
-		return Tool
+function ToolService:GetToolFromPlayer(Player: Player, ToolName: string, StackId: string?): Tool?
+	for _, Tool in Player.Backpack:GetChildren() do
+		if
+			Tool:IsA("Tool")
+			and Tool.Name == ToolName
+			and (not StackId or (Tool:GetAttribute("Id") or Tool.Name) == StackId)
+		then
+			return Tool
+		end
 	end
 
 	local Character = Player.Character
@@ -126,9 +151,10 @@ function ToolService:GetToolFromPlayer(Player: Player, ToolName: string)
 	end
 
 	local Tool = Character:FindFirstChildWhichIsA("Tool")
-	if Tool and Tool.Name == ToolName then
+	if Tool and Tool.Name == ToolName and (not StackId or (Tool:GetAttribute("Id") or Tool.Name) == StackId) then
 		return Tool
 	end
+	return nil
 end
 
 function ToolService.KnitInit()

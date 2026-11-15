@@ -1,6 +1,7 @@
 local ResourceContract = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 local MissionBoardService = Knit.GetService("MissionBoardService")
 local ObjectiveService = Knit.GetService("ObjectiveService")
 
@@ -37,14 +38,6 @@ local Resources = {
 		Image = "rbxassetid://127605539843467",
 	},
 	{
-		ItemName = "Crystal",
-		DisplayName = "Crystals",
-		Amount = { 3, 6 },
-		ExpPerItem = 150,
-		RequiredTool = "Pickaxe",
-		Image = "rbxassetid://100613085739677",
-	},
-	{
 		ItemName = "GoldOre",
 		DisplayName = "Gold Ore",
 		Amount = { 2, 4 },
@@ -54,7 +47,7 @@ local Resources = {
 	},
 }
 
-function ResourceContract:Randomize(Player: Player)
+function ResourceContract:Randomize(_Player: Player)
 	local Resource = Resources[math.random(1, #Resources)]
 	local Amount = math.random(Resource.Amount[1], Resource.Amount[2])
 local Exp = Amount * Resource.ExpPerItem
@@ -110,6 +103,6 @@ function ResourceContract:CollectResource(Player: Player, Mission: { any }, Item
 	end
 end
 
-function ResourceContract:Destroy(Player: Player, Mission: { any }) end
+function ResourceContract:Destroy(_Player: Player, _Mission: { any }) end
 
 return ResourceContract

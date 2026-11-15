@@ -27,7 +27,7 @@ return {
 	Equipment = {
 		Weapon = { "BasicKatana", "Origin" },
 		Head = { "None", "None", "RoninKasa" },
-		Torso = { "SamuraiChestplate", "BeigeKimono", "DarkKimono", "VillagerShirt" },
+		Torso = { "SamuraiChestplate", "VillagerShirt" },
 		Legs = { "SamuraiLegplate", "VillagerPants", "NoblePants" },
 	},
 

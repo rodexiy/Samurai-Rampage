@@ -100,6 +100,7 @@ end
 
 function PlayerService:CheckFirstJoin(Player: Player)
 	local PlayerData = DataService:GetData(Player)
+	InventoryService:RemoveUnavailableItems(Player)
 
 	local success, err = pcall(function()
 		QuestService:CallQuestFunction(Player, "Cancel")
@@ -116,12 +117,6 @@ function PlayerService:CheckFirstJoin(Player: Player)
 	end
 
 
-	for _, Item in PlayerData.Inventory do
-		if not ItemService:GetItemData(Item.Name) then
-			InventoryService:RemoveItemFromPlayer(Player, Item.Name, Item.Stack)
-		end
-	end
-
 	if not PlayerData.EyesColor then
 		PlayerData.EyesColor = { math.random(0, 255), math.random(0, 255), math.random(0, 255) }
 	end
@@ -130,30 +125,8 @@ function PlayerService:CheckFirstJoin(Player: Player)
 		RaceService:RollRandomRace(Player)
 	end
 
-	-- local HasKimono = false
-	-- for _, Item in PlayerData.Inventory do
-	-- 	if Item.Name:find("Kimono") then
-	-- 		HasKimono = true
-	-- 		break
-	-- 	end
-	-- end
 
-	-- if not HasKimono then
-	-- 	local Kimono
-	-- 	if math.random(1, 1000) == 1 then
-	-- 		Kimono = RareKimonos[math.random(1, #RareKimonos)]
-	-- 	else
-	-- 		Kimono = CommonKimonos[math.random(1, #CommonKimonos)]
-	-- 	end
 
-	-- 	InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem(Kimono, 1))
-	-- 	PlayerData.Equipped.Torso = Kimono
-	-- end
-
-	-- if not InventoryService:GetPlayerItemByName(Player, "BasicKatana") then
-	-- 	InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem("BasicKatana", 1))
-	-- 	PlayerData.Equipped.Weapon = "BasicKatana"
-	-- end
 
 	if not InventoryService:GetPlayerItemByName(Player, "Fists") then
 		InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem("Fists", 1))

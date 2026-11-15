@@ -20,14 +20,27 @@ return function(ServiceModule: ModuleScript): string
 		return Event
 	end
 
-	local Counts = { Tanegashima = 1, Bow = 1, Gunpowder = 3, IronBullet = 2, Arrow = 4 }
+	local Counts = { Tanegashima = 1, Bow = 1, GunAmmo = 2, Arrow = 4 }
 	local Data = { Equipped = { Bow = "Tanegashima" } }
 	local Removed = {}
 	local Casts = {}
 	local Delays = {}
+	local BoundService: any
 	local Services = {
 		DataService = { GetData = function(_Self: any, _Player: any): any return Data end },
 		InventoryService = {
+			CommitEquipment = function(_Self: any, _Player: any, NextEquipped: any): boolean
+				Data.Equipped = table.clone(NextEquipped)
+				return true
+			end,
+			EquipUnequipItem = function(_Self: any, Player: any, Name: string): (boolean, string?)
+				if Data.Equipped.Bow == Name then
+					return BoundService:UnequipItem(Player)
+				end
+				Data.Equipped.Bow = Name
+				BoundService:LoadBow(Player)
+				return true
+			end,
 			GetRawPlayerItemByName = function(_Self: any, _Player: any, Name: string): any
 				return if Counts[Name] then { Stack = Counts[Name] } else nil
 			end,
@@ -81,6 +94,7 @@ return function(ServiceModule: ModuleScript): string
 	setfenv(Run, Environment)
 	local Harness = Run()
 	local Service = Harness.Service
+	BoundService = Service
 	Service.KnitInit()
 
 	local Container = Instance.new("Folder")
@@ -159,7 +173,7 @@ return function(ServiceModule: ModuleScript): string
 		Check(State.Grip.C0 == CFrame.identity and State.Grip.C1 == CFrame.identity, "Equip motor at zero offset")
 		Check(Config.GetOrigin(Character) ~= nil, "Use the muzzle in the existing model")
 
-		for _, Missing in { "Gunpowder", "IronBullet" } do
+		for _, Missing in { "GunAmmo" } do
 			local Previous = Counts[Missing]
 			Counts[Missing] = 0
 			Begin()
@@ -172,32 +186,32 @@ return function(ServiceModule: ModuleScript): string
 		end
 
 		Begin()
-		Check(State.Started ~= nil, "Begin with both ammunition resources")
+		Check(State.Started ~= nil, "Begin with prepared ammunition")
 		Service:CancelDraw(Player)
 		Check(State.Started == nil and next(Removed) == nil, "Cancellation consumes nothing")
 		Check(#Delays == 0, "Holding firearm aim must never schedule an automatic shot")
 
 		Begin()
-		Counts.IronBullet = 0
+		Counts.GunAmmo = 0
 		State.Started = workspace:GetServerTimeNow() - Config.FullChargeTime
 		Service:Release(Player, Aim)
-		Check(#Casts == 0 and Counts.Gunpowder == 3, "Recheck ammunition at release without losing gunpowder")
-		Counts.IronBullet = 2
+		Check(#Casts == 0 and next(Removed) == nil, "Recheck ammunition at release without consuming anything")
+		Counts.GunAmmo = 2
 
 		Begin()
 		State.Started = workspace:GetServerTimeNow()
 		Service:Release(Player, Aim)
-		Check(#Casts == 1 and Counts.Gunpowder == 2 and Counts.IronBullet == 1, "Consume one of each resource per shot")
+		Check(#Casts == 1 and Counts.GunAmmo == 1, "Consume one GunAmmo per shot")
 		Check(State.Started ~= nil and Character:GetAttribute("BowDrawing") == true, "An immediate shot preserves right-button aim")
 		Check(Counts.Arrow == 4, "The firearm never consumes arrows")
 		Check(Casts[1].Behavior.MaxDistance == Config.MaxDistance, "Use the firearm range")
 		Check(math.abs(Casts[1].Velocity.Magnitude - Config.MaxSpeed) < 0.01, "Use the firearm speed")
 		Check(Casts[1].UserData.Config.GetDamage(0, 0) == Config.MinDamage, "Keep distance-based firearm damage with the projectile")
 		Service:Release(Player, Aim)
-		Check(#Casts == 1 and Counts.IronBullet == 1, "Duplicate releases cannot consume or fire twice")
+		Check(#Casts == 1 and Counts.GunAmmo == 1, "Duplicate releases cannot consume or fire twice")
 		State.LastShot = workspace:GetServerTimeNow() - (Config.ShotCooldown - 1)
 		Service:Release(Player, Aim)
-		Check(#Casts == 1 and Counts.IronBullet == 1, "The server blocks shooting before the reload finishes")
+		Check(#Casts == 1 and Counts.GunAmmo == 1, "The server blocks shooting before the reload finishes")
 		State.LastBegin = -math.huge
 		Service:CancelDraw(Player)
 		Service:BeginDraw(Player, Aim)
@@ -205,16 +219,16 @@ return function(ServiceModule: ModuleScript): string
 		Service:CancelDraw(Player)
 		State.LastShot = -math.huge
 		Service:Release(Player, Aim)
-		Check(#Casts == 1 and Counts.IronBullet == 1, "Reject shots after right-button aim is released")
+		Check(#Casts == 1 and Counts.GunAmmo == 1, "Reject shots after right-button aim is released")
 		Character:SetAttribute("BowDrawing", true)
 		Service:Release(Player, Aim)
-		Check(#Casts == 1 and Counts.IronBullet == 1, "Require a server aim session rather than only the aiming attribute")
+		Check(#Casts == 1 and Counts.GunAmmo == 1, "Require a server aim session rather than only the aiming attribute")
 		Character:SetAttribute("BowDrawing", false)
 		Begin()
 		State.Started = workspace:GetServerTimeNow()
 		State.LastShot = workspace:GetServerTimeNow() - (Config.ShotCooldown + 0.01)
 		Service:Release(Player, Aim)
-		Check(#Casts == 2 and Counts.IronBullet == 0, "Fire immediately once aiming resumes")
+		Check(#Casts == 2 and Counts.GunAmmo == 0, "Fire immediately once aiming resumes")
 
 		local OldGrip = State.Grip
 		Service:EquipItem(Player, "Bow")
@@ -228,7 +242,7 @@ return function(ServiceModule: ModuleScript): string
 		Begin()
 		State.Started = workspace:GetServerTimeNow() - 1.5
 		Service:Release(Player, Aim)
-		Check(Counts.Arrow == 3 and Counts.Gunpowder == 1 and Counts.IronBullet == 0, "The bow still consumes only arrows")
+		Check(Counts.Arrow == 3 and Counts.GunAmmo == 0, "The bow still consumes only arrows")
 		Check(RangedConfig.GetAmmoCount(Config, Counts) == 0, "Display the limiting ammunition count")
 
 		for _, ItemName in { "Bow", "Tanegashima" } do

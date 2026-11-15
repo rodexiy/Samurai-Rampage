@@ -1,6 +1,7 @@
 local Oil = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local InventoryService = Knit.GetService("InventoryService")
 local Players = game:GetService("Players")
@@ -8,7 +9,7 @@ local BloodService = Knit.GetService("BloodService")
 local DebounceService = Knit.GetService("DebounceService")
 local TweenService = game:GetService("TweenService")
 
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
+local Collector = require(ReplicatedStorage.Shared.Collector)
 
 local function GetBladeSwordTrail(Blade: BasePart): Trail?
 	local DirectTrail = Blade:FindFirstChild("SwordTrail")
@@ -68,7 +69,7 @@ local function DisableFireVFX(FireVFX: Instance)
 	end
 end
 
-function Oil.Activated(Character: Model, Data: { any })
+function Oil.Activated(Character: Model, _Data: { any })
 	local Player = Players:GetPlayerFromCharacter(Character)
 
 	if
@@ -89,7 +90,7 @@ function Oil.Activated(Character: Model, Data: { any })
 
 	Character:SetAttribute("ConfettiOnSword", false)
 	if Player then
-		InventoryService:RemoveItemFromPlayer(Player, "Oil", 1)
+		InventoryService:ConsumeToolItem(Player, "Oil", 1)
 		task.defer(function()
 			Character.Humanoid:UnequipTools()
 		end)

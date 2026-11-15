@@ -1,4 +1,5 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 --[[
     Recebe inputs de proximity prompts e executa seus callbacks
@@ -20,7 +21,6 @@ local AlertService
 local MissionBoardService
 local CarryService
 local DuelService
-local PrisonService
 local PickableService
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -44,7 +44,7 @@ local callbacks = {
 		PickableService:Pick(Player, ProximityPrompt.Parent)
 	end,
 
-	OpenDoor = function(Player: Player, ProximityPrompt: ProximityPrompt)
+	OpenDoor = function(_Player: Player, ProximityPrompt: ProximityPrompt)
 		local DoorParent = ProximityPrompt.Parent
 		local tInfo = TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 		for _, door in ipairs(DoorParent:GetChildren()) do
@@ -100,18 +100,8 @@ local callbacks = {
 			if not ItemData then
 				return
 			end
-			local _Item = InventoryService:GetPlayerItemByName(Player, ItemName)
-			if _Item and _Item.Stack >= ItemData.MaxStack then
-				if _Item.MaxStack == 1 then
-					AlertService:AlertPlayer(Player, "You already have a " .. ItemData.DisplayName .. ".", "Error")
-				else
-					AlertService:AlertPlayer(
-						Player,
-						"You have reached the maximum amount of " .. ItemData.DisplayName .. ".",
-						"Error"
-					)
-				end
-
+			if not InventoryService:CanReceiveItem(Player, { Name = ItemName, Stack = 1 }) then
+				AlertService:AlertPlayer(Player, "Not enough backpack space.", "Error")
 				return
 			end
 
@@ -130,7 +120,7 @@ local callbacks = {
 		end
 	end,
 
-	["OpenCityBoard"] = function(Player: Player, Prompt: ProximityPrompt)
+	["OpenCityBoard"] = function(Player: Player, _Prompt: ProximityPrompt)
 		MissionBoardService:OpenBoard(Player)
 	end,
 
@@ -171,7 +161,7 @@ function InteractionService.ButtonTriggered(ProximityPrompt: ProximityPrompt, Pl
 		or (ProximityPrompt.Parent:GetPivot().Position - Character:GetPivot().Position).Magnitude
 			<= (ProximityPrompt.MaxActivationDistance + 5)
 	then
-		local callback = callback or ProximityPrompt:GetAttribute("callback")
+		callback = callback or ProximityPrompt:GetAttribute("callback")
 		if not ProximityPrompt and not callback then
 			return
 		end
@@ -195,7 +185,6 @@ function InteractionService.KnitInit()
 	MissionBoardService = Knit.GetService("MissionBoardService")
 	CarryService = Knit.GetService("CarryService")
 	DuelService = Knit.GetService("DuelService")
-	PrisonService = Knit.GetService("PrisonService")
 	PickableService = Knit.GetService("PickableService")
 end
 

@@ -6,8 +6,10 @@ local GuiService = game:GetService("GuiService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local InventoryGrid = require(ReplicatedStorage.Shared.Utils.InventoryGrid)
 local InventoryEquipmentSlots = require(ReplicatedStorage.Shared.Utils.InventoryEquipmentSlots)
+local InventoryStacks = require(ReplicatedStorage.Shared.Utils.InventoryStacks)
 
 type ItemData = { [string]: any }
+type StrokeHighlight = { Stroke: UIStroke, Color: Color3, Enabled: boolean }
 type DragState = {
 	Button: ImageButton,
 	Item: ItemData,
@@ -20,12 +22,22 @@ type DragState = {
 	Ghost: ImageButton?,
 	Candidate: InventoryGrid.Placement?,
 	Slot: string?,
+	HotbarSlot: number?,
+	HotbarButton: ImageButton?,
+	SourceHotbarSlot: number?,
+	SourceSize: Vector2,
+	DeleteTarget: boolean?,
+	DropTarget: boolean?,
 	Valid: boolean,
 }
 
-local InventoryDragController = Knit.CreateController({Name = "InventoryDragController"})
+local InventoryDragController = Knit.CreateController({ Name = "InventoryDragController" })
 local InventoryController
 local InventoryService
+local HotbarController
+local InventoryDeleteController
+local InventoryDropController
+local InventoryModalController
 local Context: ItemData?
 local Layout: ItemData?
 local Items: { [string]: ItemData } = {}
@@ -33,21 +45,93 @@ local InventoryEntries: { ItemData } = {}
 local Equipped: { [string]: ItemData } = {}
 local Buttons: { [string]: ImageButton } = {}
 local State: DragState?
-local Suppressed: { [ImageButton]: number } = setmetatable({}, {__mode = "k"})
+local Suppressed: { [ImageButton]: number } = setmetatable({}, { __mode = "k" })
 local RequestId = 0
 local PendingId: number?
 local Overlays: { Instance } = {}
+local DropHighlights: { [GuiObject]: StrokeHighlight } = {}
+local CompatibleButtons: { [GuiObject]: boolean } = {}
+local HoveredButton: GuiObject?
 local White = Color3.new(1, 1, 1)
+local Green = Color3.fromRGB(65, 220, 100)
 local Red = Color3.fromRGB(240, 65, 65)
 
 local function Contains(Object: GuiObject, Point: Vector2): boolean
 	local Position, Size = Object.AbsolutePosition, Object.AbsoluteSize
-	return Point.X >= Position.X and Point.Y >= Position.Y and Point.X < Position.X + Size.X and Point.Y < Position.Y + Size.Y
+	return Point.X >= Position.X
+		and Point.Y >= Position.Y
+		and Point.X < Position.X + Size.X
+		and Point.Y < Position.Y + Size.Y
 end
 
 local function Pointer(Position: Vector3): Vector2
 	local Inset = if Context and not Context.Main.IgnoreGuiInset then GuiService:GetGuiInset() else Vector2.zero
 	return Vector2.new(Position.X, Position.Y) - Inset
+end
+
+local function IsVisible(Object: GuiObject): boolean
+	local Ancestor: Instance? = Object
+	while Ancestor do
+		if Ancestor:IsA("GuiObject") and not Ancestor.Visible then
+			return false
+		end
+		if Ancestor:IsA("ScreenGui") then
+			return Ancestor.Enabled
+		end
+		Ancestor = Ancestor.Parent
+	end
+
+	return false
+end
+
+local function RestoreHighlight(Button: GuiObject)
+	local Highlight = DropHighlights[Button]
+	if Highlight then
+		if Highlight.Stroke.Parent then
+			Highlight.Stroke.Color = Highlight.Color
+			Highlight.Stroke.Enabled = Highlight.Enabled
+		end
+		DropHighlights[Button] = nil
+	end
+end
+
+local function HighlightSlot(Button: GuiObject, Color: Color3)
+	local Highlight = DropHighlights[Button]
+	if not Highlight then
+		local Stroke = Button:FindFirstChildWhichIsA("UIStroke")
+		if not Stroke then
+			return
+		end
+		Highlight = { Stroke = Stroke, Color = Stroke.Color, Enabled = Stroke.Enabled }
+		DropHighlights[Button] = Highlight
+	end
+
+	Highlight.Stroke.Color = Color
+	Highlight.Stroke.Enabled = true
+end
+
+local function ClearHoveredHighlight()
+	if HoveredButton then
+		if CompatibleButtons[HoveredButton] then
+			HighlightSlot(HoveredButton, Green)
+		else
+			RestoreHighlight(HoveredButton)
+		end
+		HoveredButton = nil
+	end
+end
+
+local function HoverHighlight(Button: GuiObject, Valid: boolean)
+	HoveredButton = Button
+	HighlightSlot(Button, if Valid then Green else Red)
+end
+
+local function ClearDropHighlights()
+	HoveredButton = nil
+	table.clear(CompatibleButtons)
+	for Button in DropHighlights do
+		RestoreHighlight(Button)
+	end
 end
 
 local function ClearOverlays()
@@ -86,6 +170,8 @@ function InventoryDragController:Configure(Configuration: ItemData)
 	Context.DragLayer = Configuration.Main:WaitForChild("DragLayer") :: Frame
 	Context.RotateButton = Configuration.Panel:WaitForChild("RotateButton") :: TextButton
 	Context.RotateHint = Configuration.Panel:WaitForChild("RotateHint") :: TextLabel
+	Context.DeleteTarget = Configuration.Panel:WaitForChild("Delete") :: ImageLabel
+	Context.DropTarget = Configuration.Panel:WaitForChild("Drop") :: ImageLabel
 	Context.Preview.ZIndex = 25
 	Context.RotateHint.Visible = false
 	Context.RotateButton.Activated:Connect(function()
@@ -101,10 +187,9 @@ function InventoryDragController:SetLayout(Entries: { ItemData }, Snapshot: Item
 	InventoryEntries = Entries
 	table.clear(Items)
 	table.clear(Equipped)
-	table.clear(Buttons)
 
 	for _, Item in Entries do
-		Items[Item.Name] = Item
+		Items[InventoryStacks.Key(Item)] = Item
 		if Item.Class == "Equipable" and Item.Equipped then
 			Equipped[Item.Type] = Item
 		end
@@ -117,10 +202,52 @@ function InventoryDragController:SetLayout(Entries: { ItemData }, Snapshot: Item
 			Equipped[Definition.Name] = Items[Name]
 		end
 	end
+	for Name, Button in Buttons do
+		if not Items[Name] or not Button.Parent then
+			Buttons[Name] = nil
+		end
+	end
+	if State and State.SourceHotbarSlot == nil then
+		local Item = Items[InventoryStacks.Key(State.Item)]
+		if not Item then
+			self:Cancel()
+			return
+		end
+		State.Item = Item
+	end
+	if State and State.Started then
+		self:RefreshDropHighlights()
+		self:UpdatePreview()
+	end
+end
+
+function InventoryDragController:RemoveItem(Name: string)
+	if State and State.SourceHotbarSlot == nil and InventoryStacks.Key(State.Item) == Name then
+		self:Cancel()
+	end
+	Buttons[Name] = nil
+	Items[Name] = nil
 end
 
 function InventoryDragController:ConsumesClick(Button: ImageButton): boolean
 	return (Suppressed[Button] or 0) > os.clock()
+end
+
+function InventoryDragController:IsDragging(): boolean
+	return State ~= nil and State.Started
+end
+
+function InventoryDragController:SetSlotStrokeColor(Button: ImageButton, Color: Color3)
+	local Highlight = DropHighlights[Button]
+	if Highlight then
+		Highlight.Color = Color
+		return
+	end
+
+	local Stroke = Button:FindFirstChildWhichIsA("UIStroke")
+	if Stroke and Stroke.Color ~= Color then
+		Stroke.Color = Color
+	end
 end
 
 function InventoryDragController:UpdateLayout(Snapshot: ItemData)
@@ -131,26 +258,60 @@ function InventoryDragController:UpdateLayout(Snapshot: ItemData)
 	end
 
 	if State and State.Started then
+		self:RefreshDropHighlights()
 		self:UpdatePreview()
 	end
 end
 
 function InventoryDragController:BindItem(Button: ImageButton, Item: ItemData)
-	Buttons[Item.Name] = Button
+	Buttons[InventoryStacks.Key(Item)] = Button
 	Button.InputBegan:Connect(function(Input: InputObject)
-		if not Context or not Layout or State or PendingId or not InventoryController:CanDragItems()
-			or (Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch) then
-			return
-		end
-
-		local Point = Pointer(Input.Position)
-		local Size = Button.AbsoluteSize
-		State = {
-			Button = Button, Item = Item, Input = Input, Start = Point, Pointer = Point,
-			Fraction = Vector2.new(math.clamp((Point.X - Button.AbsolutePosition.X) / Size.X, 0, 1), math.clamp((Point.Y - Button.AbsolutePosition.Y) / Size.Y, 0, 1)),
-			Rotated = Button:GetAttribute("Rotated") == true, Started = false, Valid = false,
-		}
+		self:BeginDrag(Button, Items[InventoryStacks.Key(Item)] or Item, Input)
 	end)
+end
+
+function InventoryDragController:BeginDrag(
+	Button: ImageButton,
+	Item: ItemData,
+	Input: InputObject,
+	SourceHotbarSlot: number?
+)
+	if
+		not Context
+		or State
+		or PendingId
+		or InventoryModalController:IsOpen()
+		or not InventoryController:IsOpen()
+		or (SourceHotbarSlot == nil and (not Layout or not InventoryController:CanDragItems()))
+		or (Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch)
+	then
+		return
+	end
+
+	local Point = Pointer(Input.Position)
+	local Size = Button.AbsoluteSize
+	State = {
+		Button = Button,
+		Item = Item,
+		Input = Input,
+		Start = Point,
+		Pointer = Point,
+		Fraction = Vector2.new(
+			math.clamp((Point.X - Button.AbsolutePosition.X) / Size.X, 0, 1),
+			math.clamp((Point.Y - Button.AbsolutePosition.Y) / Size.Y, 0, 1)
+		),
+		Rotated = Button:GetAttribute("Rotated") == true,
+		Started = false,
+		Valid = false,
+		SourceHotbarSlot = SourceHotbarSlot,
+		SourceSize = Size,
+	}
+end
+
+function InventoryDragController:BeginHotbarDrag(Button: ImageButton, Index: number, Tool: Tool, Input: InputObject)
+	local Item = Tool:GetAttributes()
+	Item.Name = Tool.Name
+	self:BeginDrag(Button, Item, Input, Index)
 end
 
 function InventoryDragController:StartDrag()
@@ -173,17 +334,24 @@ function InventoryDragController:StartDrag()
 	end
 	Ghost.Parent = Context.DragLayer
 	Drag.Ghost = Ghost
-	Drag.Button.Visible = false
+	if Drag.SourceHotbarSlot == nil then
+		Drag.Button.Visible = false
+	end
 	Context.Scroll.ScrollingEnabled = Drag.Input.UserInputType ~= Enum.UserInputType.Touch
-	Context.RotateButton.Visible = true
+	Context.RotateButton.Visible = Drag.SourceHotbarSlot == nil
 	Context.RotateHint.Text = "R  /  ROTATE"
-	Context.RotateHint.Visible = true
+	Context.RotateHint.Visible = Drag.SourceHotbarSlot == nil
 	self:RenderGhost()
+	self:RefreshDropHighlights()
 end
 
 function InventoryDragController:RenderGhost()
 	local Drag = State
 	if not Drag or not Drag.Ghost then
+		return
+	end
+	if Drag.SourceHotbarSlot ~= nil then
+		self:UpdatePreview()
 		return
 	end
 
@@ -196,7 +364,7 @@ function InventoryDragController:RenderGhost()
 end
 
 function InventoryDragController:Rotate()
-	if not State or not State.Started then
+	if not State or not State.Started or State.SourceHotbarSlot ~= nil then
 		return
 	end
 
@@ -205,61 +373,198 @@ function InventoryDragController:Rotate()
 	self:RenderGhost()
 end
 
+function InventoryDragController:CanEquipSlot(Item: ItemData, Slot: string): boolean
+	if not Layout or not InventoryEquipmentSlots.Accepts(Item, Slot, Layout.WeaponEquipment) then
+		return false
+	end
+	local WeaponSlot = InventoryEquipmentSlots.IsWeaponSlot(Slot)
+	if
+		(WeaponSlot and Equipped[Slot] and InventoryStacks.Key(Equipped[Slot]) == InventoryStacks.Key(Item))
+		or (not WeaponSlot and Item.Equipped)
+	then
+		return false
+	end
+
+	local CurrentEquipment = Layout.Equipped or {}
+	local NextEquipment = InventoryEquipmentSlots.WithSlot(CurrentEquipment, Slot, InventoryStacks.Key(Item))
+	return InventoryEquipmentSlots.PlanLayout(
+		InventoryEntries,
+		CurrentEquipment,
+		NextEquipment,
+		Layout.Hotbar or {},
+		Layout,
+		InventoryStacks.Key(Item)
+	) ~= nil
+end
+
+function InventoryDragController:RefreshDropHighlights()
+	local Drag = State
+	if not Context or not Drag or not Drag.Started then
+		ClearDropHighlights()
+		return
+	end
+
+	local Targets: { [GuiObject]: boolean } = {}
+	if Drag.SourceHotbarSlot == nil then
+		for Slot, Button in Context.EquipmentButtons do
+			if IsVisible(Button) and self:CanEquipSlot(Drag.Item, Slot) then
+				Targets[Button] = true
+			end
+		end
+	end
+	for Index, Button in HotbarController:GetSlotButtons() do
+		local Allowed = if Drag.SourceHotbarSlot ~= nil
+			then Index ~= Drag.SourceHotbarSlot and HotbarController:CanMoveSlot(
+				Drag.SourceHotbarSlot,
+				Index,
+				InventoryStacks.Key(Drag.Item)
+			)
+			else HotbarController:CanAssignItem(Drag.Item, Index)
+		if Allowed and IsVisible(Button) then
+			Targets[Button] = true
+		end
+	end
+
+	CompatibleButtons = Targets
+	if HoveredButton and not IsVisible(HoveredButton) then
+		HoveredButton = nil
+	end
+	for Button in DropHighlights do
+		if not Targets[Button] and Button ~= HoveredButton then
+			RestoreHighlight(Button)
+		end
+	end
+	for Button in Targets do
+		HighlightSlot(Button, Green)
+	end
+	if HoveredButton and not Targets[HoveredButton] then
+		HighlightSlot(HoveredButton, Red)
+	end
+end
+
 function InventoryDragController:PreviewEquipment(Drag: DragState): boolean
 	if not Context or not Layout then
 		return false
 	end
 
 	for Slot, Button in Context.EquipmentButtons do
-		local SlotFrame = Button.Parent :: GuiObject
-		if not Button.Visible or not SlotFrame.Visible or not Contains(Button, Drag.Pointer) then
+		if not IsVisible(Button) or not Contains(Button, Drag.Pointer) then
 			continue
 		end
 
 		Drag.Slot = Slot
-		local WeaponSlot = InventoryEquipmentSlots.IsWeaponSlot(Slot)
-		Drag.Valid = InventoryEquipmentSlots.Accepts(Drag.Item, Slot, Layout.WeaponEquipment)
-			and (if WeaponSlot then not Equipped[Slot] or Equipped[Slot].Name ~= Drag.Item.Name else not Drag.Item.Equipped)
-		if Drag.Valid then
-			local CurrentEquipment = Layout.Equipped or {}
-			local NextEquipment = InventoryEquipmentSlots.WithSlot(CurrentEquipment, Slot, Drag.Item.Name)
-			Drag.Valid = InventoryEquipmentSlots.PlanLayout(InventoryEntries, CurrentEquipment, NextEquipment, Layout.Hotbar or {}, Layout, Drag.Item.Name) ~= nil
-		end
+		Drag.Valid = self:CanEquipSlot(Drag.Item, Slot)
 
-		local Layer = Context.DragLayer
-		Overlay(Layer, UDim2.fromScale((Button.AbsolutePosition.X - Layer.AbsolutePosition.X) / Layer.AbsoluteSize.X, (Button.AbsolutePosition.Y - Layer.AbsolutePosition.Y) / Layer.AbsoluteSize.Y), UDim2.fromScale(Button.AbsoluteSize.X / Layer.AbsoluteSize.X, Button.AbsoluteSize.Y / Layer.AbsoluteSize.Y), if Drag.Valid then White else Red)
+		HoverHighlight(Button, Drag.Valid)
 		return true
 	end
 
 	return false
 end
 
+function InventoryDragController:PreviewHotbar(Drag: DragState): boolean
+	if not Context then
+		return false
+	end
+
+	local Index, Button = HotbarController:GetSlotAtPoint(Drag.Pointer)
+	if Index == nil or not Button then
+		return false
+	end
+
+	Drag.HotbarSlot = Index
+	Drag.HotbarButton = Button
+	Drag.Valid = if Drag.SourceHotbarSlot ~= nil
+		then HotbarController:CanMoveSlot(Drag.SourceHotbarSlot, Index, InventoryStacks.Key(Drag.Item))
+		else HotbarController:CanAssignItem(Drag.Item, Index)
+	HoverHighlight(Button, Drag.Valid)
+
+	return true
+end
+
+function InventoryDragController:PreviewDelete(Drag: DragState): boolean
+	local Target = Context and Context.DeleteTarget :: ImageLabel?
+	if not Target or not IsVisible(Target) or not Contains(Target, Drag.Pointer) then
+		return false
+	end
+
+	Drag.DeleteTarget = true
+	Drag.Valid = InventoryDeleteController:CanDelete(InventoryStacks.Key(Drag.Item))
+	HoverHighlight(Target, false)
+	return true
+end
+
+function InventoryDragController:PreviewDrop(Drag: DragState): boolean
+	local Target = Context and Context.DropTarget :: ImageLabel?
+	if not Target or not IsVisible(Target) or not Contains(Target, Drag.Pointer) then
+		return false
+	end
+
+	Drag.DropTarget = true
+	Drag.Valid = InventoryDropController:CanDrop(InventoryStacks.Key(Drag.Item))
+	HoverHighlight(Target, Drag.Valid)
+	return true
+end
+
 function InventoryDragController:UpdatePreview()
 	local Drag = State
-	if not Context or not Layout or not Drag or not Drag.Started or not Drag.Ghost then
+	if not Context or not Drag or not Drag.Started or not Drag.Ghost then
 		return
 	end
 
 	ClearOverlays()
+	ClearHoveredHighlight()
 	Drag.Valid = false
 	Drag.Candidate = nil
 	Drag.Slot = nil
+	Drag.HotbarSlot = nil
+	Drag.HotbarButton = nil
+	Drag.DeleteTarget = nil
+	Drag.DropTarget = nil
 	local Layer = Context.DragLayer
+	if Drag.SourceHotbarSlot ~= nil then
+		local Size = Drag.SourceSize
+		local TopLeft = Drag.Pointer - Vector2.new(Size.X * Drag.Fraction.X, Size.Y * Drag.Fraction.Y)
+		Drag.Ghost.Size = UDim2.fromScale(Size.X / Layer.AbsoluteSize.X, Size.Y / Layer.AbsoluteSize.Y)
+		Drag.Ghost.Position = UDim2.fromScale(
+			(TopLeft.X - Layer.AbsolutePosition.X) / Layer.AbsoluteSize.X,
+			(TopLeft.Y - Layer.AbsolutePosition.Y) / Layer.AbsoluteSize.Y
+		)
+		if not self:PreviewDelete(Drag) and not self:PreviewDrop(Drag) then
+			self:PreviewHotbar(Drag)
+		end
+		return
+	end
+	if not Layout then
+		return
+	end
+
 	local Cell = Context.Canvas.AbsoluteSize.X / Layout.Columns
 	local Candidate = InventoryGrid.Placement(Drag.Item, 1, 1, Drag.Rotated)
 	local Size = Vector2.new(Candidate.Width * Cell, Candidate.Height * Cell)
 	local TopLeft = Drag.Pointer - Vector2.new(Size.X * Drag.Fraction.X, Size.Y * Drag.Fraction.Y)
 	Drag.Ghost.Size = UDim2.fromScale(Size.X / Layer.AbsoluteSize.X, Size.Y / Layer.AbsoluteSize.Y)
-	Drag.Ghost.Position = UDim2.fromScale((TopLeft.X - Layer.AbsolutePosition.X) / Layer.AbsoluteSize.X, (TopLeft.Y - Layer.AbsolutePosition.Y) / Layer.AbsoluteSize.Y)
+	Drag.Ghost.Position = UDim2.fromScale(
+		(TopLeft.X - Layer.AbsolutePosition.X) / Layer.AbsoluteSize.X,
+		(TopLeft.Y - Layer.AbsolutePosition.Y) / Layer.AbsoluteSize.Y
+	)
 
-	if self:PreviewEquipment(Drag) or not Contains(Context.Scroll, Drag.Pointer) then
+	if
+		self:PreviewDelete(Drag)
+		or self:PreviewDrop(Drag)
+		or self:PreviewHotbar(Drag)
+		or Drag.Item.Class == "Skill"
+		or self:PreviewEquipment(Drag)
+		or not Contains(Context.Scroll, Drag.Pointer)
+	then
 		return
 	end
 
 	Candidate.Column = math.floor((TopLeft.X - Context.Canvas.AbsolutePosition.X) / Cell + 0.5) + 1
 	Candidate.Row = math.floor((TopLeft.Y - Context.Canvas.AbsolutePosition.Y) / Cell + 0.5) + 1
 	Drag.Candidate = Candidate
-	local Blockers, Outside = InventoryGrid.Blockers(Layout.Positions, Candidate, Layout.Columns, Layout.Rows, Drag.Item.Name)
+	local Blockers, Outside =
+		InventoryGrid.Blockers(Layout.Positions, Candidate, Layout.Columns, Layout.Rows, InventoryStacks.Key(Drag.Item))
 	Drag.Valid = not Outside and #Blockers == 0
 	local DisplayRows = Context.Canvas.AbsoluteSize.Y / Cell
 	local Preview = Context.Preview
@@ -280,7 +585,8 @@ function InventoryDragController:UpdatePreview()
 		end
 	end
 	if Outside then
-		local Boundary = Overlay(Context.Canvas, UDim2.fromScale(0, 0), UDim2.fromScale(1, Layout.Rows / DisplayRows), Red)
+		local Boundary =
+			Overlay(Context.Canvas, UDim2.fromScale(0, 0), UDim2.fromScale(1, Layout.Rows / DisplayRows), Red)
 		Boundary.BackgroundTransparency = 1
 	end
 end
@@ -289,6 +595,7 @@ function InventoryDragController:Cancel()
 	local Drag = State
 	State = nil
 	ClearOverlays()
+	ClearDropHighlights()
 	if Drag then
 		if Drag.Started then
 			Suppressed[Drag.Button] = os.clock() + 0.25
@@ -310,17 +617,49 @@ end
 
 function InventoryDragController:Drop()
 	local Drag = State
-	if not Drag or not Drag.Started or not Drag.Valid or not Layout then
+	if Drag and Drag.Started and Drag.HotbarButton then
+		Suppressed[Drag.HotbarButton] = os.clock() + 0.25
+	end
+
+	if
+		not Drag
+		or not Drag.Started
+		or not Drag.Valid
+		or (not Layout and Drag.SourceHotbarSlot == nil)
+		or (Drag.SourceHotbarSlot ~= nil and Drag.SourceHotbarSlot == Drag.HotbarSlot)
+	then
 		self:Cancel()
 		return
 	end
 
-	RequestId += 1
-	PendingId = RequestId
+	if Drag.DeleteTarget then
+		local Name = InventoryStacks.Key(Drag.Item)
+		self:Cancel()
+		InventoryDeleteController:Begin(Name)
+		return
+	end
+	if Drag.DropTarget then
+		local Name = InventoryStacks.Key(Drag.Item)
+		self:Cancel()
+		InventoryDropController:Begin(Name)
+		return
+	end
+
 	local Candidate = Drag.Candidate
 	local Request = {
-		Id = RequestId, Kind = if Drag.Slot then "Equip" else "Move", Name = Drag.Item.Name, Slot = Drag.Slot,
-		Column = Candidate and Candidate.Column, Row = Candidate and Candidate.Row, Rotated = Drag.Rotated, Revision = Layout.Revision,
+		Kind = if Drag.SourceHotbarSlot ~= nil
+			then "MoveHotbar"
+			elseif Drag.HotbarSlot ~= nil then "Hotbar"
+			elseif Drag.Slot then "Equip"
+			else "Move",
+		Name = InventoryStacks.Key(Drag.Item),
+		Slot = Drag.Slot,
+		Index = Drag.HotbarSlot,
+		SourceIndex = Drag.SourceHotbarSlot,
+		Column = Candidate and Candidate.Column,
+		Row = Candidate and Candidate.Row,
+		Rotated = Drag.Rotated,
+		Revision = Layout and Layout.Revision,
 	}
 
 	if Candidate and not Drag.Slot then
@@ -328,19 +667,34 @@ function InventoryDragController:Drop()
 	end
 
 	self:Cancel()
+	self:SubmitAction(Request)
+end
+
+function InventoryDragController:SubmitAction(Request: ItemData): boolean
+	if PendingId then
+		return false
+	end
+	RequestId += 1
+	PendingId = RequestId
+	Request.Id = RequestId
 	InventoryService.InventoryAction:Fire(Request)
 	local Id = RequestId
 	task.delay(8, function()
 		if PendingId == Id then
 			PendingId = nil
-			InventoryController:UpdateContent()
+			InventoryController:UpdateContent(true)
 		end
 	end)
+	return true
 end
 
 function InventoryDragController.KnitInit()
 	InventoryController = Knit.GetController("InventoryController")
 	InventoryService = Knit.GetService("InventoryService")
+	HotbarController = Knit.GetController("HotbarController")
+	InventoryDeleteController = Knit.GetController("InventoryDeleteController")
+	InventoryDropController = Knit.GetController("InventoryDropController")
+	InventoryModalController = Knit.GetController("InventoryModalController")
 end
 
 function InventoryDragController.KnitStart()
@@ -357,7 +711,16 @@ function InventoryDragController.KnitStart()
 		InventoryDragController:UpdatePreview()
 	end)
 	UserInputService.InputEnded:Connect(function(Input: InputObject)
-		if State and (Input == State.Input or (State.Input.UserInputType == Enum.UserInputType.MouseButton1 and Input.UserInputType == Enum.UserInputType.MouseButton1)) then
+		if
+			State
+			and (
+				Input == State.Input
+				or (
+					State.Input.UserInputType == Enum.UserInputType.MouseButton1
+					and Input.UserInputType == Enum.UserInputType.MouseButton1
+				)
+			)
+		then
 			InventoryDragController:Drop()
 		end
 	end)
@@ -374,28 +737,30 @@ function InventoryDragController.KnitStart()
 	Players.LocalPlayer.CharacterRemoving:Connect(function()
 		InventoryDragController:Cancel()
 	end)
-	InventoryService.InventoryActionResult:Connect(function(Id: number, Success: boolean, Reason: string?, Correction: ItemData?)
-		if Id ~= PendingId then
-			return
-		end
+	InventoryService.InventoryActionResult:Connect(
+		function(Id: number, Success: boolean, Reason: string?, Correction: ItemData?)
+			if Id ~= PendingId then
+				return
+			end
 
-		PendingId = nil
-		if not Success then
-			if not Correction or not InventoryController:ApplyLayout(Correction) then
-				InventoryController:UpdateContent()
+			PendingId = nil
+			if not Success then
+				if not Correction or not InventoryController:ApplyLayout(Correction) then
+					InventoryController:UpdateContent(true)
+				end
+			end
+			if not Success and Reason and Context and Context.Main.Enabled then
+				Context.RotateHint.Text = Reason
+				Context.RotateHint.Visible = true
+				task.delay(3, function()
+					if Context and not State then
+						Context.RotateHint.Visible = false
+						Context.RotateHint.Text = "R  /  ROTATE"
+					end
+				end)
 			end
 		end
-		if not Success and Reason and Context and Context.Main.Enabled then
-			Context.RotateHint.Text = Reason
-			Context.RotateHint.Visible = true
-			task.delay(3, function()
-				if Context and not State then
-					Context.RotateHint.Visible = false
-					Context.RotateHint.Text = "R  /  ROTATE"
-				end
-			end)
-		end
-	end)
+	)
 end
 
 return InventoryDragController

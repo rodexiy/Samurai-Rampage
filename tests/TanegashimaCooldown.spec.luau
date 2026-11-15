@@ -67,10 +67,10 @@ return function(CreateHarness: () -> any): string
 		Service:SetTanegashimaCooldown(Player, 2)
 		State.LastShot = 99
 		Service:Release(Player, Aim)
-		Check(#Harness.Casts == 0 and Harness.Ammo.IronBullet == 100, "The server must reject firing before the custom cooldown ends")
+		Check(#Harness.Casts == 0 and Harness.Ammo.GunAmmo == 100, "The server must reject firing before the custom cooldown ends")
 		State.LastShot = 97
 		Service:Release(Player, Aim)
-		Check(#Harness.Casts == 1 and Harness.Ammo.IronBullet == 99, "The server must permit firing after the custom cooldown")
+		Check(#Harness.Casts == 1 and Harness.Ammo.GunAmmo == 99, "The server must permit firing after the custom cooldown")
 		local Feedback = Service.Client.Feedback.Calls
 		local Shot = Feedback[#Feedback]
 		Check(Shot[2] == "Shot" and Shot[6] == 102, "Confirmed shots must send the server's exact ready deadline")
@@ -82,7 +82,7 @@ return function(CreateHarness: () -> any): string
 		Service:SetTanegashimaCooldown(Player, 0)
 		Service:Release(Player, Aim)
 		Service:Release(Player, Aim)
-		Check(#Harness.Casts == 3 and Harness.Ammo.IronBullet == 97, "Zero cooldown must allow repeated valid shots while still consuming ammo")
+		Check(#Harness.Casts == 3 and Harness.Ammo.GunAmmo == 97, "Zero cooldown must allow repeated valid shots while still consuming ammo")
 
 		Check(Harness.Definition.Group == "Admin", "The command must use existing admin permissions")
 		local Result = Harness.Command({Executor = Player}, 1.5)

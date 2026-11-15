@@ -52,7 +52,7 @@ end
 
 local function HasAmmo(Player: Player, Config: any): boolean
 	for ItemName, Amount in Config.Ammunition do
-		local Item = InventoryService:GetRawPlayerItemByName(Player, ItemName)
+		local Item = InventoryService:GetPlayerItemByName(Player, ItemName)
 		if not Item or (Item.Stack or 0) < Amount then
 			return false
 		end
@@ -62,7 +62,8 @@ local function HasAmmo(Player: Player, Config: any): boolean
 end
 
 local function CanUse(Player: Player, State: BowState): boolean
-	return BowConfig.CanUse(State.Character) and not Player:GetAttribute("CantAttack")
+	return BowConfig.CanUse(State.Character)
+		and not Player:GetAttribute("CantAttack")
 		and State.Character:GetAttribute("Loaded") == true
 end
 
@@ -99,7 +100,8 @@ function BowService:SetInHand(Player: Player, InHand: boolean)
 	local Character = State.Character
 	local Config = RangedWeaponConfig.GetForCharacter(Character)
 	local PartName = if InHand then Config.HandPart else Config.BackPart
-	local BodyPart = if PartName == "PrimaryPart" then Character.PrimaryPart
+	local BodyPart = if PartName == "PrimaryPart"
+		then Character.PrimaryPart
 		else Character:FindFirstChild(PartName) :: BasePart?
 	if not BodyPart then
 		return
@@ -108,8 +110,10 @@ function BowService:SetInHand(Player: Player, InHand: boolean)
 	self:CancelDraw(Player)
 	State.Grip.Enabled = true
 	State.Grip.Part0 = BodyPart
-	State.Grip.C0 = if not InHand then Config.GetBackOffset()
-		elseif Config.GetHandOffset then Config.GetHandOffset() else Config.HandOffset
+	State.Grip.C0 = if not InHand
+		then Config.GetBackOffset()
+		elseif Config.GetHandOffset then Config.GetHandOffset()
+		else Config.HandOffset
 	State.Grip.C1 = CFrame.identity
 	State.Grip.Parent = BodyPart
 	Character:SetAttribute("BowEquipped", InHand)
@@ -144,8 +148,11 @@ end
 
 function BowService:EquipSword(Player: Player)
 	local State = GetState(Player)
-	if not State or not State.Character:GetAttribute("BowEquipped")
-		or not Validate:CanEquipWeapon(State.Character, true) then
+	if
+		not State
+		or not State.Character:GetAttribute("BowEquipped")
+		or not Validate:CanEquipWeapon(State.Character, true)
+	then
 		return
 	end
 
@@ -160,7 +167,7 @@ end
 function BowService:UnequipItem(Player: Player): (boolean, string?)
 	local Data = DataService:GetData(Player)
 	if Data.Equipped.Bow then
-		local NextEquipped = table.clone(Data.Equipped)
+		local NextEquipped = InventoryService:GetInventoryLayout(Player).Equipped
 		NextEquipped.Bow = nil
 		local Success, Reason = InventoryService:CommitEquipment(Player, NextEquipped)
 		if not Success then
@@ -183,7 +190,7 @@ function BowService:LoadBow(Player: Player)
 	self:Unload(Player)
 	local Data = DataService:GetData(Player)
 	local ItemName = Data.Equipped.Bow
-	local Item = ItemName and InventoryService:GetRawPlayerItemByName(Player, ItemName)
+	local Item = ItemName and InventoryService:GetRawPlayerStack(Player, (Data.EquippedStackIds or {}).Bow or ItemName)
 	local ItemData = ItemName and ItemService:GetItemData(ItemName)
 	if not Item or Item.Stack <= 0 or not ItemData or ItemData.Type ~= "Bow" then
 		Data.Equipped.Bow = nil
@@ -222,7 +229,8 @@ function BowService:LoadBow(Player: Player)
 	end
 
 	local Root = Model.PrimaryPart
-	local BackPart = if Config.BackPart == "PrimaryPart" then State.Character.PrimaryPart
+	local BackPart = if Config.BackPart == "PrimaryPart"
+		then State.Character.PrimaryPart
 		else State.Character:FindFirstChild(Config.BackPart) :: BasePart?
 	if not Root or not BackPart then
 		Model:Destroy()
@@ -282,8 +290,15 @@ function BowService:BeginDraw(Player: Player, Aim: any)
 		return
 	end
 	State.LastBegin = Now
-	if not CanUse(Player, State) or (not Config.IsFirearm
-		and (Now - State.LastShot < RangedWeaponConfig.GetShotCooldown(Config, Player) or not HasAmmo(Player, Config))) then
+	if
+		not CanUse(Player, State)
+		or (
+			not Config.IsFirearm
+			and (
+				Now - State.LastShot < RangedWeaponConfig.GetShotCooldown(Config, Player) or not HasAmmo(Player, Config)
+			)
+		)
+	then
 		self.Client.Feedback:Fire(Player, "Cancel")
 		if not HasAmmo(Player, Config) then
 			AlertService:AlertPlayer(Player, Config.AmmoWarning, "Warn")
@@ -405,7 +420,16 @@ function BowService:Release(Player: Player, Aim: any?, Focused: boolean?)
 		end
 	end)
 	self.Client.Feedback:Fire(Player, "Shot", Charge, nil, Config.WeaponName, Now + Cooldown)
-	self.Client.Projectile:FireAll("Launch", ShotId, Player, Origin, Velocity, Behavior.Acceleration, Now, Config.WeaponName)
+	self.Client.Projectile:FireAll(
+		"Launch",
+		ShotId,
+		Player,
+		Origin,
+		Velocity,
+		Behavior.Acceleration,
+		Now,
+		Config.WeaponName
+	)
 end
 
 function BowService:ResolveProjectileHit(Target: Model, Attacker: Model, Damage: number, HitData: { [string]: any })
@@ -418,8 +442,12 @@ end
 
 local function BindCharacter(Player: Player, Character: Model)
 	States[Player] = {
-		Character = Character, Seed = 0, LastShot = -math.huge, LastAim = 0,
-		LastToggle = 0, LastBegin = 0,
+		Character = Character,
+		Seed = 0,
+		LastShot = -math.huge,
+		LastAim = 0,
+		LastToggle = 0,
+		LastBegin = 0,
 	}
 	Character:SetAttribute("BowEquipped", false)
 	Character:SetAttribute("BowDrawing", false)
@@ -438,8 +466,13 @@ local function BindCharacter(Player: Player, Character: Model)
 			end
 
 			BowService:CancelDraw(Player)
-			if Attribute == "Died" or Attribute == "Downed" or Attribute == "Ragdoll"
-				or Attribute == "CameraCutscene" or Attribute == "RealmTeleporting" then
+			if
+				Attribute == "Died"
+				or Attribute == "Downed"
+				or Attribute == "Ragdoll"
+				or Attribute == "CameraCutscene"
+				or Attribute == "RealmTeleporting"
+			then
 				BowService:SetInHand(Player, false)
 			end
 		end)
@@ -504,7 +537,9 @@ function BowService.KnitStart()
 			BowService:BeginDraw(Player, Aim)
 		elseif Action == "EquipSword" then
 			BowService:EquipSword(Player)
-		elseif Action == "Release" or (Action == "Shoot" and RangedWeaponConfig.GetForCharacter(State.Character).IsFirearm) then
+		elseif
+			Action == "Release" or (Action == "Shoot" and RangedWeaponConfig.GetForCharacter(State.Character).IsFirearm)
+		then
 			BowService:Release(Player, Aim, Focused == true)
 		elseif Action == "Cancel" then
 			BowService:CancelDraw(Player)
@@ -528,14 +563,24 @@ function BowService.KnitStart()
 		BowService.Client.Projectile:FireAll("Hit", Data.Id, Result.Position, Velocity, Result.Instance, ImpactType)
 		local Target: Instance? = Result.Instance
 		while Target and Target ~= workspace do
-			if Target:IsA("Model") and Target:FindFirstChildWhichIsA("Humanoid")
-				and typeof(Target:GetAttribute("Health")) == "number" then
+			if
+				Target:IsA("Model")
+				and Target:FindFirstChildWhichIsA("Humanoid")
+				and typeof(Target:GetAttribute("Health")) == "number"
+			then
 				if Target ~= Data.Character and Data.Character.Parent and not Target:GetAttribute("Died") then
 					local Distance = (Result.Position - Data.Origin).Magnitude
-					BowService:ResolveProjectileHit(Target, Data.Character, Data.Config.GetDamage(Data.Charge, Distance), {
-						By = Data.Config.WeaponName, Ranged = true, NoStun = true,
-						RayCFrame = CFrame.lookAt(Result.Position, Result.Position + Velocity),
-					})
+					BowService:ResolveProjectileHit(
+						Target,
+						Data.Character,
+						Data.Config.GetDamage(Data.Charge, Distance),
+						{
+							By = Data.Config.WeaponName,
+							Ranged = true,
+							NoStun = true,
+							RayCFrame = CFrame.lookAt(Result.Position, Result.Position + Velocity),
+						}
+					)
 				end
 				break
 			end
