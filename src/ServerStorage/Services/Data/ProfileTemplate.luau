@@ -86,6 +86,8 @@ return {
 		LagCompensation = true,
 		BloodFX = true,
 		Birds = true,
+		ClothCut = true,
+		SmartBone = true,
 
 		Ambience = true,
 		OST = true,

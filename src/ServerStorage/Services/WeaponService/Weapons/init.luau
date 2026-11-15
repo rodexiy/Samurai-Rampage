@@ -1,6 +1,7 @@
 local Weapon = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local Debris = game:GetService("Debris")
 local HitboxService = Knit.GetService("HitboxService")
@@ -15,10 +16,11 @@ local LagCompensationService = Knit.GetService("LagCompensationService")
 local HitService = Knit.GetService("HitService")
 local DamageService = Knit.GetService("DamageService")
 local ValuesService = Knit.GetService("ValuesService")
+local ClothService = Knit.GetService("ClothService")
 
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
-local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
-local Stances = require(game.ReplicatedStorage.Shared.Index.Stances)
+local Validate = require(ReplicatedStorage.Shared.Validate)
+local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
+local Stances = require(ReplicatedStorage.Shared.Index.Stances)
 
 local function GetStanceData(Attacker: Model)
 	return Stances[Attacker:GetAttribute("Stance")]
@@ -114,7 +116,12 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 			SoundEffectService:AddPitchEffect(Swing, 0.85, 1.25)
 		end
 
+		local StopClothSwing: (() -> ())?
 		local function Cancel()
+			if StopClothSwing then
+				StopClothSwing()
+			end
+
 			if Swing then
 				Swing:Stop()
 				Swing:Destroy()
@@ -129,6 +136,8 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 			Cancel()
 			return
 		end
+
+		StopClothSwing = ClothService:StartSwing(Attacker, HitboxDuration + SecondsAdjusted, WeaponSide)
 
 		task.delay(M1Animation:GetAttribute("SlashDelay") or 0.2, function()
 			WeaponService:ShowSlash(Attacker, M1Animation)
@@ -240,7 +249,12 @@ Weapon.StrongAttack = function(Attacker: Model, Data: { any })
 		local Swing: Sound = SoundEffectService:CustomSwordWoosh(Attacker, "M2")
 		SoundEffectService:AddPitchEffect(Swing, 0.85, 1.25)
 
+		local StopClothSwing: (() -> ())?
 		local function Cancel()
+			if StopClothSwing then
+				StopClothSwing()
+			end
+
 			Swing:Stop()
 			Swing:Destroy()
 
@@ -251,6 +265,8 @@ Weapon.StrongAttack = function(Attacker: Model, Data: { any })
 			Cancel()
 			return
 		end
+
+		StopClothSwing = ClothService:StartSwing(Attacker, HitboxDuration, WeaponSide)
 
 		if not SlashDelay then
 			task.delay(0.1, function()

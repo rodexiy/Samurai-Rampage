@@ -1,3 +1,4 @@
+local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,6 +13,9 @@ local BowProjectileController = Knit.CreateController({ Name = "BowProjectileCon
 type Shot = {
 	Arrow: BasePart, Trail: Trail, Cast: any?,
 	IsFirearm: boolean, CleanupAt: number?,
+	HitCloths: { [MeshPart]: boolean },
+	ClothPosition: Vector3, ClothFinished: boolean,
+	CanCutCloth: boolean,
 }
 local Caster = FastCast.new()
 local Shots: { [number]: Shot } = {}
@@ -19,6 +23,16 @@ local Container: Folder
 local Template: BasePart
 local TracerTemplate: BasePart
 local BirdController
+local ClothController
+
+local function TraceCloth(Shot: Shot, Position: Vector3)
+	if Shot.ClothFinished or not Shot.CanCutCloth then
+		return
+	end
+
+	ClothController:HitByProjectile(Shot.ClothPosition, Position - Shot.ClothPosition, Shot.IsFirearm, Shot.HitCloths)
+	Shot.ClothPosition = Position
+end
 
 local function DestroyShot(Id: number, Shot: Shot)
 	if Shots[Id] ~= Shot then
@@ -72,6 +86,12 @@ local function Launch(Id: number, Shooter: Player, Origin: Vector3, Velocity: Ve
 	Params.FilterType = Enum.RaycastFilterType.Exclude
 	local Excluded = BowRaycast.GetExclusions(Shooter.Character)
 	table.insert(Excluded, Container)
+	-- ClothController tests the deformed triangles; the static collision mesh can truncate the segment before them.
+	for _, Cloth in CollectionService:GetTagged("Cloth") do
+		if Cloth:IsDescendantOf(workspace) then
+			table.insert(Excluded, Cloth)
+		end
+	end
 	Params.FilterDescendantsInstances = Excluded
 
 	local Behavior = FastCast.newBehavior()
@@ -96,7 +116,12 @@ local function Launch(Id: number, Shooter: Player, Origin: Vector3, Velocity: Ve
 		Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 		Highlight.Parent = Arrow
 	end
-	local Shot: Shot = { Arrow = Arrow, Trail = AddTrail(Arrow, Config), Cast = Cast, IsFirearm = Config.IsFirearm }
+	local Shot: Shot = {
+		Arrow = Arrow, Trail = AddTrail(Arrow, Config), Cast = Cast,
+		IsFirearm = Config.IsFirearm, HitCloths = {},
+		ClothPosition = Origin, ClothFinished = false,
+		CanCutCloth = Shooter == Players.LocalPlayer,
+	}
 	Shots[Id] = Shot
 	Debris:AddItem(Arrow, Config.MaxFlightTime + 6)
 	task.delay(Config.MaxFlightTime + 6, function()
@@ -111,6 +136,7 @@ end
 
 function BowProjectileController.KnitInit()
 	BirdController = Knit.GetController("BirdController")
+	ClothController = Knit.GetController("ClothController")
 end
 
 function BowProjectileController.KnitStart()
@@ -143,6 +169,7 @@ function BowProjectileController.KnitStart()
 		local Shot = Shots[Cast.UserData.Id]
 		if Shot then
 			BirdController:HitByProjectile(LastPoint, Direction * Length, Velocity)
+			TraceCloth(Shot, LastPoint + Direction * Length)
 		end
 
 		if Arrow then
@@ -167,6 +194,12 @@ function BowProjectileController.KnitStart()
 			local Position, Velocity, HitPart = ...
 			local Shot = Shots[Id]
 			if Shot then
+				-- A close impact can arrive before the first local cast update.
+				if (Position - Shot.ClothPosition):Dot(Velocity) >= 0 then
+					TraceCloth(Shot, Position)
+				end
+				Shot.ClothFinished = true
+
 				local Facing = if Velocity.Magnitude > 0.001 then Velocity else Shot.Arrow.CFrame.LookVector
 				Shot.Arrow.CFrame = BowConfig.GetArrowCFrame(Position, Facing, Shot.Arrow.Size.Z)
 				Shot.Trail.Enabled = false
