@@ -18,10 +18,26 @@ local Start: TextLabel
 local Half: TextLabel
 local All: TextLabel
 local HalfDisplay: Frame
+local Buttons: Frame
 local Pending: { Name: string, Stack: number }?
 local Selected = 1
 local UpdatingText = false
 local SliderInput: InputObject?
+
+local function GuiPoint(Position: Vector2): Vector2
+	local Main = Confirmation:FindFirstAncestorWhichIsA("ScreenGui")
+	local Inset = if Main and not Main.IgnoreGuiInset then GuiService:GetGuiInset() else Vector2.zero
+	return Position - Inset
+end
+
+local function Contains(Control: GuiObject, Point: Vector2): boolean
+	local Position, Size = Control.AbsolutePosition, Control.AbsoluteSize
+	return Control.Visible
+		and Point.X >= Position.X
+		and Point.X <= Position.X + Size.X
+		and Point.Y >= Position.Y
+		and Point.Y <= Position.Y + Size.Y
+end
 
 function InventoryDropController:IsOpen(): boolean
 	return Pending ~= nil
@@ -48,14 +64,13 @@ function InventoryDropController:SetPointer(Position: Vector2)
 	if not Pending or Pending.Stack == 1 or AmountBar.AbsoluteSize.X <= 0 then
 		return
 	end
-	local Main = Confirmation:FindFirstAncestorWhichIsA("ScreenGui")
-	local Inset = if Main and not Main.IgnoreGuiInset then GuiService:GetGuiInset() else Vector2.zero
-	local Fraction = math.clamp((Position.X - Inset.X - AmountBar.AbsolutePosition.X) / AmountBar.AbsoluteSize.X, 0, 1)
+	local Point = GuiPoint(Position)
+	local Fraction = math.clamp((Point.X - AmountBar.AbsolutePosition.X) / AmountBar.AbsoluteSize.X, 0, 1)
 	self:SetAmount(math.round(1 + Fraction * (Pending.Stack - 1)))
 end
 
 function InventoryDropController:BindButtons()
-	local Buttons = Confirmation:WaitForChild("Buttons") :: Frame
+	Buttons = Confirmation:WaitForChild("Buttons") :: Frame
 	for _, Name in { "Drop", "Cancel" } do
 		local Button = Buttons:WaitForChild(Name) :: ImageButton
 		Button.Active = true
@@ -71,21 +86,41 @@ function InventoryDropController:BindButtons()
 	end
 end
 
-function InventoryDropController:BindSlider()
-	for _, Control in { AmountBar, Slider, AmountSelected } do
-		Control.InputBegan:Connect(function(Input: InputObject)
-			if not Pending or Pending.Stack == 1 then
-				return
-			end
-			if
-				Input.UserInputType == Enum.UserInputType.MouseButton1
-				or Input.UserInputType == Enum.UserInputType.Touch
-			then
-				SliderInput = Input
-				self:SetPointer(Vector2.new(Input.Position.X, Input.Position.Y))
-			end
-		end)
+function InventoryDropController:IsSliderPoint(Position: Vector2): boolean
+	if not Pending or Pending.Stack == 1 or not Confirmation.Visible or not InventoryController:IsOpen() then
+		return false
 	end
+	local Point = GuiPoint(Position)
+	for _, Control in { TypeAmount, Start, Half, All, Buttons } do
+		if Contains(Control, Point) then
+			return false
+		end
+	end
+	local Origin, Size = AmountBar.AbsolutePosition, AmountBar.AbsoluteSize
+	local HalfHeight = math.max(22, Slider.AbsoluteSize.Y / 2 + 8)
+	return Size.X > 0
+		and Point.X >= Origin.X - 16
+		and Point.X <= Origin.X + Size.X + 16
+		and math.abs(Point.Y - (Origin.Y + Size.Y / 2)) <= HalfHeight
+end
+
+function InventoryDropController:BindSlider()
+	UserInputService.InputBegan:Connect(function(Input: InputObject)
+		if
+			SliderInput
+			or (
+				Input.UserInputType ~= Enum.UserInputType.MouseButton1
+				and Input.UserInputType ~= Enum.UserInputType.Touch
+			)
+		then
+			return
+		end
+		local Point = Vector2.new(Input.Position.X, Input.Position.Y)
+		if self:IsSliderPoint(Point) then
+			SliderInput = Input
+			self:SetPointer(Point)
+		end
+	end)
 end
 
 function InventoryDropController:BindPresets()
@@ -217,12 +252,28 @@ end
 
 function InventoryDropController.KnitStart()
 	UserInputService.InputChanged:Connect(function(Input: InputObject)
-		if SliderInput and (Input == SliderInput or Input.UserInputType == Enum.UserInputType.MouseMovement) then
+		if
+			SliderInput
+			and (
+				Input == SliderInput
+				or (
+					SliderInput.UserInputType == Enum.UserInputType.MouseButton1
+					and Input.UserInputType == Enum.UserInputType.MouseMovement
+				)
+			)
+		then
 			InventoryDropController:SetPointer(Vector2.new(Input.Position.X, Input.Position.Y))
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(Input: InputObject)
-		if Input == SliderInput then
+		if
+			Input == SliderInput
+			or (
+				SliderInput
+				and SliderInput.UserInputType == Enum.UserInputType.MouseButton1
+				and Input.UserInputType == Enum.UserInputType.MouseButton1
+			)
+		then
 			SliderInput = nil
 		end
 	end)

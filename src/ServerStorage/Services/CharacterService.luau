@@ -39,6 +39,33 @@ local CachedParts = {}
 local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
 local ZERO_VECTOR = Vector3.new(0, 0, 0)
 
+local function ConfigureSmartBoneCollision(Character: Model)
+	local Root = Character.PrimaryPart
+	if not Root then
+		return
+	end
+
+	local Collider = Instance.new("Part")
+	Collider.Name = "SmartBoneCollider"
+	Collider.Size = Vector3.new(Root.Size.Y * 2, Root.Size.X, Root.Size.X)
+	Collider.CFrame = Root.CFrame * CFrame.Angles(math.rad(90), 0, 0)
+	Collider.Transparency = 1
+	Collider.CanCollide = false
+	Collider.CanQuery = false
+	Collider.CanTouch = false
+	Collider.Massless = true
+	Collider:SetAttribute("ColliderShape", "Capsule")
+	Collider:SetAttribute("ColliderKey", "Cloth")
+
+	local Weld = Instance.new("WeldConstraint")
+	Weld.Part0 = Root
+	Weld.Part1 = Collider
+	Weld.Parent = Collider
+
+	Collider.Parent = Root
+	Collider:AddTag("SmartCollider")
+end
+
 local function ClearAssemblyVelocity(Character: Model)
 	for _, Descendant in Character:GetDescendants() do
 		if Descendant:IsA("BasePart") then
@@ -439,6 +466,8 @@ function CharacterService:LoadCharacter(Player: Player)
 	HitboxService:LoadR6Hitbox(Character)
 
 	RootPart.Anchored = false
+
+	ConfigureSmartBoneCollision(Character)
 
 	Character:SetAttribute("Loaded", true)
 end

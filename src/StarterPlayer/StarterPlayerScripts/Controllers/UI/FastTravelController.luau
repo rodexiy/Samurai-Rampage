@@ -1,5 +1,6 @@
-local RunService = game:GetService("RunService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local FastTravelController = Knit.CreateController({
 	Name = "FastTravelController",
@@ -8,19 +9,21 @@ local FastTravelController = Knit.CreateController({
 local RugService
 local AlertController
 
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local PlayerGui
 local Menu
 local Meditate
-local FastTravelBackground
+local FastTravelBackground: Frame
+local LocationsScroll: ScrollingFrame
+local LocationTemplate: TextButton
 
-local TeleportCharacter = require(game.ReplicatedStorage.Shared.Utils.TeleportCharacter)
+local TeleportCharacter = require(ReplicatedStorage.Shared.Utils.TeleportCharacter)
 local TileTransition =
-	require(game.ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Libraries"):WaitForChild("TileTransition"))
+	require(ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Libraries"):WaitForChild("TileTransition"))
 
 local Debounce = false
 
-local EasyVisuals = require(game.ReplicatedStorage.Assets.Libraries.EasyVisuals)
+local EasyVisuals = require(ReplicatedStorage.Assets.Libraries.EasyVisuals)
 local CurrentVisual
 
 local function UpdateClosest()
@@ -28,7 +31,12 @@ local function UpdateClosest()
 	if not Character then
 		return
 	end
-	for _, Button in FastTravelBackground.content:GetChildren() do
+
+	for _, Button in LocationsScroll:GetChildren() do
+		if not Button:IsA("TextButton") or Button == LocationTemplate then
+			continue
+		end
+
 		local Rug = workspace.Rugs:FindFirstChild(Button.Name)
 		if not Rug then
 			continue
@@ -43,16 +51,16 @@ local function UpdateClosest()
 	end
 end
 
-function FastTravelController:LoadLocations(Locations: { any })
+function FastTravelController:LoadLocations(Locations: { string }?)
 	if not workspace:FindFirstChild("Rugs") then
 		FastTravelBackground.Visible = false
 		return
 	end
 
-	local Locations = Locations or RugService:GetUnlockedRugs(Player)
+	Locations = Locations or RugService:GetUnlockedRugs(Player)
 
-	for _, Button in FastTravelBackground.content:GetChildren() do
-		if Button:IsA("TextButton") then
+	for _, Button in LocationsScroll:GetChildren() do
+		if Button:IsA("TextButton") and Button ~= LocationTemplate then
 			Button:Destroy()
 		end
 	end
@@ -63,7 +71,7 @@ function FastTravelController:LoadLocations(Locations: { any })
 			continue
 		end
 
-		local Template = FastTravelBackground.Template:Clone()
+		local Template = LocationTemplate:Clone()
 		Template.Name = Location
 		Template.Text = Location
 		Template.Visible = true
@@ -101,7 +109,7 @@ function FastTravelController:LoadLocations(Locations: { any })
 			TileTransition.Out()
 		end)
 
-		Template.Parent = FastTravelBackground.content
+		Template.Parent = LocationsScroll
 	end
 end
 
@@ -111,10 +119,13 @@ function FastTravelController.KnitInit()
 end
 
 function FastTravelController.KnitStart()
-	PlayerGui = Player:WaitForChild("PlayerGui")
+	PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
 	Menu = PlayerGui:WaitForChild("Menu")
-	Meditate = Menu:WaitForChild("Meditate")
-	FastTravelBackground = Meditate:WaitForChild("FastTravelBackground"):WaitForChild("background")
+	Meditate = Menu:WaitForChild("Meditate") :: ScreenGui
+	FastTravelBackground = Meditate:WaitForChild("FastTravelBackground") :: Frame
+	LocationsScroll = FastTravelBackground:WaitForChild("ScrollWrapper"):WaitForChild("Scroll") :: ScrollingFrame
+	LocationTemplate = LocationsScroll:WaitForChild("Template") :: TextButton
+	LocationTemplate.Visible = false
 
 	if not workspace:FindFirstChild("Rugs") then
 		FastTravelBackground.Visible = false
@@ -130,11 +141,12 @@ function FastTravelController.KnitStart()
 			end
 		end
 	end)
-	RugService.UnlockedRug:Connect(function(Locations)
+
+	RugService.UnlockedRug:Connect(function(Locations: { string })
 		FastTravelController:LoadLocations(Locations)
 	end)
 
-	workspace.Rugs.ChildAdded:Connect(function(Rug)
+	workspace.Rugs.ChildAdded:Connect(function()
 		FastTravelController:LoadLocations()
 	end)
 end

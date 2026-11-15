@@ -76,11 +76,14 @@ function RealmController.KnitInit()
 end
 
 function RealmController.KnitStart()
-	PlayerGui = Player:WaitForChild("PlayerGui")
+	PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
 	Menu = PlayerGui:WaitForChild("Menu")
-	Meditate = Menu:WaitForChild("Meditate")
-	FastTravelBackground = Meditate:WaitForChild("FastTravelBackground"):WaitForChild("background")
-	MentalRealmButton = FastTravelBackground:WaitForChild("MentalRealm")
+	Meditate = Menu:WaitForChild("Meditate") :: ScreenGui
+	FastTravelBackground = Meditate:WaitForChild("FastTravelBackground") :: Frame
+	MentalRealmButton = FastTravelBackground:FindFirstChild("MentalRealm") :: GuiButton?
+	if not MentalRealmButton then
+		return
+	end
 
 	MentalRealmButton.Activated:Connect(function()
 		if RunService:IsStudio() then
