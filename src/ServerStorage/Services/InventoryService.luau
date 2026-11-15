@@ -409,6 +409,34 @@ function InventoryService:RemoveItemFromPlayer(
 	self:UpdateUI(Player, true)
 end
 
+function InventoryService:MergeStacks(
+	Player: Player,
+	SourceId: string,
+	TargetId: string,
+	ExpectedSource: number,
+	ExpectedTarget: number
+): (boolean, string?)
+	local Data = InventoryStackService:GetData(Player)
+	if not Data then
+		return false, "Inventory is not ready."
+	end
+	local Source, Target, Amount, Reason =
+		InventoryStackService:PlanMerge(Data, SourceId, TargetId, ExpectedSource, ExpectedTarget)
+	if not Source or not Target then
+		return false, Reason
+	end
+
+	Target.Stack += Amount
+	local Tool = ToolService:GetToolFromPlayer(Player, Target.Name, TargetId)
+	if Tool then
+		ToolService:CopyAttributesToTool(Tool, ItemService:ImplementData(Target))
+	end
+	local Layout = InventoryGridService:GetLayout(Player)
+	Data.Backpack.Revision = Layout.Revision + 1
+	self:RemoveItemFromPlayer(Player, Source.Name, Amount, false, SourceId)
+	return true
+end
+
 function InventoryService:ConsumeToolItem(Player: Player, Name: string, Amount: number)
 	local Tool = Player.Character and Player.Character:FindFirstChildWhichIsA("Tool")
 	local Id = Tool and Tool.Name == Name and Tool:GetAttribute("Id") or nil
@@ -833,6 +861,7 @@ function InventoryService:GetInventory(Player: Player): ({ ItemData }, ItemData)
 	for _, Item in InventoryCopy do
 		local Id = InventoryStacks.Key(Item)
 		local ItemData = ItemService:GetItemData(Item.Name)
+		Item.StackData = InventoryStacks.Metadata(Item)
 		Item.Description = ItemData.Description
 		Item.Rarity = ItemData.Rarity
 		Item.DisplayName = ItemData.DisplayName
@@ -922,6 +951,8 @@ function InventoryService:HandleInventoryAction(Player: Player, Request: any)
 			if Success then
 				self.Client.InventoryLayoutUpdated:Fire(Player, self:GetInventoryLayout(Player))
 			end
+		elseif Request.Kind == "Merge" then
+			Success, Reason = self:MergeStacks(Player, Request.Name, Request.Target, Request.Stack, Request.TargetStack)
 		elseif Request.Kind == "Equip" then
 			Success, Reason = self:EquipEquipmentSlot(Player, Request.Slot, Request.Name)
 		elseif Request.Kind == "Unequip" then

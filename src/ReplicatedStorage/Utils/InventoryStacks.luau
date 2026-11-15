@@ -56,6 +56,40 @@ function InventoryStacks.Compatible(Left: ItemData, Right: ItemData): boolean
 	return true
 end
 
+function InventoryStacks.Metadata(Item: ItemData): ItemData
+	local Metadata = {}
+	for Key, Value in Item do
+		if Key ~= "Id" and Key ~= "Stack" and Key ~= "StackData" then
+			Metadata[Key] = Value
+		end
+	end
+
+	return Metadata
+end
+
+function InventoryStacks.MergeAmount(Source: ItemData, Target: ItemData, Limit: number): number
+	if
+		Source.Name ~= Target.Name
+		or InventoryStacks.Key(Source) == InventoryStacks.Key(Target)
+		or typeof(Limit) ~= "number"
+		or Limit <= 1
+		or Limit >= math.huge
+		or Limit % 1 ~= 0
+	then
+		return 0
+	end
+	for _, Item in { Source, Target } do
+		if typeof(Item.Stack) ~= "number" or Item.Stack < 1 or Item.Stack > Limit or Item.Stack % 1 ~= 0 then
+			return 0
+		end
+	end
+	if not InventoryStacks.Compatible(Source.StackData or Source, Target.StackData or Target) then
+		return 0
+	end
+
+	return math.min(Source.Stack, Limit - Target.Stack)
+end
+
 function InventoryStacks.Assignments(Data: ItemData, Kind: string): { [string]: string }
 	local Result = {}
 	local Ids = Data[Kind .. "StackIds"] or {}

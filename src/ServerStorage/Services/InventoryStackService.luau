@@ -139,6 +139,40 @@ function InventoryStackService:PlanAdd(
 	return Raw.Stack - Remaining, Updates, NewItems, Positions
 end
 
+function InventoryStackService:PlanMerge(
+	Data: ItemData,
+	SourceId: string,
+	TargetId: string,
+	ExpectedSource: number,
+	ExpectedTarget: number
+): (ItemData?, ItemData?, number, string?)
+	if typeof(SourceId) ~= "string" or typeof(TargetId) ~= "string" then
+		return nil, nil, 0, "Invalid inventory stacks."
+	end
+	local Source = InventoryStacks.Find(Data.Inventory, SourceId)
+	local Target = InventoryStacks.Find(Data.Inventory, TargetId)
+	local Definition = Source and ItemService:GetItemData(Source.Name)
+	if not Source or not Target or not Definition then
+		return nil, nil, 0, "These stacks are no longer in your inventory."
+	end
+	if Source.Stack ~= ExpectedSource or Target.Stack ~= ExpectedTarget then
+		return nil, nil, 0, "The item quantity changed. Try again."
+	end
+	local Equipped = InventoryStacks.Assignments(Data, "Equipped")
+	local Hotbar = InventoryStacks.Assignments(Data, "Hotbar")
+	for _, Item in { Source, Target } do
+		if not InventoryEquipmentSlots.UsesGrid(ItemService:ImplementData(Item), Equipped, Hotbar) then
+			return nil, nil, 0, "These items cannot be combined."
+		end
+	end
+	local Amount = InventoryStacks.MergeAmount(Source, Target, Definition.MaxStack or 1)
+	if Amount <= 0 then
+		return nil, nil, 0, "This stack is full or incompatible."
+	end
+
+	return Source, Target, Amount, nil
+end
+
 function InventoryStackService.KnitInit()
 	ItemService = Knit.GetService("ItemService")
 	DataService = Knit.GetService("DataService")

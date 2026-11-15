@@ -7,6 +7,7 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local InventoryGrid = require(ReplicatedStorage.Shared.Utils.InventoryGrid)
 local InventoryEquipmentSlots = require(ReplicatedStorage.Shared.Utils.InventoryEquipmentSlots)
 local InventoryStacks = require(ReplicatedStorage.Shared.Utils.InventoryStacks)
+local ItemDefinitions = require(ReplicatedStorage.Shared.Index.Items)
 
 type ItemData = { [string]: any }
 type StrokeHighlight = { Stroke: UIStroke, Color: Color3, Enabled: boolean }
@@ -28,6 +29,7 @@ type DragState = {
 	SourceSize: Vector2,
 	DeleteTarget: boolean?,
 	DropTarget: boolean?,
+	MergeTarget: string?,
 	Valid: boolean,
 }
 
@@ -411,6 +413,11 @@ function InventoryDragController:RefreshDropHighlights()
 				Targets[Button] = true
 			end
 		end
+		for Id, Button in Buttons do
+			if IsVisible(Button) and self:CanMerge(Drag.Item, Id) then
+				Targets[Button] = true
+			end
+		end
 	end
 	for Index, Button in HotbarController:GetSlotButtons() do
 		local Allowed = if Drag.SourceHotbarSlot ~= nil
@@ -506,6 +513,46 @@ function InventoryDragController:PreviewDrop(Drag: DragState): boolean
 	return true
 end
 
+function InventoryDragController:CanMerge(Item: ItemData, TargetId: string): boolean
+	local Source = Items[InventoryStacks.Key(Item)]
+	local Target = Items[TargetId]
+	local Definition = Source and ItemDefinitions[Source.Name]
+	if
+		not Source
+		or not Target
+		or not Definition
+		or Source.UsesInventoryGrid == false
+		or Target.UsesInventoryGrid == false
+	then
+		return false
+	end
+
+	return InventoryStacks.MergeAmount(Source, Target, Definition.MaxStack or 1) > 0
+end
+
+function InventoryDragController:PreviewMerge(Drag: DragState): boolean
+	if not Context or not Layout or not Contains(Context.Scroll, Drag.Pointer) then
+		return false
+	end
+	for Id, Button in Buttons do
+		local Target = Items[Id]
+		if
+			Id ~= InventoryStacks.Key(Drag.Item)
+			and Target
+			and Target.Name == Drag.Item.Name
+			and IsVisible(Button)
+			and Contains(Button, Drag.Pointer)
+		then
+			Drag.MergeTarget = Id
+			Drag.Valid = self:CanMerge(Drag.Item, Id)
+			HoverHighlight(Button, Drag.Valid)
+			return true
+		end
+	end
+
+	return false
+end
+
 function InventoryDragController:UpdatePreview()
 	local Drag = State
 	if not Context or not Drag or not Drag.Started or not Drag.Ghost then
@@ -521,6 +568,7 @@ function InventoryDragController:UpdatePreview()
 	Drag.HotbarButton = nil
 	Drag.DeleteTarget = nil
 	Drag.DropTarget = nil
+	Drag.MergeTarget = nil
 	local Layer = Context.DragLayer
 	if Drag.SourceHotbarSlot ~= nil then
 		local Size = Drag.SourceSize
@@ -556,6 +604,7 @@ function InventoryDragController:UpdatePreview()
 		or Drag.Item.Class == "Skill"
 		or self:PreviewEquipment(Drag)
 		or not Contains(Context.Scroll, Drag.Pointer)
+		or self:PreviewMerge(Drag)
 	then
 		return
 	end
@@ -620,6 +669,9 @@ function InventoryDragController:Drop()
 	if Drag and Drag.Started and Drag.HotbarButton then
 		Suppressed[Drag.HotbarButton] = os.clock() + 0.25
 	end
+	if Drag and Drag.Started and Drag.MergeTarget and Buttons[Drag.MergeTarget] then
+		Suppressed[Buttons[Drag.MergeTarget]] = os.clock() + 0.25
+	end
 
 	if
 		not Drag
@@ -642,6 +694,20 @@ function InventoryDragController:Drop()
 		local Name = InventoryStacks.Key(Drag.Item)
 		self:Cancel()
 		InventoryDropController:Begin(Name)
+		return
+	end
+	if Drag.MergeTarget then
+		local Target = Items[Drag.MergeTarget]
+		local Request = {
+			Kind = "Merge",
+			Name = InventoryStacks.Key(Drag.Item),
+			Target = Drag.MergeTarget,
+			Stack = Drag.Item.Stack,
+			TargetStack = Target and Target.Stack,
+			Revision = Layout and Layout.Revision,
+		}
+		self:Cancel()
+		self:SubmitAction(Request)
 		return
 	end
 
