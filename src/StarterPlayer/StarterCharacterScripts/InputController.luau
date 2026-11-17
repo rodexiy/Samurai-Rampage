@@ -1,4 +1,3 @@
-local ContextActionService = game:GetService("ContextActionService")
 local UserInputService = game:GetService("UserInputService")
 
 local InputController = {}
@@ -7,9 +6,6 @@ local MappedActions = {}
 
 local Player = game.Players.LocalPlayer
 local Mouse = Player:GetMouse()
-
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
-local DeviceController = Knit.GetController("DeviceController")
 
 function InputController.Caller(actionName, inputState, inputObject)
 	if Actions[actionName] then
@@ -84,7 +80,7 @@ function BindKeys()
 end
 
 function InputController.Start()
-	for i, module in ipairs(script.Parent.Actions:GetChildren()) do
+	for _, module in ipairs(script.Parent.Actions:GetChildren()) do
 		if module:IsA("ModuleScript") then
 			Actions[module.Name] = require(module)
 		end

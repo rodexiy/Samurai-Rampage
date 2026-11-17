@@ -234,10 +234,12 @@ function CraftingController:RefreshInventory()
 	end
 end
 
-function CraftingController:RefreshRecipeDetails(Station)
+function CraftingController:RefreshRecipeDetails(Station: any)
 	if not Station.SelectedRecipe then
 		Station.RecipeName.Text = "SELECT A RECIPE"
-		Station.RecipeDescription.Text = Station.EmptyText
+		if Station.RecipeDescription then
+			Station.RecipeDescription.Text = Station.EmptyText
+		end
 		Station.Status.Text = ""
 		Station.CraftButton.Interactable = false
 		Station.CraftButton.BackgroundColor3 = Station.DisabledColor
@@ -252,7 +254,9 @@ function CraftingController:RefreshRecipeDetails(Station)
 
 	ClearGenerated(Station.Requirements, Station.IngredientTemplate)
 	local RequirementGroups = GetRequirementGroups(Station.SelectedRecipe)
-	Station.RecipeDescription.Text = Station.SelectedRecipe.Description or ""
+	if Station.RecipeDescription then
+		Station.RecipeDescription.Text = Station.SelectedRecipe.Description or ""
+	end
 
 	for GroupIndex, Options in RequirementGroups do
 		local SelectedOptionIndex = if #Options == 1 then 1 else Station.SelectedRequirementOptions[GroupIndex]
@@ -322,12 +326,14 @@ function CraftingController:RefreshRecipeDetails(Station)
 		MaxCraftable >= CraftAmount and CraftAmount > 0
 	)
 
-	for ButtonName, Amount in QuantityOptions do
-		local Button = Station.QuantityButtons:FindFirstChild(ButtonName)
-		if Button then
-			Button.BackgroundColor3 = if Station.SelectedAmount == Amount
-				then Station.SelectedColor
-				else Station.UnselectedColor
+	if Station.QuantityButtons then
+		for ButtonName, Amount in QuantityOptions do
+			local Button = Station.QuantityButtons:FindFirstChild(ButtonName) :: GuiButton?
+			if Button then
+				Button.BackgroundColor3 = if Station.SelectedAmount == Amount
+					then Station.SelectedColor
+					else Station.UnselectedColor
+			end
 		end
 	end
 
@@ -390,12 +396,17 @@ function CraftingController:RefreshRecipes(Station)
 	end
 end
 
-function CraftingController:BindStation(Menus: Instance, Station)
-	Station.Gui = Menus:WaitForChild(Station.MenuName)
+function CraftingController:BindStation(Menus: Instance, Station: any)
+	Station.Gui = Menus:WaitForChild(Station.MenuName) :: ScreenGui
 	local Shade = Station.Gui:WaitForChild("Shade")
-	Station.Window = Shade:WaitForChild("Window")
+	Station.Window = Shade:WaitForChild("Window") :: Frame
 
-	local Header = Station.Window:WaitForChild("Header")
+	local CloseButton = Station.Window:FindFirstChild("Close") :: GuiButton?
+	if not CloseButton then
+		local Header = Station.Window:WaitForChild("Header")
+		CloseButton = Header:WaitForChild("Close") :: GuiButton
+	end
+
 	local Body = Station.Window:WaitForChild("Body")
 	local Details = Body:WaitForChild("Details")
 	local Flow = Details:WaitForChild("Flow")
@@ -408,22 +419,27 @@ function CraftingController:BindStation(Menus: Instance, Station)
 	Station.Requirements = Flow.Requirements
 	Station.ResultSlot = Flow:WaitForChild("Result")
 	Station.RecipeName = Details:WaitForChild("RecipeName")
-	Station.RecipeDescription = Details:WaitForChild("Description")
-	Station.QuantityButtons = Bottom:WaitForChild("Quantities")
+	Station.RecipeDescription = Details:FindFirstChild("Description") :: TextLabel?
+	Station.QuantityButtons = Bottom:FindFirstChild("Quantities") :: Frame?
 	Station.CraftButton = Bottom:WaitForChild("Craft")
 	Station.Status = Bottom:WaitForChild("Status")
 	Station.Recipes = {}
 	Station.SelectedAmount = 1
 
-	Header.Close.Activated:Connect(function()
+	CloseButton.Activated:Connect(function()
 		MenuController:CloseAllMenus()
 	end)
 
-	for ButtonName, Amount in QuantityOptions do
-		Station.QuantityButtons[ButtonName].Activated:Connect(function()
-			Station.SelectedAmount = Amount
-			self:RefreshRecipeDetails(Station)
-		end)
+	if Station.QuantityButtons then
+		for ButtonName, Amount in QuantityOptions do
+			local Button = Station.QuantityButtons:FindFirstChild(ButtonName) :: GuiButton?
+			if Button then
+				Button.Activated:Connect(function()
+					Station.SelectedAmount = Amount
+					self:RefreshRecipeDetails(Station)
+				end)
+			end
+		end
 	end
 
 	Station.CraftButton.Activated:Connect(function()

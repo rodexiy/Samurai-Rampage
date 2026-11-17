@@ -2,19 +2,17 @@ local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local TopBarController = Knit.CreateController({
 	Name = "TopBarController",
 })
 
 local MenuController
-local DeviceController
 local PlaceController
 local AlertController
 
 local TopbarPlus
-local EasyVisuals = require(game.ReplicatedStorage.Assets.Libraries.EasyVisuals)
 
 local Player = game.Players.LocalPlayer
 
@@ -105,9 +103,7 @@ end
 local Cmdr = require(ReplicatedStorage:WaitForChild("CmdrClient"))
 
 local GroupId = 32878451
-local RunService = game:GetService("RunService")
 local function isPlayerAdmin(player: Player)
-	local response = false
 	local succ, rank = pcall(player.GetRankInGroup, player, GroupId or 0)
 
 	if not succ then
@@ -161,7 +157,6 @@ function TopBarController:BindTopbar()
 			MenuController:OpenMenu("Store")
 		end)
 
-		local StoreIconImage = Store.widget:FindFirstChild("IconImage", true)
 
 
 	end
@@ -176,20 +171,18 @@ function TopBarController:BindTopbar()
 			Cmdr:Toggle()
 		end)
 
-		local CmdIconImage = Cmd.widget:FindFirstChild("IconImage", true)
 
 	end
 end
 
 function TopBarController.KnitInit()
 	MenuController = Knit.GetController("MenuController")
-	DeviceController = Knit.GetController("DeviceController")
 	AlertController = Knit.GetController("AlertController")
 	PlaceController = Knit.GetController("PlaceController")
 end
 
 function TopBarController.KnitStart()
-	TopbarPlus = require(game.ReplicatedStorage.Assets.Libraries.TopbarPlus)
+	TopbarPlus = require(ReplicatedStorage.Assets.Libraries.TopbarPlus)
 
 	if isPlayerAdmin(game.Players.LocalPlayer) or RunService:IsStudio() then
 		Cmdr:SetActivationKeys({ Enum.KeyCode.F2 })

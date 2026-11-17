@@ -4,6 +4,14 @@
     "$className": "DataModel",
 
     "ReplicatedStorage": {
+      "Assets": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "UIS": {
+          "$className": "Folder",
+          "$ignoreUnknownInstances": true
+        }
+      },
       "Shared": {
         "$path": "src/ReplicatedStorage"
       }
@@ -43,7 +51,8 @@
 
     "Workspace": {
       "$properties": {
-        "FilteringEnabled": true
+        "FilteringEnabled": true,
+        "StreamingEnabled": true
       }
     },
 
