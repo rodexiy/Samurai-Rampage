@@ -1,16 +1,21 @@
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local PostureService = Knit.CreateService({
 	Name = "PostureService",
-	Client = {},
+	Client = {
+		BlockRequest = Knit.CreateSignal(),
+		BlockResult = Knit.CreateSignal(),
+	},
 })
 
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
+local Validate = require(ReplicatedStorage.Shared.Validate)
 
-local RequestBlock: UnreliableRemoteEvent = game.ReplicatedStorage.Assets.Public.RequestBlock
+local BlockSequences: { [Model]: number } = setmetatable({}, { __mode = "k" })
+local PendingBlocks: { [Model]: RBXScriptConnection } = setmetatable({}, { __mode = "k" })
+local BlockObservers: { [Model]: RBXScriptConnection } = setmetatable({}, { __mode = "k" })
 
 local DebounceService
 local AnimationService
@@ -19,10 +24,9 @@ local WeaponService
 local SoundEffectService
 local StaminaService
 local SkillTreeService
-local LagCompensationService
 local QuestService
 
-local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
+local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
 
 function PostureService:LastHitReset(Attacker: Model, Data: { any })
 	if Attacker:GetAttribute("ComboCounter") == 5 and Data.By and Data.By == "Weapon" then
@@ -90,13 +94,13 @@ function PostureService:Deflected(Character: Model, Attacker: Model, Damage: num
 	if not Data.Ranged then
 		AnimationService:StopAnimationFind(Attacker, "Deflected")
 		AnimationService:StopAttackAnimations(Attacker)
-		local CombatAnimations = WeaponService:GetCombatAnimationFolder(Attacker)
-		local DeflectAnimations = CombatAnimations.Deflected:GetChildren()
+		local AttackerAnimations = WeaponService:GetCombatAnimationFolder(Attacker)
+		local AttackerDeflectAnimations = AttackerAnimations.Deflected:GetChildren()
 
-		local Animation =
-			AnimationService:PlayAnimation(Attacker, DeflectAnimations[math.random(1, #DeflectAnimations)])
-		Animation.Priority = Enum.AnimationPriority.Action3
-		Animation.Name = "Deflected"
+		local AttackerAnimation =
+			AnimationService:PlayAnimation(Attacker, AttackerDeflectAnimations[math.random(1, #AttackerDeflectAnimations)])
+		AttackerAnimation.Priority = Enum.AnimationPriority.Action3
+		AttackerAnimation.Name = "Deflected"
 
 		local AttackerPostureDamage = if Attacker:GetAttribute("IsAI") then Damage else Damage / 2
 		PostureService:DealPostureDamage(Attacker, AttackerPostureDamage, not Attacker:GetAttribute("IsAI"), Character)
@@ -158,7 +162,7 @@ function PostureService:Blocked(Character: Model, Attacker: Model, Damage: numbe
 	return "Block"
 end
 
-function PostureService:Dodged(Character: Model, Attacker: Model)
+function PostureService:Dodged(Character: Model, _Attacker: Model)
 	if Character:GetAttribute("ForceField") then
 		return
 	end
@@ -211,7 +215,7 @@ function PostureService:RecoverPostureDamage(Character: Model, Amount: number)
 	)
 end
 
-function PostureService:Block(Character: Model, State: boolean, manyRequests: boolean)
+function PostureService:Block(Character: Model, State: boolean): boolean
 	if State then
 		if Character:GetAttribute("Blocking") then
 			return true
@@ -223,9 +227,6 @@ function PostureService:Block(Character: Model, State: boolean, manyRequests: bo
 		end
 
 		if not Validate:CanBlock(Character) then
-			-- Character:SetAttribute("Blocking", false)
-			-- Character:SetAttribute("ClientBlocking", false)
-			-- AnimationService:StopAnimationFind(Character, "Block")
 			return false
 		end
 
@@ -285,10 +286,68 @@ function PostureService:Block(Character: Model, State: boolean, manyRequests: bo
 		return false
 	end
 end
-function PostureService.Client:Block(Player: Player, State: boolean)
-	local Character = Player.Character
-	if Character then
-		return self.Server:Block(Character, State)
+local function CancelPendingBlock(Character: Model)
+	local Connection = PendingBlocks[Character]
+	if Connection then
+		PendingBlocks[Character] = nil
+		Connection:Disconnect()
+	end
+end
+
+function PostureService:RequestBlock(Player: Player, Character: Model, State: boolean, Sequence: number)
+	if typeof(Character) ~= "Instance" or not Character:IsA("Model") or Player.Character ~= Character
+		or typeof(State) ~= "boolean" or typeof(Sequence) ~= "number"
+		or Sequence ~= Sequence or Sequence <= 0 or Sequence >= math.huge or Sequence % 1 ~= 0 then
+		return
+	end
+
+	if Sequence <= (BlockSequences[Character] or 0) then
+		return
+	end
+
+	BlockSequences[Character] = Sequence
+	CancelPendingBlock(Character)
+	local function PublishBlock()
+		if Player.Character == Character then
+			self.Client.BlockResult:Fire(Player, Character, BlockSequences[Character], Character:GetAttribute("Blocking") == true)
+		end
+	end
+
+	if not BlockObservers[Character] then
+		BlockObservers[Character] = Character:GetAttributeChangedSignal("Blocking"):Connect(PublishBlock)
+		Character.Destroying:Connect(function()
+			BlockSequences[Character] = nil
+			PendingBlocks[Character] = nil
+			BlockObservers[Character] = nil
+		end)
+	end
+
+	if not State then
+		self:Block(Character, false)
+		PublishBlock()
+		return
+	end
+
+	local function TryBlock()
+		if Player.Character ~= Character or BlockSequences[Character] ~= Sequence
+			or not Character:IsDescendantOf(workspace) then
+			CancelPendingBlock(Character)
+			return
+		end
+
+		if not Validate:CanBlock(Character) then
+			return
+		end
+
+		-- Disconnect before Block changes attributes and triggers another attempt.
+		CancelPendingBlock(Character)
+		self:Block(Character, true)
+	end
+
+	PendingBlocks[Character] = Character.AttributeChanged:Connect(TryBlock)
+	TryBlock()
+	if BlockSequences[Character] == Sequence then
+		PublishBlock()
 	end
 end
 
@@ -304,11 +363,8 @@ function PostureService.KnitInit()
 end
 
 function PostureService.KnitStart()
-	RequestBlock.OnServerEvent:Connect(function(Player)
-		local Character = Player.Character
-		if Character then
-			return PostureService:Block(Character, true)
-		end
+	PostureService.Client.BlockRequest:Connect(function(Player: Player, Character: Model, State: boolean, Sequence: number)
+		PostureService:RequestBlock(Player, Character, State, Sequence)
 	end)
 end
 

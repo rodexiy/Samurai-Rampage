@@ -12,6 +12,7 @@ local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
 local RangedWeaponConfig = require(ReplicatedStorage.Shared.RangedWeaponConfig)
 local ShouldFaceAim = require(ReplicatedStorage.Shared.Utils.ShouldFaceAim)
 local MountedAim = require(ReplicatedStorage.Shared.Utils.MountedAim)
+local FirstPersonController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.FirstPersonController)
 local CameraUtils = require(Players.LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")
 	:WaitForChild("CameraModule"):WaitForChild("CameraUtils") :: ModuleScript)
 
@@ -19,6 +20,7 @@ local CameraController = Knit.CreateController({ Name = "CameraController" })
 
 local COMBAT_MIN_ZOOM = 4
 local COMBAT_MAX_ZOOM = 12
+local RANGED_MIN_ZOOM = 0.5
 local SHOULDER_OFFSET = Vector2.new(2.15, 0.25)
 local SHOULDER_RESPONSE = 10
 local ANIMATION_INFLUENCE = 0.18
@@ -321,7 +323,9 @@ local function RestoreZoomBounds()
 end
 
 function CameraController:GetCombatZoomLimits(): (number, number)
-	return COMBAT_MIN_ZOOM, COMBAT_MAX_ZOOM
+	local Minimum = if Character and Character:GetAttribute("BowEquipped") == true then RANGED_MIN_ZOOM else COMBAT_MIN_ZOOM
+
+	return Minimum, COMBAT_MAX_ZOOM
 end
 
 function CameraController:GetCombatZoomDistance(): number
@@ -329,11 +333,14 @@ function CameraController:GetCombatZoomDistance(): number
 		then (NativeCFrame.Position - NativeFocus.Position).Magnitude
 		else (Camera.CFrame.Position - Camera.Focus.Position).Magnitude
 
-	return math.clamp(Distance, COMBAT_MIN_ZOOM, COMBAT_MAX_ZOOM)
+	local Minimum, Maximum = self:GetCombatZoomLimits()
+
+	return math.clamp(Distance, Minimum, Maximum)
 end
 
 function CameraController:SetCombatZoomDistance(Distance: number)
-	PendingZoomDistance = math.clamp(Distance, COMBAT_MIN_ZOOM, COMBAT_MAX_ZOOM)
+	local Minimum, Maximum = self:GetCombatZoomLimits()
+	PendingZoomDistance = math.clamp(Distance, Minimum, Maximum)
 end
 
 local function UpdateCombatZoom()
@@ -351,7 +358,8 @@ local function UpdateCombatZoom()
 			SavedZoomBounds = Bounds
 		end
 
-		Bounds = Vector2.new(COMBAT_MIN_ZOOM, COMBAT_MAX_ZOOM)
+		local Minimum, Maximum = CameraController:GetCombatZoomLimits()
+		Bounds = Vector2.new(Minimum, Maximum)
 	elseif SavedZoomBounds then
 		Bounds = SavedZoomBounds
 		SavedZoomBounds = nil
@@ -525,6 +533,8 @@ local function UpdateShoulderCamera(DeltaTime: number)
 	local BaseFocus = Camera.Focus.Position
 	local CameraOffset = BaseCFrame.Position - BaseFocus
 	local Distance = CameraOffset.Magnitude
+	local FirstPerson = FirstPersonController.IsFirstPerson(Camera, Character)
+	local FirstPersonHead = if FirstPerson then Character:FindFirstChild("Head") :: BasePart? else nil
 	local Active = IsShiftLocked() and Distance > 1
 	ShoulderBlend += ((if Active then 1 else 0) - ShoulderBlend) * SmoothingAlpha(SHOULDER_RESPONSE, DeltaTime)
 
@@ -543,6 +553,11 @@ local function UpdateShoulderCamera(DeltaTime: number)
 	local NativeOffset = if Active then (BaseFocus - SubjectPosition):Dot(BaseCFrame.RightVector) else 0
 	local LateralOffset = SmoothedShoulderSide * SHOULDER_OFFSET.X * ShoulderBlend - NativeOffset
 	local Offset = BaseCFrame.RightVector * LateralOffset + Vector3.yAxis * SHOULDER_OFFSET.Y * ShoulderBlend
+	if FirstPersonHead then
+		Offset = FirstPersonController.GetCameraPosition(BaseCFrame, FirstPersonHead) - BaseCFrame.Position
+	elseif FirstPerson then
+		Offset += FirstPersonController.GetCameraOffset(BaseCFrame)
+	end
 	local Focus = BaseFocus + Offset
 	local Pose = CFrame.new(BaseCFrame.Position + Offset) * BaseCFrame.Rotation * CFrame.Angles(0, 0, CameraRoll)
 	Pose, Focus = ApplyTransition(Pose, Focus, DeltaTime)
@@ -550,8 +565,13 @@ local function UpdateShoulderCamera(DeltaTime: number)
 		Pose = MountedAim.ClampCamera(RootPart.CFrame, Pose, Focus)
 	end
 
-	if ShoulderBlend > 0.001 or TransitionOffset then
-		local Position = CameraController:GetCollisionSafePosition(HeadSubject.Position, Pose.Position)
+	if FirstPerson or ShoulderBlend > 0.001 or TransitionOffset then
+		local Origin = if FirstPersonHead then FirstPersonHead.Position
+			elseif FirstPerson then BaseCFrame.Position else HeadSubject.Position
+		local Position = CameraController:GetCollisionSafePosition(Origin, Pose.Position)
+		if FirstPerson then
+			Focus += Position - Pose.Position
+		end
 		Pose = CFrame.new(Position) * Pose.Rotation
 	end
 

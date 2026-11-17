@@ -56,12 +56,13 @@ function HorseGrounding.HorizontalDirection(Direction: Vector3): Vector3
 	return if Horizontal.Magnitude > 0.001 then Horizontal.Unit else -Vector3.zAxis
 end
 
-function HorseGrounding.GetRotation(Heading: Vector3, Normal: Vector3, Bracing: boolean?): CFrame
+function HorseGrounding.GetRotation(Heading: Vector3, Normal: Vector3, Bracing: boolean?, Bank: number?): CFrame
 	local Frame = CFrame.lookAt(Vector3.zero, HorseGrounding.HorizontalDirection(Heading))
 	local PitchLimit = if Bracing then Settings.MaximumSupportSlope else Settings.MaximumPitch
-	local RollLimit = if Bracing then Settings.MaximumSupportSlope else Settings.MaximumRoll
 	local Pitch = math.clamp(-math.atan2(Normal:Dot(Frame.LookVector), Normal.Y), -PitchLimit, PitchLimit)
-	local Roll = math.clamp(-math.atan2(Normal:Dot(Frame.RightVector), Normal.Y), -RollLimit, RollLimit)
+	local TerrainRoll = -math.atan2(Normal:Dot(Frame.RightVector), Normal.Y) * Settings.RollInfluence
+	local Lean = math.clamp(Bank or 0, -HorseConfig.Steering.MaximumBank, HorseConfig.Steering.MaximumBank)
+	local Roll = math.clamp(TerrainRoll + Lean, -Settings.MaximumRoll, Settings.MaximumRoll)
 
 	return Frame * CFrame.Angles(Pitch, 0, Roll)
 end
@@ -175,6 +176,24 @@ local function CastSurface(State: State, Point: Vector3, Rise: number, Drop: num
 	return Best
 end
 
+local function FindGapSupport(State: State, Feet: Vector3, CatchDistance: number): RaycastResult?
+	local Offset = State.Heading * Settings.MaximumSupportGap
+	local Front = CastSurface(State, Feet + Offset, Settings.StepHeight, CatchDistance, false)
+	local Back = CastSurface(State, Feet - Offset, Settings.StepHeight, CatchDistance, false)
+	if not Front or not Back or not HorseGrounding.IsWalkable(Front.Normal) or not HorseGrounding.IsWalkable(Back.Normal)
+		or Front.Normal:Dot(Back.Normal) < 0.94 then
+		return nil
+	end
+
+	-- A short seam needs nearby support on both sides, including on a curved deck.
+	-- A cliff or a change between unrelated floor levels must still release the horse.
+	if math.abs((Front.Position - Back.Position):Dot(Back.Normal)) > Settings.PlaneTolerance then
+		return nil
+	end
+
+	return Back
+end
+
 local function GetBodySupport(State: State, Position: Vector3, Point: Vector3, Normal: Vector3): number
 	local Frame, Size = State.Root.CFrame, State.Root.Size
 	local Radius = (math.abs(Frame.RightVector:Dot(Normal)) * Size.X
@@ -187,6 +206,14 @@ local function GetBodySupport(State: State, Position: Vector3, Point: Vector3, N
 end
 
 local function GetBaseSurface(State: State, Point: Vector3, Hit: RaycastResult, Drop: number): RaycastResult
+	if not HorseGrounding.IsWalkable(Hit.Normal) then
+		-- A downward ray can hit a plank's steep end face inside a narrow seam.
+		local Tread = FindGapSupport(State, Point, Drop)
+		if Tread then
+			return Tread
+		end
+	end
+
 	local Tolerance = math.min(Settings.PenetrationTolerance, Settings.ObstacleSkin * 0.1)
 	if State.Grounded and Hit.Normal:Dot(State.Normal) > 0.98
 		and math.abs((Hit.Position - State.PlanePoint):Dot(State.Normal)) <= Tolerance then
@@ -266,6 +293,9 @@ local function Probe(State: State)
 	local Falling = math.max(0, -Root.AssemblyLinearVelocity.Y)
 	local CatchDistance = Settings.DropDistance + Falling * Settings.ProbeInterval * 2
 	local Center = CastSurface(State, Feet, Settings.StepHeight, CatchDistance, false)
+	if not Center then
+		Center = FindGapSupport(State, Feet, CatchDistance)
+	end
 	if not Center then
 		Center = CastSurface(State, Feet, Settings.RecoveryHeight, CatchDistance, true)
 	end
@@ -365,10 +395,6 @@ local function CanCrossGroundEdge(State: State, Frame: CFrame, Hit: RaycastResul
 	if not State.Grounded or Horizontal.Magnitude < 0.001 or math.abs(Travel.Y) > Horizontal.Magnitude * 2 then
 		return false
 	end
-	-- A continuous steep uphill face remains a barrier, regardless of the nearby height.
-	if Hit.Normal.Y > 0.05 and not HorseGrounding.IsWalkable(Hit.Normal) then
-		return false
-	end
 
 	local FeetY = Frame.Position.Y - Frame.UpVector.Y * State.Clearance
 	local SamplePoint = Hit.Position + Horizontal.Unit * Settings.ObstacleSkin
@@ -423,6 +449,9 @@ local function GetSteepNormal(State: State, Travel: Vector3): Vector3?
 	Point = Vector3.new(Point.X, HorseGrounding.GetHeight(Point, State.PlanePoint, State.Normal, 0), Point.Z)
 	local Hit = workspace:Raycast(Point + Vector3.yAxis * Settings.StepHeight,
 		-Vector3.yAxis * (Settings.StepHeight + Settings.DropDistance), State.Params)
+	if Hit then
+		Hit = GetBaseSurface(State, Point, Hit, Settings.DropDistance)
+	end
 	if Hit and Hit.Normal.Y < MinimumNormal() and Direction:Dot(Hit.Normal) < -0.001 then
 		return Hit.Normal
 	end
@@ -449,6 +478,11 @@ function HorseGrounding.ScanMovement(State: State, Direction: Vector3, Distance:
 		local Feet = Vector3.new(Position.X, ExpectedY, Position.Z)
 		local Rise = math.max(Settings.StepHeight, Step * math.tan(Settings.MaximumSlope))
 		local Surface = CastSurface(State, Feet, Rise, Settings.DropDistance, false)
+		if Surface then
+			Surface = GetBaseSurface(State, Feet, Surface, Settings.DropDistance)
+		else
+			Surface = FindGapSupport(State, Feet, Settings.DropDistance)
+		end
 		local Walkable = Surface ~= nil
 			and (HorseGrounding.IsWalkable(Surface.Normal) or Heading:Dot(Surface.Normal) >= -0.01)
 			and Surface.Position.Y - ExpectedY <= Settings.StepHeight + 0.001
@@ -656,8 +690,7 @@ function HorseGrounding.Update(State: State, DeltaTime: number, Direction: Vecto
 
 	local Normal = if State.Grounded then State.VisualNormal else Vector3.yAxis
 	local Lean = if State.Grounded then math.clamp(Bank or 0, -HorseConfig.Steering.MaximumBank, HorseConfig.Steering.MaximumBank) else 0
-	local Target = HorseGrounding.GetRotation(State.Heading, Normal, State.Grounded and not HorseGrounding.IsWalkable(Normal))
-		* CFrame.Angles(0, 0, Lean)
+	local Target = HorseGrounding.GetRotation(State.Heading, Normal, State.Grounded and not HorseGrounding.IsWalkable(Normal), Lean)
 	State.Orientation.CFrame = State.Orientation.CFrame:Lerp(Target, 1 - math.exp(-Settings.TiltResponse * DeltaTime))
 	State.LastMovementFrame = State.Root.CFrame
 end

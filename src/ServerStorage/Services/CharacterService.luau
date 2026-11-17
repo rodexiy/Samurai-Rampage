@@ -2,8 +2,9 @@ local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
-local TeleportCharacter = require(game.ReplicatedStorage.Shared.Utils.TeleportCharacter)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local TeleportCharacter = require(ReplicatedStorage.Shared.Utils.TeleportCharacter)
 
 local CharacterService = Knit.CreateService({
 	Name = "CharacterService",
@@ -36,7 +37,7 @@ local KillStreakService
 local RugService
 
 local CachedParts = {}
-local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 local ZERO_VECTOR = Vector3.new(0, 0, 0)
 
 local function ConfigureSmartBoneCollision(Character: Model)
@@ -323,6 +324,10 @@ function CharacterService:BindEvents(Character: Model, Player: Player)
 		if not Character:GetAttribute("Running") then
 			CharacterShared:UpdateBoth(Character)
 		end
+	end)
+
+	Character:GetAttributeChangedSignal("Blocking"):Connect(function()
+		CharacterShared:UpdateBoth(Character)
 	end)
 
 	Character:GetAttributeChangedSignal("Weapon"):Connect(function()
