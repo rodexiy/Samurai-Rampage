@@ -31,6 +31,17 @@
     },
 
     "ServerStorage": {
+      "ServerAssets": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "RealmTemplate": {
+          "$className": "Folder",
+          "$ignoreUnknownInstances": true,
+          "MentalRealm": {
+            "$path": "assets/terrain/MentalRealm.rbxm"
+          }
+        }
+      },
       "Services": {
         "$path": "src/ServerStorage"
       }

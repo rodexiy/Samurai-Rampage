@@ -1,13 +1,20 @@
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local InputController = {}
 local Actions = {}
 local MappedActions = {}
 
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
 
-function InputController.Caller(actionName, inputState, inputObject)
+function InputController.Caller(actionName: string, inputState: Enum.UserInputState, inputObject: (InputObject | Enum.UserInputType)?)
+	local Character = Player.Character
+	if Character and Character:GetAttribute("RealmEditing") and inputState ~= Enum.UserInputState.End
+		and inputState ~= Enum.UserInputState.Cancel then
+		return
+	end
+
 	if Actions[actionName] then
 		Actions[actionName].callback(inputState, inputObject)
 	end

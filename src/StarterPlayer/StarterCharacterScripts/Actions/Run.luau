@@ -1,23 +1,18 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
-local ContextActionService = game:GetService("ContextActionService")
-local Debris = game:GetService("Debris")
-local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local Character = Player.Character
-local Humanoid = Character:WaitForChild("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
 
 local StaminaService
 local MovementService
 local DeviceController
 local SkillTreeController
 
-local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
+local Validate = require(ReplicatedStorage.Shared.Validate)
 
 local function StopRun()
 	Character:SetAttribute("Running", false)
@@ -26,7 +21,7 @@ local function StopRun()
 end
 
 local Run = {
-	callback = function(inputState, inputObject)
+	callback = function(inputState: Enum.UserInputState, _InputObject: InputObject?)
 		if inputState ~= Enum.UserInputState.Begin and inputState ~= Enum.UserInputState.End then
 			return
 		end
@@ -85,7 +80,7 @@ local Run = {
 	keys = { Enum.KeyCode.LeftShift },
 }
 
-function Run.Start(srvs)
+function Run.Start(_Services: any)
 	StaminaService = Knit.GetService("StaminaService")
 	MovementService = Knit.GetService("MovementService")
 	DeviceController = Knit.GetController("DeviceController")
@@ -96,6 +91,7 @@ function Run.Start(srvs)
 		"UsingSkillCantAttack",
 		"BeenHitted",
 		"Meditating",
+		"RealmEditing",
 	}
 
 	for _, att in StopAttributes do

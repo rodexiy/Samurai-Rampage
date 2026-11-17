@@ -11,6 +11,7 @@ local TopBarController = Knit.CreateController({
 local MenuController
 local PlaceController
 local AlertController
+local RealmEditorController
 
 local TopbarPlus
 
@@ -134,6 +135,28 @@ function TopBarController:BindTopbar()
 	end)
 
 	local Settings = TopbarPlus.new():setImage(108728167119436):oneClick()
+	local RealmEditor = TopbarPlus.new():setLabel("Edit Realm"):setImage(11656483170)
+	RealmEditor:setEnabled(RealmEditorController:CanOpen())
+	RealmEditor.selected:Connect(function()
+		if not RealmEditorController:Open() then
+			RealmEditor:deselect()
+		end
+	end)
+	RealmEditor.deselected:Connect(function()
+		RealmEditorController:Close()
+	end)
+	RealmEditorController.AvailabilityChanged:Connect(function(Enabled: boolean)
+		RealmEditor:setEnabled(Enabled)
+	end)
+	RealmEditorController.Changed:Connect(function(Opened: boolean)
+		if Opened then
+			RealmEditor:setLabel("Exit editor")
+			RealmEditor:select()
+		else
+			RealmEditor:setLabel("Edit Realm")
+			RealmEditor:deselect()
+		end
+	end)
 
 	Settings.selected:Connect(function()
 		MenuController:OpenMenu("Settings")
@@ -179,6 +202,7 @@ function TopBarController.KnitInit()
 	MenuController = Knit.GetController("MenuController")
 	AlertController = Knit.GetController("AlertController")
 	PlaceController = Knit.GetController("PlaceController")
+	RealmEditorController = Knit.GetController("RealmEditorController")
 end
 
 function TopBarController.KnitStart()
