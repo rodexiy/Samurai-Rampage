@@ -4,6 +4,7 @@ return {
 	Type = "Torso",
 
 	DisplayName = "Shinobi Chest",
+	Icon = "rbxassetid://118701643182389",
 	Description = ``,
 
 	Rarity = "Rare",

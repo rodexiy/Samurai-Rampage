@@ -4,6 +4,7 @@ return {
 	Type = "Torso",
 
 	DisplayName = "Heian Era Robe",
+	Icon = "rbxassetid://72063330257319",
 	Description = ``,
 
 	Rarity = "Rare",

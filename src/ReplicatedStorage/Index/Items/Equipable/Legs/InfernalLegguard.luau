@@ -4,6 +4,7 @@ return {
 	Type = "Legs",
 
 	DisplayName = "Infernal Legguard",
+	Icon = "rbxassetid://70593006132623",
 	Description = ``,
 
 	Rarity = "Legendary",

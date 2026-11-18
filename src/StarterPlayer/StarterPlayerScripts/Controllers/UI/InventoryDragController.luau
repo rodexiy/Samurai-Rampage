@@ -358,10 +358,8 @@ function InventoryDragController:RenderGhost()
 	end
 
 	local Placement = InventoryGrid.Placement(Drag.Item, 1, 1, Drag.Rotated)
-	local Viewport = InventoryController:ConfigureViewport(Drag.Ghost)
-	if Viewport then
-		InventoryController:AddModelToViewport(Viewport, Drag.Item, nil, Placement)
-	end
+	InventoryController:RenderItemVisual(Drag.Ghost, Drag.Item, nil, Placement)
+
 	self:UpdatePreview()
 end
 

@@ -1,19 +1,22 @@
 -- Run production inventory services with isolated player data and weapon rendering.
-return function(Service: any, Slots: any, Context: any, Player: any): string
+return function(Service: any, Slots: any, Context: any, Player: any, Stance: any): string
 	local Checks = 0
 	local function Check(Condition: boolean, Message: string)
 		assert(Condition, Message)
 		Checks += 1
 	end
-	local function Reset(Stance: string)
+	local function Reset(StanceName: string)
 		Context.Data = {
 			Inventory = {
 				{Name = "BasicKatana", Stack = 1}, {Name = "NightSkyKatana", Stack = 1},
 				{Name = "Bow", Stack = 1}, {Name = "Tanegashima", Stack = 1},
 			},
-			SelectedStance = Stance, Equipped = {}, Hotbar = {},
+			SelectedStance = StanceName, Equipped = {}, Hotbar = {},
+			Stances = { "Beginner", "TwoHeavens", "Undead" },
 			Backpack = {Version = 1, Columns = 8, Rows = 12, Revision = 0, Positions = {}},
 		}
+		Context.StanceUpdates = {}
+		Player.Character:SetAttribute("Stance", StanceName)
 	end
 
 	Reset("Beginner")
@@ -32,26 +35,28 @@ return function(Service: any, Slots: any, Context: any, Player: any): string
 	Check(Service:UnequipEquipmentSlot(Player, "Ranged", "Tanegashima"), "Ranged slot must unequip its current weapon")
 	Check(Context.Data.Equipped.Weapon == "BasicKatana", "Ranged changes must preserve the katana")
 
-	Reset("TwoHeavens")
+	Reset("Beginner")
 	Check(not Service:EquipEquipmentSlot(Player, "SecondKatana", "NightSkyKatana"), "Second slot requires a primary katana")
-	Check(Service:EquipEquipmentSlot(Player, "Katana", "BasicKatana"), "Dual stance must accept a primary katana")
+	Check(Stance:EquipStance(Player, "TwoHeavens"), "Dual stance must automatically equip two owned katanas")
 	local Equipment = Service:GetWeaponEquipment(Player)
-	Check(Equipment.DualWield and Equipment.SecondKatana == "BasicKatana", "Second slot must default to the first katana")
-	Check(Context.Data.Equipped.LeftWeapon == nil, "Default second katana must use the existing fallback without duplicating inventory")
+	Check(Equipment.Katana == "BasicKatana" and Equipment.SecondKatana == "NightSkyKatana", "Each slot must contain a different owned katana")
+	Check(Context.Data.Equipped.LeftWeapon == "NightSkyKatana", "The second katana must be assigned explicitly")
 	local Entries, Snapshot = Service:GetInventory(Player)
-	Check(Snapshot.WeaponEquipment.SecondKatana == "BasicKatana", "Client snapshot must include the fallback")
-	Check(Entries[1].EquippedLeft and Entries[1].DefaultLeft, "Default katana must be marked as used by both hands")
-	Check(Service:EquipEquipmentSlot(Player, "SecondKatana", "NightSkyKatana"), "Second slot must accept another owned katana")
-	Check(Service:GetWeaponEquipment(Player).SecondKatana == "NightSkyKatana", "Second slot must display the custom katana")
-	Check(Service:UnequipEquipmentSlot(Player, "SecondKatana", "NightSkyKatana"), "Second slot must allow removing its override")
-	Check(Service:GetWeaponEquipment(Player).SecondKatana == "BasicKatana", "Removing the override must restore the first katana")
-	Service:EquipEquipmentSlot(Player, "SecondKatana", "NightSkyKatana")
-	Check(Service:EquipEquipmentSlot(Player, "SecondKatana", "BasicKatana"), "Dropping the primary into the second slot must reset the fallback")
-	Check(Context.Data.Equipped.LeftWeapon == nil, "Resetting fallback must clear the explicit second weapon")
-	Service:EquipEquipmentSlot(Player, "Katana", "NightSkyKatana")
-	Check(Service:GetWeaponEquipment(Player).SecondKatana == "NightSkyKatana", "Default second katana must follow primary replacements")
-	Service:UnequipEquipmentSlot(Player, "Katana", "NightSkyKatana")
-	Check(Service:GetWeaponEquipment(Player).SecondKatana == nil, "Removing the primary must clear the second slot")
+	Check(Snapshot.WeaponEquipment.SecondKatana == "NightSkyKatana", "Client snapshots must include the actual second katana")
+	Check(Entries[1].Equipped and not Entries[1].EquippedLeft and not Entries[1].DefaultLeft, "The primary copy must only occupy the right hand")
+	Check(Entries[2].EquippedLeft and Entries[2].UsesInventoryGrid == false, "The actual second copy must leave the backpack grid")
+	Check(not Service:EquipEquipmentSlot(Player, "SecondKatana", "BasicKatana"), "The same physical katana cannot occupy both hands")
+	Check(not Service:EquipUnequipItem(Player, "NightSkyKatana"), "The direct weapon API must also reject using the left katana in both hands")
+	Check(Context.Data.SelectedStance == "TwoHeavens", "Rejected replacements must preserve the stance")
+	Check(Service:UnequipEquipmentSlot(Player, "SecondKatana", "NightSkyKatana"), "The second katana must be removable")
+	Check(Context.Data.SelectedStance == "Beginner", "Removing the second katana must exit dual wield")
+	Check(Context.Data.Equipped.Weapon == "BasicKatana" and Context.Data.Equipped.LeftWeapon == nil, "Removing the second katana must preserve only the first")
+	Check(Service:GetWeaponEquipment(Player).SecondKatana == nil, "No synthetic second katana should remain")
+	Check(Stance:EquipStance(Player, "TwoHeavens"), "Reactivating the stance should equip both physical katanas again")
+	Check(Service:UnequipEquipmentSlot(Player, "Katana", "BasicKatana"), "The primary katana must be removable")
+	Check(Context.Data.SelectedStance == "Beginner", "Removing the primary katana must exit dual wield")
+	Check(Context.Data.Equipped.Weapon == "NightSkyKatana" and Context.Data.Equipped.LeftWeapon == nil, "The remaining second katana should move into the single sword slot")
+	Check(Slots.Resolve({Weapon = "BasicKatana"}, {WeaponType = "Katana", DualWield = true}, {Type = "Katana"}).SecondKatana == nil, "Missing second assignments must never resolve to a copy of the first")
 
 	Reset("Undead")
 	Check(not Service:EquipEquipmentSlot(Player, "Katana", "BasicKatana"), "An incompatible stance must reject katanas")

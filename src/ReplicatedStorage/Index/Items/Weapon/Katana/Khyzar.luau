@@ -4,6 +4,7 @@ return {
 	Type = "Katana",
 
 	DisplayName = "Khyzar",
+	Icon = "rbxassetid://81808158005390",
 	Description = "",
 
 	Rarity = "Legendary",

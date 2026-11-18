@@ -118,7 +118,7 @@ function InventoryEquipmentSlots.Resolve(
 	return {
 		Ranged = Equipped.Bow,
 		Katana = Katana,
-		SecondKatana = if DualWield and Katana then Equipped.LeftWeapon or Katana else nil,
+		SecondKatana = if DualWield and Katana and Equipped.LeftWeapon ~= Katana then Equipped.LeftWeapon else nil,
 		DualWield = DualWield,
 	}
 end
@@ -133,6 +133,11 @@ function InventoryEquipmentSlots.Accepts(Item: ItemData, Slot: string, Equipment
 	end
 	if Slot == "Ranged" then
 		return Item.Type == "Bow"
+	end
+
+	local Id = InventoryStacks.Key(Item)
+	if Equipment and ((Slot == "Katana" and Equipment.SecondKatana == Id) or (Slot == "SecondKatana" and Equipment.Katana == Id)) then
+		return false
 	end
 
 	return Item.Type == "Katana"

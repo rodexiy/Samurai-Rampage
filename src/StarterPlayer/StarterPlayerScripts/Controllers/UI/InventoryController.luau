@@ -13,6 +13,7 @@ local InventoryStacks = require(ReplicatedStorage.Shared.Utils.InventoryStacks)
 
 type ItemData = { [string]: any }
 type RenderedItem = { Button: ImageButton, Item: ItemData, Outline: UIStroke? }
+type SlotColors = { Background: Color3, Border: Color3?, Texture: Color3? }
 
 local InventoryController = Knit.CreateController({
 	Name = "InventoryController",
@@ -66,7 +67,7 @@ local SelectedItemZIndex: number? = nil
 local SelectedItemData: ItemData? = nil
 local SelectedVisuals = {}
 local EquipmentButtons: { [string]: ImageButton } = {}
-local EquipmentStrokeColors: { [ImageButton]: Color3 } = {}
+local EquipmentColors: { [ImageButton]: SlotColors } = {}
 local EquippedItems: { [string]: ItemData } = {}
 local PendingEquipmentSlots: { [string]: boolean } = {}
 local GridColumns = InventoryConfig.Columns
@@ -82,6 +83,26 @@ local RarityColors = {
 }
 
 local TabNames = { Items = true, Skills = true, Stances = true, Stats = true }
+
+local function ApplyItemRarity(Button: ImageButton, Item: ItemData?)
+	local Defaults = EquipmentColors[Button]
+	local Color = Item and (RarityColors[Item.Rarity or "Common"] or RarityColors.Common)
+	Button.BackgroundColor3 = if Color
+		then Color:Lerp(Color3.new(0, 0, 0), 0.8)
+		elseif Defaults then Defaults.Background
+		else Button.BackgroundColor3
+
+	local BorderColor = if Color then Color else Defaults and Defaults.Border
+	if BorderColor then
+		InventoryDragController:SetSlotStrokeColor(Button, BorderColor)
+	end
+
+	local Texture = Button:FindFirstChild("Texture") :: ImageLabel?
+	local TextureColor = if Color then Color else Defaults and Defaults.Texture
+	if Texture and TextureColor then
+		Texture.ImageColor3 = TextureColor
+	end
+end
 
 local function SameData(Left: any, Right: any): boolean
 	if Left == Right then
@@ -188,6 +209,17 @@ local function OrientGridModel(Model: Model, Placement: InventoryGrid.Placement)
 	end
 
 	Model:PivotTo(Rotation * Bounds:ToObjectSpace(Model:GetPivot()))
+end
+
+local function FitItemIcon(Icon: ImageLabel, Placement: InventoryGrid.Placement?)
+	Icon.AnchorPoint = Vector2.new(0.5, 0.5)
+	Icon.Position = UDim2.fromScale(0.5, 0.5)
+	Icon.Rotation = if Placement and Placement.Rotated then 90 else 0
+
+	-- Fit the image in its original bounds before rotating into the swapped grid footprint.
+	Icon.Size = if Placement and Placement.Rotated
+		then UDim2.fromScale(Placement.Height / Placement.Width, Placement.Width / Placement.Height)
+		else UDim2.fromScale(1, 1)
 end
 
 local function GetItemData(Item: ItemData): ItemData
@@ -363,6 +395,63 @@ function InventoryController:ConfigureViewport(Template: GuiObject): ViewportFra
 	return Viewport
 end
 
+function InventoryController:RenderItemVisual(
+	Template: GuiObject,
+	Item: ItemData?,
+	DistanceScale: number?,
+	Placement: InventoryGrid.Placement?
+)
+	local Visual = (Template:FindFirstChild("Visual") or Template) :: GuiObject
+	local Viewport = Visual:FindFirstChildWhichIsA("ViewportFrame")
+	local Icon = Visual:FindFirstChild("Icon") :: ImageLabel?
+	local Image = Item and (Item.Icon or (Items[Item.Name] and Items[Item.Name].Icon))
+
+	if Icon then
+		Icon.Visible = Image ~= nil
+	end
+
+	if not Item or Image then
+		if Viewport then
+			ViewportRotationController:StopRotation(Viewport)
+			ClearViewport(Viewport)
+			Viewport.Visible = false
+		end
+
+		if Image then
+			if not Icon then
+				Icon = Instance.new("ImageLabel")
+				Icon.Name = "Icon"
+				Icon.BackgroundTransparency = 1
+				Icon.ZIndex = if Viewport then Viewport.ZIndex else Visual.ZIndex
+				Icon.Parent = Visual
+			end
+
+			Icon.Image = Image
+			Icon.ScaleType = Enum.ScaleType.Fit
+			FitItemIcon(Icon, Placement)
+
+			local SlotName = Template:GetAttribute("EquipmentSlot")
+			if not Placement and Item.Type == "Katana" and (SlotName == "Katana" or SlotName == "SecondKatana") then
+				Icon.Rotation = 35
+			end
+
+			Icon.Visible = true
+		end
+
+		return
+	end
+
+	Viewport = self:ConfigureViewport(Template)
+	if Viewport then
+		Viewport.Visible = true
+		if Item.Class == "Stance" then
+			self:LoadStanceViewport(Viewport, Item)
+		else
+			self:AddModelToViewport(Viewport, Item, DistanceScale, Placement)
+		end
+	end
+end
+
 function InventoryController:AddModelToViewport(
 	Viewport: ViewportFrame,
 	Item: ItemData,
@@ -485,20 +574,8 @@ function InventoryController:RefreshEquipmentSlots(Entries: { ItemData }, Snapsh
 		local Item = EquippedItems[SlotName]
 		local Name = Item and InventoryStacks.Key(Item)
 		local Changed = Button:GetAttribute("ItemName") ~= Name
-		local Visual = Button:FindFirstChild("Visual") or Button
-		local Viewport = Visual:FindFirstChildWhichIsA("ViewportFrame")
-		if Changed then
-			Viewport = self:ConfigureViewport(Button)
-			if Viewport then
-				if Item then
-					self:AddModelToViewport(Viewport, Item)
-				else
-					ClearViewport(Viewport)
-				end
-			end
-		end
-		if Viewport then
-			Viewport.Visible = Item ~= nil
+		if Changed or not Item then
+			self:RenderItemVisual(Button, Item)
 		end
 
 		local EmptyIcon = Button:FindFirstChild("EmptyIcon") :: ImageLabel?
@@ -506,13 +583,7 @@ function InventoryController:RefreshEquipmentSlots(Entries: { ItemData }, Snapsh
 			EmptyIcon.Visible = false
 		end
 
-		local Outline = Button:FindFirstChildWhichIsA("UIStroke")
-		if Outline then
-			local Color = if Item
-				then RarityColors[Item.Rarity or "Common"] or RarityColors.Common
-				else EquipmentStrokeColors[Button]
-			InventoryDragController:SetSlotStrokeColor(Button, Color)
-		end
+		ApplyItemRarity(Button, Item)
 
 		Button:SetAttribute("ItemName", Name)
 		Button.Interactable = Item ~= nil
@@ -719,18 +790,13 @@ function InventoryController:UpdateSelection(ReloadModel: boolean?)
 	local RarityColor = RarityColors[Rarity] or RarityColors.Common
 	BasicStats.Rarity.TextColor3 = RarityColor
 
-	local Viewport = if ReloadModel then self:ConfigureViewport(Display) else nil
-	if Viewport then
+	if ReloadModel then
 		local Placeholder = Display:FindFirstChildWhichIsA("ImageLabel")
 		if Placeholder then
 			Placeholder.Visible = false
 		end
 
-		if Item.Class == "Stance" then
-			self:LoadStanceViewport(Viewport, Item)
-		else
-			self:AddModelToViewport(Viewport, Item, DISPLAY_DISTANCE_SCALE)
-		end
+		self:RenderItemVisual(Display, Item, DISPLAY_DISTANCE_SCALE)
 	end
 
 	EquipButton.Visible = Item.Class == "Equipable"
@@ -764,7 +830,6 @@ function InventoryController:EquipItem()
 	if Item.Class == "Stance" then
 		if not Item.Equipped then
 			StanceService:EquipStance(Item.Name)
-			self:UpdateContent()
 		end
 	elseif Item.Class == "Equipable" then
 		self:ChangeEquipment(Item)
@@ -803,6 +868,11 @@ function InventoryController:ApplyEntryPlacement(Button: ImageButton, Placement:
 	end
 
 	local Visual = Button:FindFirstChild("Visual")
+	local Icon = Visual and Visual:FindFirstChild("Icon") :: ImageLabel?
+	if Icon then
+		FitItemIcon(Icon, Placement)
+	end
+
 	local Viewport = Visual and Visual:FindFirstChildWhichIsA("ViewportFrame")
 	local Model = Viewport and Viewport:FindFirstChildWhichIsA("Model")
 	if Viewport and Model then
@@ -892,6 +962,7 @@ function InventoryController:UpdateEntry(Entry: RenderedItem, Data: ItemData, Pl
 	local Button, Item = Entry.Button, Entry.Item
 	local Changed = not SameData(Item, Data)
 	local ModelChanged = Item.Name ~= Data.Name
+		or Item.Icon ~= Data.Icon
 		or Item.Class ~= Data.Class
 		or Item.Type ~= Data.Type
 		or Item.WeaponType ~= Data.WeaponType
@@ -899,6 +970,7 @@ function InventoryController:UpdateEntry(Entry: RenderedItem, Data: ItemData, Pl
 	for _, Key in
 		{
 			"Stack",
+			"Icon",
 			"DisplayName",
 			"Description",
 			"Type",
@@ -942,6 +1014,7 @@ function InventoryController:UpdateEntry(Entry: RenderedItem, Data: ItemData, Pl
 	Button:SetAttribute("ItemClass", Item.Class)
 	Button:SetAttribute("ItemType", Item.Type)
 	Button:SetAttribute("Rarity", Item.Rarity or "Common")
+	ApplyItemRarity(Button, Item)
 
 	local Label = Button:FindFirstChild("ItemName") :: TextLabel?
 	if Label and Label:IsA("TextLabel") then
@@ -988,14 +1061,8 @@ function InventoryController:UpdateEntry(Entry: RenderedItem, Data: ItemData, Pl
 		Entry.Outline = nil
 	end
 
-	local Viewport = if ModelChanged then self:ConfigureViewport(Button) else nil
-	if Viewport then
-		Viewport.Visible = true
-		if Item.Class == "Stance" then
-			self:LoadStanceViewport(Viewport, Item)
-		else
-			self:AddModelToViewport(Viewport, Item, nil, Placement)
-		end
+	if ModelChanged then
+		self:RenderItemVisual(Button, Item, nil, Placement)
 	end
 	if SelectedItem == Button and DetailsChanged then
 		self:UpdateSelection(ModelChanged)
@@ -1319,9 +1386,12 @@ function InventoryController.KnitStart()
 		if typeof(SlotName) == "string" then
 			EquipmentButtons[SlotName] = Button
 			local Outline = Button:FindFirstChildWhichIsA("UIStroke")
-			if Outline then
-				EquipmentStrokeColors[Button] = Outline.Color
-			end
+			local Texture = Button:FindFirstChild("Texture") :: ImageLabel?
+			EquipmentColors[Button] = {
+				Background = Button.BackgroundColor3,
+				Border = Outline and Outline.Color,
+				Texture = Texture and Texture.ImageColor3,
+			}
 
 			Button.Activated:Connect(function()
 				InventoryController:UnequipEquipmentSlot(SlotName)

@@ -91,6 +91,8 @@ function InventoryService:RemoveUnavailableItems(Player: Player)
 			Data.Backpack.Revision = (Data.Backpack.Revision or 0) + 1
 		end
 	end
+
+	StanceService:ValidateSelectedStance(Player)
 end
 
 function InventoryService:UpdateUI(Player: Player, HotbarToo: boolean)
@@ -392,6 +394,14 @@ function InventoryService:RemoveItemFromPlayer(
 			if InventoryStacks.Assignments(Data, "Equipped").Bow == Id then
 				BowService:UnequipItem(Player)
 			end
+			local Equipped = InventoryStacks.Assignments(Data, "Equipped")
+			for _, Slot in { "Weapon", "LeftWeapon" } do
+				if Equipped[Slot] == Id then
+					Data.Equipped[Slot] = nil
+					Data.EquippedStackIds[Slot] = nil
+				end
+			end
+
 			if not dontRemoveFromHotbar then
 				self:RemoveItemFromHotbarByName(Player, Id)
 			end
@@ -406,6 +416,8 @@ function InventoryService:RemoveItemFromPlayer(
 			break
 		end
 	end
+
+	StanceService:ValidateSelectedStance(Player)
 	self:UpdateUI(Player, true)
 end
 
@@ -551,9 +563,17 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string): (b
 	local Ranged = ItemData.Type == "Bow"
 	local Equipped = InventoryStacks.Assignments(PlayerData, "Equipped")
 	local WasEquipped = (if Ranged then Equipped.Bow else Equipped.Weapon) == ItemId
-	if not Ranged and not WasEquipped then
-		local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
+	local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
+	if not Ranged and WasEquipped and StanceData and StanceData.DualWield then
+		local NextEquipped = table.clone(Equipped)
+		NextEquipped.Weapon = Equipped.LeftWeapon
+		return StanceService:ExitDualWield(Player, NextEquipped)
+	end
+	if not Ranged and Equipped.LeftWeapon == ItemId then
+		return false, "This weapon is already in your left hand."
+	end
 
+	if not Ranged and not WasEquipped then
 		if not StanceData or StanceData.WeaponType ~= ItemData.Type then
 			AlertService:AlertPlayer(Player, "You cannot equip this weapon in this stance!", "Warn")
 			return false, "You cannot equip this weapon in this stance!"
@@ -603,6 +623,7 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string): (b
 		ValuesService:UpdateDamage(Character)
 	end
 
+	StanceService:ValidateSelectedStance(Player)
 	self:UpdateUI(Player)
 	return true
 end
@@ -667,12 +688,16 @@ end
 
 function InventoryService:UnequipLeftWeapon(
 	Player: Player,
-	UpdateUI: boolean?,
-	LoadFallback: boolean?
+	UpdateUI: boolean?
 ): (boolean, string?)
 	local PlayerData = DataService:GetData(Player)
 	local NextEquipped =
 		InventoryEquipmentSlots.WithSlot(InventoryStacks.Assignments(PlayerData, "Equipped"), "LeftWeapon", nil)
+	local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
+	if StanceData and StanceData.DualWield then
+		return StanceService:ExitDualWield(Player, NextEquipped)
+	end
+
 	local Success, Reason = self:CommitEquipment(Player, NextEquipped)
 	if not Success then
 		return false, Reason
@@ -680,18 +705,7 @@ function InventoryService:UnequipLeftWeapon(
 
 	local Character = Player.Character
 	if Character then
-		local StanceData = StanceService:GetStance(PlayerData.SelectedStance)
-		if LoadFallback ~= false and StanceData and StanceData.DualWield and PlayerData.Equipped.Weapon then
-			WeaponService:LoadLeftWeapon(
-				Character,
-				PlayerData.Equipped.LeftWeapon,
-				PlayerData.Equipped.Weapon,
-				PlayerData.SelectedStance
-			)
-		else
-			WeaponService:UnloadLeftWeapon(Character)
-		end
-
+		WeaponService:UnloadLeftWeapon(Character)
 		ValuesService:UpdateDamage(Character)
 	end
 
@@ -800,7 +814,7 @@ function InventoryService:SetWeaponEquipmentSlot(
 		or Item.Stack <= 0
 		or not ItemData
 		or not InventoryEquipmentSlots.IsWeaponSlot(SlotName)
-		or not InventoryEquipmentSlots.Accepts(ItemData, SlotName, Equipment)
+		or not InventoryEquipmentSlots.Accepts(ItemService:ImplementData(Item), SlotName, Equipment)
 	then
 		return false, "This item does not belong in that slot."
 	end
@@ -812,7 +826,7 @@ function InventoryService:SetWeaponEquipmentSlot(
 	end
 
 	if SlotName == "SecondKatana" then
-		if Unequip or ItemName == Equipment.Katana then
+		if Unequip then
 			return self:UnequipLeftWeapon(Player)
 		else
 			return self:EquipUnequipLeftItem(Player, ItemName)
@@ -884,7 +898,7 @@ function InventoryService:GetInventory(Player: Player): ({ ItemData }, ItemData)
 		elseif Item.Class == "Weapon" then
 			Item.Equipped = Layout.Equipped.Weapon == Id
 			Item.EquippedLeft = Layout.WeaponEquipment.SecondKatana == Id
-			Item.DefaultLeft = Item.EquippedLeft and PlayerData.Equipped.LeftWeapon == nil
+			Item.DefaultLeft = false
 			Item.CanEquipLeft = StanceData
 				and StanceData.DualWield
 				and StanceData.WeaponType == Item.Type

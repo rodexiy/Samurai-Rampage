@@ -4,6 +4,7 @@ return {
 	Type = "Legs",
 
 	DisplayName = "Mikoto Legs",
+	Icon = "rbxassetid://116403437122193",
 	Description = ``,
 
 	Rarity = "Rare",

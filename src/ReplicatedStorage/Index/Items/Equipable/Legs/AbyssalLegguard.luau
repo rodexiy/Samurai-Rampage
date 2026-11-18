@@ -4,6 +4,7 @@ return {
 	Type = "Legs",
 
 	DisplayName = "Abyssal Legguard",
+	Icon = "rbxassetid://94180876872203",
 	Description = ``,
 
 	Rarity = "Epic",

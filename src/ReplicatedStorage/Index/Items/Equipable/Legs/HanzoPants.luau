@@ -4,6 +4,7 @@ return {
 	Type = "Legs",
 
 	DisplayName = "Hanzo Pants",
+	Icon = "rbxassetid://106281769971310",
 	Description = ``,
 
 	Rarity = "Rare",

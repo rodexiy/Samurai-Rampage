@@ -4,6 +4,7 @@ return {
 	Type = "Legs",
 
 	DisplayName = "Samurai Legplate",
+	Icon = "rbxassetid://119212116269627",
 	Description = ``,
 
 	MaxHealthIncrease = 10,

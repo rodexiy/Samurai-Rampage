@@ -64,6 +64,10 @@ function InventoryGrid.FindPlacement(Item: InventoryConfig.ItemData, Positions: 
 
 	for _, Rotated in {false, true} do
 		local Candidate = InventoryGrid.Placement(Item, 1, 1, Rotated)
+		if Rotated and Candidate.Width == Candidate.Height then
+			break
+		end
+
 		for Row = 1, Rows - Candidate.Height + 1 do
 			for Column = 1, Columns - Candidate.Width + 1 do
 				Candidate.Column, Candidate.Row = Column, Row

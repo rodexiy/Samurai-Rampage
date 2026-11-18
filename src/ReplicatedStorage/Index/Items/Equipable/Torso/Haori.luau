@@ -4,6 +4,7 @@ return {
 	Type = "Torso",
 
 	DisplayName = "Haori",
+	Icon = "rbxassetid://100831441066554",
 	Description = ``,
 
 	Rarity = "Rare",

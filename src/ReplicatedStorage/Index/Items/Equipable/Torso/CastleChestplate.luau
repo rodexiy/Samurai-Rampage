@@ -4,6 +4,7 @@ return {
 	Type = "Torso",
 
 	DisplayName = "Castle Chestplate",
+	Icon = "rbxassetid://110745852829739",
 	Description = ``,
 
 	MaxHealthIncrease = 15,

@@ -4,6 +4,7 @@ return {
 	Type = "Katana",
 
 	DisplayName = "Night Sky Katana",
+	Icon = "rbxassetid://79024111161803",
 	Description = "",
 
 	AdditionalDamage = 0,

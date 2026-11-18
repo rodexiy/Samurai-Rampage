@@ -476,13 +476,13 @@ function WeaponService:LoadLeftWeapon(Character: Model, LeftWeaponName: string?,
 	end
 	Character:SetAttribute("LeftWeapon", LeftWeaponName)
 
-	if not IsDualWieldStance(Character, StanceName) or not RightWeaponName then
+	if not IsDualWieldStance(Character, StanceName) or not RightWeaponName or not LeftWeaponName then
 		DestroyWeaponSlot(Character, "LeftWeapon", "LeftSheath")
 		Character:SetAttribute("LeftWeaponType", nil)
 		return
 	end
 
-	local WeaponName = LeftWeaponName or RightWeaponName
+	local WeaponName = LeftWeaponName
 	if not WeaponName then
 		DestroyWeaponSlot(Character, "LeftWeapon", "LeftSheath")
 		Character:SetAttribute("LeftWeaponType", nil)
