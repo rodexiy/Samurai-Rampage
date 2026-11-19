@@ -9,6 +9,7 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local RealmFreecamController = Knit.CreateController({ Name = "RealmFreecamController" })
 local Player = Players.LocalPlayer
+local Mouse = Player:GetMouse()
 local Stopped = Instance.new("BindableEvent")
 RealmFreecamController.Stopped = Stopped.Event
 
@@ -34,6 +35,7 @@ type CameraState = {
 	FieldOfView: number,
 	MouseBehavior: Enum.MouseBehavior,
 	MouseIconEnabled: boolean,
+	MouseIcon: string,
 	Cutscene: any,
 	Controls: any,
 	ControlsEnabled: boolean,
@@ -93,6 +95,7 @@ function RealmFreecamController:Stop()
 	end
 	UserInputService.MouseBehavior = Previous.MouseBehavior
 	UserInputService.MouseIconEnabled = Previous.MouseIconEnabled
+	Mouse.Icon = Previous.MouseIcon
 	Stopped:Fire()
 end
 
@@ -154,6 +157,7 @@ local function Step(DeltaTime: number)
 	Current.Camera.Focus = Current.Camera.CFrame * CFrame.new(0, 0, -32)
 	UserInputService.MouseBehavior = if Looking then Enum.MouseBehavior.LockCurrentPosition else Enum.MouseBehavior.Default
 	UserInputService.MouseIconEnabled = not Looking
+	Mouse.Icon = ""
 end
 
 local function InputAction(_Name: string, InputState: Enum.UserInputState, Input: InputObject): Enum.ContextActionResult
@@ -192,6 +196,7 @@ function RealmFreecamController:Start(Realm: Model): boolean
 		CameraType = Camera.CameraType, Subject = Camera.CameraSubject,
 		Frame = Camera.CFrame, Focus = Camera.Focus, FieldOfView = Camera.FieldOfView,
 		MouseBehavior = UserInputService.MouseBehavior, MouseIconEnabled = UserInputService.MouseIconEnabled,
+		MouseIcon = Mouse.Icon,
 		Cutscene = Character:GetAttribute("CameraCutscene"), Controls = Controls,
 		ControlsEnabled = Controls.controlsEnabled ~= false,
 		Position = Camera.CFrame.Position, Pitch = Pitch, Yaw = Yaw,
@@ -201,11 +206,15 @@ function RealmFreecamController:Start(Realm: Model): boolean
 	Character:SetAttribute("RealmEditing", true)
 	Character:SetAttribute("CameraCutscene", true)
 	Camera.CameraType = Enum.CameraType.Scriptable
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	UserInputService.MouseIconEnabled = true
+	Mouse.Icon = ""
 	self:FocusPlayer()
 
 	ContextActionService:BindActionAtPriority(ACTION, InputAction, false, Enum.ContextActionPriority.High.Value + 100,
 		Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Q, Enum.KeyCode.E,
 		Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift,
+		Enum.KeyCode.LeftControl, Enum.KeyCode.RightControl,
 		Enum.UserInputType.MouseButton2)
 	RunService:BindToRenderStep(RENDER, Enum.RenderPriority.Last.Value + 1, Step)
 

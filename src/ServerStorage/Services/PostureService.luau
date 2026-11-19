@@ -330,7 +330,7 @@ function PostureService:RequestBlock(Player: Player, Character: Model, State: bo
 
 	local function TryBlock()
 		if Player.Character ~= Character or BlockSequences[Character] ~= Sequence
-			or not Character:IsDescendantOf(workspace) then
+			or not Character:IsDescendantOf(workspace) or Character:GetAttribute("RealmEditing") then
 			CancelPendingBlock(Character)
 			return
 		end

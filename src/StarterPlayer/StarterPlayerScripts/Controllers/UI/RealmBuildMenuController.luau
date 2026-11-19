@@ -10,7 +10,7 @@ local Items = require(ReplicatedStorage.Shared.Index.Items)
 
 local RealmBuildMenuController = Knit.CreateController({ Name = "RealmBuildMenuController" })
 local Player = Players.LocalPlayer
-local Editor, Placement, Deletion, History, Pointer, Mobile, InventoryService, AlertController
+local Editor, Placement, Deletion, Transform, History, Pointer, Mobile, ResourceController, InventoryService, AlertController
 local Gui: ScreenGui
 local List: Frame
 local Scroll: ScrollingFrame
@@ -22,7 +22,10 @@ local SelectedCategory: string? = nil
 local Placing = false
 local DeleteStroke: UIStroke? = nil
 local DeleteStrokeColor: Color3? = nil
+local TransformStroke: UIStroke? = nil
+local TransformStrokeColor: Color3? = nil
 local Tools: Frame? = nil
+local ToolsContent: Frame? = nil
 local DeleteIcon: ImageLabel? = nil
 local DeleteTitle: TextLabel? = nil
 local HistoryButtons: { [string]: ImageButton } = {}
@@ -30,17 +33,48 @@ local OwnedResources: { [string]: number } = {}
 local ResourceLabels: { [string]: TextLabel } = {}
 local DetailsCost: Resources.Cost = {}
 local InventoryVersion = 0
+type ObjectButtonState = { Cost: Resources.Cost?, Background: Color3 }
+local ObjectButtons: { [ImageButton]: ObjectButtonState } = {}
+local UNAVAILABLE_COLOR = Color3.fromRGB(160, 43, 43)
+
+local function CanAfford(Cost: Resources.Cost?): boolean
+	if not Cost then
+		return false
+	end
+	if not ResourceController:AreResourcesRequired() then
+		return true
+	end
+
+	for Name, Amount in Cost do
+		if (OwnedResources[Name] or 0) < Amount then
+			return false
+		end
+	end
+
+	return true
+end
+
+local function RefreshObjectButtons()
+	for Button, State in ObjectButtons do
+		Button.BackgroundColor3 = if CanAfford(State.Cost) then State.Background else UNAVAILABLE_COLOR
+	end
+end
 
 local function RenderTools()
-	if not Tools then
+	if not Tools or not ToolsContent then
 		return
 	end
 	local Deleting = Deletion:IsActive()
+	local Transforming = Transform:IsActive()
 	Tools.Visible = UserInputService.MouseEnabled and not Pointer:IsTouch()
-	for _, Tool in Tools:GetChildren() do
+	for _, Tool in ToolsContent:GetChildren() do
 		if Tool:IsA("GuiButton") then
-			Tool.Visible = Tool.Name == "Delete" or (not Deleting and (Tool.Name == "Back" or Tool.Name == "Forward"))
+			Tool.Visible = (Tool.Name == "Delete" and not Transforming) or Tool.Name == "Transform"
+				or (not Deleting and not Transforming and (Tool.Name == "Back" or Tool.Name == "Forward"))
 		end
+	end
+	if TransformStroke and TransformStrokeColor then
+		TransformStroke.Color = if Transforming then Color3.fromRGB(65, 145, 255) else TransformStrokeColor
 	end
 	if DeleteIcon then
 		DeleteIcon.Visible = not Deleting
@@ -74,12 +108,14 @@ local function DisplayObject(Container: GuiObject, Asset: PVInstance)
 	local Viewport = Container:FindFirstChildWhichIsA("ViewportFrame")
 	local Image = Asset:GetAttribute("Icon")
 	if Icon then
+		Icon.ImageColor3 = Color3.new(1, 1, 1)
 		Icon.Visible = typeof(Image) == "string" and Image ~= ""
 		Icon.Image = if typeof(Image) == "string" then Image else ""
 	end
 	if not Viewport then
 		return
 	end
+	Viewport.ImageColor3 = Color3.new(1, 1, 1)
 
 	for _, Child in Viewport:GetChildren() do
 		if Child:IsA("Camera") or Child:IsA("WorldModel") then
@@ -108,10 +144,12 @@ local function DisplayObject(Container: GuiObject, Asset: PVInstance)
 end
 
 local function RefreshResourceAmounts()
+	RefreshObjectButtons()
+	local ResourcesRequired = ResourceController:AreResourcesRequired()
 	for Name, Label in ResourceLabels do
 		local Owned, Required = OwnedResources[Name] or 0, DetailsCost[Name]
-		Label.Text = tostring(Owned) .. "/" .. tostring(Required) .. " " .. (Items[Name].DisplayName or Name)
-		Label.TextColor3 = if Owned >= Required then Color3.fromRGB(180, 230, 180) else Color3.fromRGB(255, 140, 140)
+		Label.Text = if ResourcesRequired then tostring(Owned) .. "/" .. tostring(Required) .. " " .. (Items[Name].DisplayName or Name) else "Free"
+		Label.TextColor3 = if not ResourcesRequired or Owned >= Required then Color3.fromRGB(180, 230, 180) else Color3.fromRGB(255, 140, 140)
 	end
 end
 
@@ -157,7 +195,7 @@ local function RenderCosts(Asset: PVInstance)
 end
 
 local function ShowDetails(Asset: PVInstance, Button: GuiButton, CategoryName: string)
-	if Placing or Deletion:IsActive() then
+	if Placing or Deletion:IsActive() or Transform:IsActive() then
 		return
 	end
 
@@ -183,6 +221,7 @@ end
 
 local function ClearList()
 	Details.Visible = false
+	table.clear(ObjectButtons)
 	for _, Child in Scroll:GetChildren() do
 		if Child:IsA("GuiButton") then
 			Child:Destroy()
@@ -197,7 +236,7 @@ local function Render()
 	RenderTools()
 	ClearList()
 	Scroll.CanvasPosition = Vector2.zero
-	List.Visible = Editor:IsOpen() and SelectedTab ~= nil and not Placing and not Deletion:IsActive()
+	List.Visible = Editor:IsOpen() and SelectedTab ~= nil and not Placing and not Deletion:IsActive() and not Transform:IsActive()
 	if not SelectedTab then
 		return
 	end
@@ -213,6 +252,7 @@ local function Render()
 		for Index, Entry in Catalog.GetObjects(Tab, CategoryName, Search.Text) do
 			local Child = Entry.Asset
 			local Button = Templates:WaitForChild("ObjectTemplate"):Clone() :: ImageButton
+			ObjectButtons[Button] = { Cost = Resources.GetCost(Child), Background = Button.BackgroundColor3 }
 			Button.Name = Child.Name
 			Button.LayoutOrder = Index
 			SetText(Button, "ItemName", Child:GetAttribute("DisplayName") or Child.Name)
@@ -262,6 +302,7 @@ local function Render()
 			end)
 		end
 	end
+	RefreshObjectButtons()
 end
 
 local function BindGui(Screen: ScreenGui)
@@ -289,7 +330,8 @@ local function BindGui(Screen: ScreenGui)
 		ResourcePanel.Visible = false
 	end
 	Tools = Gui:WaitForChild("Tools") :: Frame
-	local Delete = Tools:WaitForChild("Delete") :: ImageButton
+	ToolsContent = Tools:WaitForChild("Content") :: Frame
+	local Delete = ToolsContent:WaitForChild("Delete") :: ImageButton
 	DeleteIcon = Delete:FindFirstChild("Icon") :: ImageLabel?
 	DeleteTitle = Delete:FindFirstChild("Title") :: TextLabel?
 	DeleteStroke = Delete:FindFirstChildWhichIsA("UIStroke")
@@ -297,8 +339,14 @@ local function BindGui(Screen: ScreenGui)
 	Delete.Activated:Connect(function()
 		Deletion:Toggle()
 	end)
+	local TransformButton = ToolsContent:WaitForChild("Transform") :: ImageButton
+	TransformStroke = TransformButton:FindFirstChildWhichIsA("UIStroke")
+	TransformStrokeColor = if TransformStroke then TransformStroke.Color else nil
+	TransformButton.Activated:Connect(function()
+		Transform:Toggle()
+	end)
 	for Name, Direction in { Back = "Undo", Forward = "Redo" } do
-		local Button = Tools:WaitForChild(Name) :: ImageButton
+		local Button = ToolsContent:WaitForChild(Name) :: ImageButton
 		HistoryButtons[Direction] = Button
 		Button.Activated:Connect(function()
 			History:Request(Direction)
@@ -321,6 +369,7 @@ local function BindGui(Screen: ScreenGui)
 			Deletion:Stop()
 			Mobile:Close()
 			Placement:Cancel()
+			Transform:Cancel()
 			SelectedTab = TabName
 			SelectedCategory = nil
 			Search.Text = ""
@@ -346,14 +395,17 @@ function RealmBuildMenuController.KnitInit()
 	Editor = Knit.GetController("RealmEditorController")
 	Placement = Knit.GetController("RealmPlacementController")
 	Deletion = Knit.GetController("RealmDeletionController")
+	Transform = Knit.GetController("RealmTransformController")
 	History = Knit.GetController("RealmHistoryController")
 	Pointer = Knit.GetController("RealmPointerController")
 	Mobile = Knit.GetController("RealmMobileController")
+	ResourceController = Knit.GetController("RealmResourceController")
 	InventoryService = Knit.GetService("InventoryService")
 	AlertController = Knit.GetController("AlertController")
 end
 
 function RealmBuildMenuController.KnitStart()
+	ResourceController.Changed:Connect(RefreshResourceAmounts)
 	local function UpdateInventory(Entries: { any })
 		InventoryVersion += 1
 		table.clear(OwnedResources)
@@ -376,6 +428,7 @@ function RealmBuildMenuController.KnitStart()
 	end)
 	UserInputService:GetPropertyChangedSignal("PreferredInput"):Connect(RenderTools)
 	History.Changed:Connect(RenderHistoryButtons)
+	Transform.Changed:Connect(Render)
 	Editor.Changed:Connect(function(Active: boolean)
 		if Gui then
 			Gui.Enabled = Active

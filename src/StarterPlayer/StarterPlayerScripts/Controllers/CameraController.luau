@@ -45,7 +45,6 @@ local SmoothedShoulderSide = 1
 local ShoulderBlend = 0
 local CameraRoll = 0
 local CharacterRotation: CFrame? = nil
-local FirstPersonRotation: CFrame? = nil
 local RotationAutoRotate: boolean? = nil
 local TransitionCapture: CFrame? = nil
 local TransitionFocusCapture: Vector3? = nil
@@ -99,14 +98,14 @@ end
 
 function CameraController:IsFacingCamera(): boolean
 	return Character ~= nil and not IsMenuMouseUnlocked()
-		and (next(ForcedShiftLocks) ~= nil or ShouldFaceAim(Character) or Character:GetAttribute("LockedOnEnemy") == true)
+		and (ShouldFaceAim(Character) or Character:GetAttribute("LockedOnEnemy") == true)
 end
 
 local function ReleaseFirstPersonRotation()
 	if Humanoid and RotationAutoRotate ~= nil and not Humanoid.AutoRotate then
 		Humanoid.AutoRotate = RotationAutoRotate
 	end
-	RotationAutoRotate, FirstPersonRotation = nil, nil
+	RotationAutoRotate = nil
 end
 
 function CameraController:ReleaseRotation()
@@ -620,12 +619,9 @@ local function UpdateCharacterRotation(DeltaTime: number)
 		CameraUtils.setRotationTypeOverride(Enum.RotationType.MovementRelative)
 	end
 	if not FirstPerson then
-		FirstPersonRotation = nil
 		if not Aiming then
 			ReleaseFirstPersonRotation()
 		end
-	elseif RootPart and not FirstPersonRotation then
-		FirstPersonRotation = RootPart.CFrame.Rotation
 	end
 
 	if not Camera or not Character or not RootPart or not RootPart.Parent or RootPart.Anchored or not Humanoid
@@ -658,15 +654,8 @@ local function UpdateCharacterRotation(DeltaTime: number)
 		RotationAutoRotate = Humanoid.AutoRotate
 	end
 	Humanoid.AutoRotate = false
-	if FirstPerson then
-		if not Aiming and FirstPersonRotation then
-			CharacterRotation = FirstPersonRotation
-			RootPart.CFrame = CFrame.new(RootPart.Position) * FirstPersonRotation
-			return
-		end
-	end
 
-	local Direction = Camera.CFrame.LookVector
+	local Direction = if FirstPerson and not Aiming then Humanoid.MoveDirection else Camera.CFrame.LookVector
 	Direction *= Vector3.new(1, 0, 1)
 	if Direction.Magnitude < 0.001 then
 		CharacterRotation = RootPart.CFrame.Rotation
@@ -679,9 +668,6 @@ local function UpdateCharacterRotation(DeltaTime: number)
 		SmoothingAlpha(AIM_TURN_RESPONSE, DeltaTime)
 	)
 	RootPart.CFrame = CFrame.new(RootPart.Position) * CharacterRotation
-	if FirstPerson then
-		FirstPersonRotation = CharacterRotation
-	end
 end
 
 function CameraController:BindShiftLock()

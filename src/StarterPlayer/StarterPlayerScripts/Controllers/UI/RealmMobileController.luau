@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
@@ -7,9 +8,12 @@ local Building = require(ReplicatedStorage.Shared.RealmBuilding)
 
 local RealmMobileController = Knit.CreateController({ Name = "RealmMobileController" })
 local Player = Players.LocalPlayer
-local Editor, Placement, Deletion, Pointer, AlertController
+local Editor, Placement, Deletion, Transform, Pointer, AlertController
 local Billboard: BillboardGui? = nil
 local Reticle: ScreenGui? = nil
+local TransformGui: ScreenGui? = nil
+local TransformControls: Frame? = nil
+local SelectionGui: ScreenGui? = nil
 local Effects: Folder? = nil
 local Selection: Highlight? = nil
 local Target: PVInstance? = nil
@@ -18,13 +22,23 @@ local Mode: string? = nil
 local Buttons: { [string]: GuiButton } = {}
 
 local MODES = {
-	Select = { "Delete", "Color", "Move", "Close" },
+	Select = { "Delete", "Color", "Move", "Transform", "Close" },
 	Delete = { "Apply", "Close" },
 	Place = { "Apply", "Rotate", "Close" },
+	Transform = { "Move", "Rotate", "Apply", "Close" },
 }
 
 local function Clear()
 	Mode, Target = nil, nil
+	RunService:UnbindFromRenderStep("RealmTransformControls")
+	if SelectionGui then
+		SelectionGui:Destroy()
+		SelectionGui = nil
+	end
+	if TransformGui then
+		TransformGui:Destroy()
+		TransformGui, TransformControls = nil, nil
+	end
 	if TargetConnection then
 		TargetConnection:Disconnect()
 		TargetConnection = nil
@@ -48,7 +62,69 @@ function RealmMobileController:Close()
 	if Mode == "Place" then
 		Placement:Cancel()
 	end
+	if Transform:IsActive() then
+		Transform:Cancel()
+	end
+	if Deletion:IsActive() then
+		Deletion:Stop()
+	end
 	Clear()
+end
+
+local function ShowToolSelection()
+	if SelectionGui then
+		SelectionGui:Destroy()
+		SelectionGui = nil
+	end
+	if Mode or not Pointer:IsTouch() or not Editor:IsOpen() or (not Deletion:IsActive() and not Transform:IsActive()) then
+		return
+	end
+	local Template = ReplicatedStorage.Assets.Billboards:FindFirstChild("MobileBillboard")
+	local Close = Template and Template:FindFirstChild("Close")
+	if not Close or not Close:IsA("GuiButton") then
+		return
+	end
+
+	SelectionGui = Instance.new("ScreenGui")
+	SelectionGui.Name = "RealmToolSelection"
+	SelectionGui.ResetOnSpawn = false
+	SelectionGui.DisplayOrder = 31
+	local Content = Instance.new("Frame")
+	Content.AnchorPoint = Vector2.new(0.5, 1)
+	Content.Position = UDim2.new(0.5, 0, 1, -24)
+	Content.Size = UDim2.new(0.9, 0, 0, 56)
+	Content.BackgroundTransparency = 1
+	Content.Parent = SelectionGui
+	local Constraint = Instance.new("UISizeConstraint")
+	Constraint.MaxSize = Vector2.new(360, 56)
+	Constraint.Parent = Content
+	local Label = Instance.new("TextLabel")
+	Label.Size = UDim2.new(1, -56, 1, 0)
+	Label.BackgroundTransparency = 1
+	Label.Font = Enum.Font.GothamBold
+	Label.TextSize = 16
+	Label.TextWrapped = true
+	Label.TextColor3 = Color3.new(1, 1, 1)
+	Label.TextStrokeTransparency = 0.3
+	Label.Text = if Transform:IsActive() then "Select an object to transform" else "Select an object to delete"
+	Label.Parent = Content
+	local Button = Close:Clone()
+	Button.AnchorPoint = Vector2.new(0, 0.5)
+	Button.Position = UDim2.new(1, -48, 0.5, 0)
+	Button.Size = UDim2.fromOffset(48, 48)
+	Button.Visible = true
+	Button.Activated:Connect(function()
+		RealmMobileController:Close()
+	end)
+	Button.Parent = Content
+	SelectionGui.Parent = Player:WaitForChild("PlayerGui") :: PlayerGui
+end
+
+local function OnToolsChanged()
+	if (Mode == "Transform" and not Transform:IsActive()) or (Mode == "Delete" and not Deletion:IsActive()) then
+		Clear()
+	end
+	ShowToolSelection()
 end
 
 local function Render(NextMode: string)
@@ -62,6 +138,9 @@ local function Render(NextMode: string)
 	if Billboard then
 		Billboard.Size = UDim2.fromOffset(#Names * 56 - 8, 56)
 	end
+	if TransformControls then
+		TransformControls.Size = UDim2.fromOffset(#Names * 56 - 8, 56)
+	end
 	if Selection then
 		Selection.FillColor = if NextMode == "Delete" then Color3.fromRGB(235, 55, 55) else Color3.fromRGB(65, 145, 255)
 		Selection.OutlineColor = Selection.FillColor
@@ -73,10 +152,16 @@ local function OnApply()
 		Placement:Apply()
 	elseif Mode == "Delete" and Target then
 		Deletion:Delete(Target)
+	elseif Mode == "Transform" then
+		Transform:Apply()
 	end
 end
 
 local function OnMove()
+	if Mode == "Transform" then
+		Transform:SetMode("Move")
+		return
+	end
 	if Mode ~= "Select" or not Target or Deletion:IsPending() then
 		return
 	end
@@ -116,7 +201,7 @@ local function CreateBillboard(Anchor: BasePart): boolean
 		end
 	end
 	Buttons.Delete.Activated:Connect(function()
-		if Mode == "Select" and not Deletion:IsPending() then
+		if Mode == "Select" and not Deletion:IsPending() and Deletion:Start() then
 			Render("Delete")
 		end
 	end)
@@ -124,6 +209,13 @@ local function CreateBillboard(Anchor: BasePart): boolean
 		AlertController:Alert("Color editing is coming later.", "Warn")
 	end)
 	Buttons.Move.Activated:Connect(OnMove)
+	Buttons.Transform.Activated:Connect(function()
+		if Mode == "Select" and Target then
+			local Object = Target
+			Transform:Toggle()
+			Transform:Start(Object)
+		end
+	end)
 	Buttons.Close.Activated:Connect(function()
 		RealmMobileController:Close()
 	end)
@@ -131,6 +223,8 @@ local function CreateBillboard(Anchor: BasePart): boolean
 	Buttons.Rotate.Activated:Connect(function()
 		if Mode == "Place" then
 			Placement:Rotate()
+		elseif Mode == "Transform" then
+			Transform:SetMode("Rotate")
 		end
 	end)
 	-- Interactive BillboardGuis must live in PlayerGui; Adornee follows the world anchor.
@@ -174,10 +268,67 @@ local function ShowPlacement()
 	Reticle.Parent = Player.PlayerGui
 end
 
+local function ShowTransform()
+	Clear()
+	local Anchor = Transform:GetAnchor()
+	if not Anchor or not CreateBillboard(Anchor) then
+		Transform:Cancel()
+		return
+	end
+	-- Reuse the MobileBillboard controls in screen space so touch hit areas stay
+	-- predictable and the confirmation buttons remain reachable at screen edges.
+	TransformGui = Instance.new("ScreenGui")
+	TransformGui.Name = "RealmTransformControls"
+	TransformGui.IgnoreGuiInset = true
+	TransformGui.ScreenInsets = Enum.ScreenInsets.None
+	TransformGui.ResetOnSpawn = false
+	TransformGui.DisplayOrder = 31
+	TransformControls = Instance.new("Frame")
+	TransformControls.Name = "Buttons"
+	TransformControls.AnchorPoint = Vector2.new(0.5, 0)
+	TransformControls.BackgroundTransparency = 1
+	TransformControls.Parent = TransformGui
+	if Billboard then
+		for _, Child in Billboard:GetChildren() do
+			Child.Parent = TransformControls
+		end
+		Billboard:Destroy()
+		Billboard = nil
+	end
+	Render("Transform")
+	local Hint = Instance.new("TextLabel")
+	Hint.Name = "TransformMode"
+	Hint.BackgroundTransparency = 1
+	Hint.AnchorPoint = Vector2.new(0.5, 0)
+	Hint.Size = UDim2.fromOffset(280, 24)
+	Hint.Font = Enum.Font.GothamBold
+	Hint.TextSize = 16
+	Hint.TextColor3 = Color3.new(1, 1, 1)
+	Hint.TextStrokeTransparency = 0.3
+	Hint.Parent = TransformGui
+	TransformGui.Parent = Player:WaitForChild("PlayerGui") :: PlayerGui
+	RunService:BindToRenderStep("RealmTransformControls", Enum.RenderPriority.Last.Value + 5, function()
+		local Camera = workspace.CurrentCamera
+		if not Camera or not TransformControls then
+			return
+		end
+		local Point = Camera:WorldToViewportPoint(Anchor.Position)
+		local HalfWidth = math.max(140, TransformControls.AbsoluteSize.X / 2) + 12
+		local View = Camera.ViewportSize
+		TransformControls.Visible = Point.Z > 0
+		TransformControls.Position = UDim2.fromOffset(
+			math.clamp(Point.X, HalfWidth, math.max(HalfWidth, View.X - HalfWidth)),
+			math.clamp(Point.Y + 12, 12, math.max(12, View.Y - 96)))
+		Hint.Visible = TransformControls.Visible
+		Hint.Position = TransformControls.Position + UDim2.fromOffset(0, 56)
+		Hint.Text = if Transform:GetMode() == "Move" then "Move" else "Rotate · 15°"
+	end)
+end
+
 function RealmMobileController:Select(Object: PVInstance): boolean
 	local Realm = Editor:GetRealm()
 	local Objects = Realm and Realm:FindFirstChild("PlacedObjects")
-	if not Pointer:IsTouch() or not Editor:IsOpen() or Placement:IsActive() or Deletion:IsPending()
+	if not Pointer:IsTouch() or not Editor:IsOpen() or Placement:IsActive() or Deletion:IsPending() or Transform:IsActive()
 		or not Objects or Object.Parent ~= Objects or Object:GetAttribute("RealmId") ~= Player.UserId
 		or typeof(Object:GetAttribute("PlacementId")) ~= "string" then
 		return false
@@ -206,10 +357,11 @@ function RealmMobileController:Select(Object: PVInstance): boolean
 		Clear()
 		return false
 	end
-	Render("Select")
+	Render(if Deletion:IsActive() then "Delete" else "Select")
 	TargetConnection = Object.AncestryChanged:Connect(function()
 		if Object.Parent ~= Objects then
 			Clear()
+			ShowToolSelection()
 		end
 	end)
 
@@ -220,11 +372,24 @@ function RealmMobileController.KnitInit()
 	Editor = Knit.GetController("RealmEditorController")
 	Placement = Knit.GetController("RealmPlacementController")
 	Deletion = Knit.GetController("RealmDeletionController")
+	Transform = Knit.GetController("RealmTransformController")
 	Pointer = Knit.GetController("RealmPointerController")
 	AlertController = Knit.GetController("AlertController")
 end
 
 function RealmMobileController.KnitStart()
+	Transform.Selected:Connect(ShowTransform)
+	Transform.Changed:Connect(OnToolsChanged)
+	Deletion.Changed:Connect(OnToolsChanged)
+	Transform.Deselected:Connect(function()
+		if Transform:GetAnchor() then
+			return
+		end
+		if Mode == "Transform" then
+			Clear()
+		end
+		ShowToolSelection()
+	end)
 	Placement.Started:Connect(ShowPlacement)
 	Placement.Finished:Connect(function()
 		if Mode == "Place" then
@@ -240,8 +405,11 @@ function RealmMobileController.KnitStart()
 		RealmMobileController:Close()
 	end)
 	Deletion.Completed:Connect(function(Success: boolean)
-		if Success and Mode == "Delete" then
-			Clear()
+		if Success then
+			if Mode == "Delete" then
+				Clear()
+			end
+			ShowToolSelection()
 		end
 	end)
 	UserInputService.TouchTapInWorld:Connect(function(Position: Vector2, Processed: boolean)
@@ -251,10 +419,17 @@ function RealmMobileController.KnitStart()
 			return
 		end
 		local Object = Pointer:GetTarget(Realm, Position)
+		if Transform:IsActive() then
+			if not Transform:GetAnchor() and Object then
+				Transform:Start(Object)
+			end
+			return
+		end
 		if Object then
 			RealmMobileController:Select(Object)
 		else
 			Clear()
+			ShowToolSelection()
 		end
 	end)
 end

@@ -623,6 +623,10 @@ function WeaponService:SwordTrailsEnabled(Character: Model, State: boolean, Weap
 end
 
 function WeaponService:WeaponInput(Character: Model, Action: string, Data: { any })
+	if Character:GetAttribute("RealmEditing") then
+		return
+	end
+
 	Data = Data or {}
 	Data.Server = Data.Server or {}
 	Data.RootCFrame = Data.RootCFrame or Character:GetPivot()
@@ -653,7 +657,7 @@ function WeaponService:WeaponInput(Character: Model, Action: string, Data: { any
 end
 function WeaponService.Client:WeaponInput(Player: Player, Action: string, Data: { any })
 	local Character = Player.Character
-	if not Character then
+	if not Character or Character:GetAttribute("RealmEditing") then
 		return
 	end
 

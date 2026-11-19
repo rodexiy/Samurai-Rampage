@@ -59,5 +59,13 @@ return function(CreateCase: (boolean, boolean) -> any, Flush: () -> ()): string
 	Check(Case.State.AnimationStops == 0 and Case.State.MenuCloses == 0, "An idle character changing realms does not close unrelated UI")
 	Case.Destroy()
 
+	Case = CreateCase(false, true)
+	Case.Character:SetAttribute("RealmEditing", true)
+	Case.Action.callback(Enum.UserInputState.Begin)
+	Flush()
+	Check(not Case.Character:GetAttribute("Meditating") and Case.State.RemoteCalls == 0,
+		"Direct meditation actions cannot start while editing the realm")
+	Case.Destroy()
+
 	return tostring(Checks) .. " meditation realm lifecycle checks passed"
 end

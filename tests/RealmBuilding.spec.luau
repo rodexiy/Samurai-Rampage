@@ -7,6 +7,9 @@ return function(Building: any): string
 	Realm:SetAttribute("TerrainSize", Vector3.one * 64)
 	Realm.Parent = workspace
 	local Asset = Instance.new("Model")
+	local TreeAsset = Instance.new("Model")
+	local SmallAsset = Instance.new("Part")
+	SmallAsset.Size = Vector3.one * 0.5
 	local GridEnabled = Building.GridEnabled
 
 	local function Check(Condition: boolean, Message: string)
@@ -108,6 +111,39 @@ return function(Building: any): string
 		Check(not Building.IsClear(Realm, Bounds, CFrame.new(Top.Position) * Bounds.Offset:Inverse(), {}),
 			"Invisible collidable support geometry still blocks overlap")
 
+		Part("Trunk", Vector3.new(2, 16, 2), Vector3.new(0, 8, 0), TreeAsset)
+		Part("Roots", Vector3.new(4, 2, 4), Vector3.new(0, 1, 0), TreeAsset)
+		local Canopy = Part("Canopy", Vector3.new(18, 4, 18), Vector3.new(0, 18, 0), TreeAsset)
+		Canopy.CanCollide = false
+		TreeAsset.WorldPivot = CFrame.identity
+		local TreeBounds = Building.GetBounds(TreeAsset)
+		local TreeFrame = CFrame.new(Origin + Vector3.new(8, 1.025, 8))
+		local Nearby = Part("NearbyProp", Vector3.one * 2, TreeFrame.Position + Vector3.new(6, 2, 0), Realm)
+		Check(Building.IsClear(Realm, TreeBounds, TreeFrame, {}), "A nearby prop can occupy empty space inside a large model's bounds")
+		Nearby.Position = TreeFrame.Position + Vector3.new(0, 4, 0)
+		Check(not Building.IsClear(Realm, TreeBounds, TreeFrame, {}), "The same prop cannot intersect the trunk")
+		Nearby.Position = TreeFrame.Position + Vector3.new(6, 18, 0)
+		Check(Building.IsClear(Realm, TreeBounds, TreeFrame, {}), "Noncollidable foliage does not reserve a large placement volume")
+		Nearby:Destroy()
+
+		local PlacedTree = TreeAsset:Clone()
+		PlacedTree:PivotTo(TreeFrame)
+		PlacedTree.Parent = Objects
+		local SmallBounds = Building.GetBounds(SmallAsset)
+		Check(Building.IsClear(Realm, SmallBounds, TreeFrame * CFrame.new(6, 18, 0), {}),
+			"Placing a prop through decorative foliage follows the same rule in reverse")
+		Check(not Building.IsClear(Realm, SmallBounds, TreeFrame * CFrame.new(0, 4, 0), {}),
+			"A prop still cannot intersect an existing trunk")
+		PlacedTree:Destroy()
+
+		local Sphere = Part("CurvedObstacle", Vector3.one * 6, Origin + Vector3.new(0, 10, 20), Objects)
+		Sphere.Shape = Enum.PartType.Ball
+		Check(Building.IsClear(Realm, SmallBounds, CFrame.new(Sphere.Position + Vector3.new(2.5, 2.5, 0)), {}),
+			"Mesh and curved obstacle bounds do not count as solid geometry")
+		Check(not Building.IsClear(Realm, SmallBounds, CFrame.new(Sphere.Position + Vector3.new(1, 1, 0)), {}),
+			"Actual curved geometry still blocks overlap")
+		Sphere:Destroy()
+
 		Check(not Building.IsVector(Vector3.new(0 / 0, 0, 0)), "Reject NaN coordinates")
 		Check(not Building.IsVector(Vector3.new(math.huge, 0, 0)), "Reject infinite coordinates")
 		Check(Building.Resolve({ Tab = "Invalid", Category = "Chair", Name = "Fake" }) == nil, "Reject unknown catalog tabs")
@@ -116,6 +152,8 @@ return function(Building: any): string
 	Building.GridEnabled = GridEnabled
 	Realm:Destroy()
 	Asset:Destroy()
+	TreeAsset:Destroy()
+	SmallAsset:Destroy()
 	assert(Success, Error)
 
 	return tostring(Checks) .. " realm building checks passed"

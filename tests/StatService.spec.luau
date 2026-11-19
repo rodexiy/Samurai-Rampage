@@ -119,7 +119,8 @@ return function(Sources: { [string]: string }): string
 	}
 	local ReplicatedStorage = {
 		Packages = { Knit = "Knit" },
-		Shared = { StatProgression = "Config", CharacterShared = "CharacterShared", Index = { SkillTrees = "Trees" } },
+		Shared = { StatProgression = "Config", CharacterShared = "CharacterShared", Index = { SkillTrees = "Trees" },
+			InventoryConfig = "InventoryConfig", HorseConfig = "HorseConfig" },
 		Assets = { Public = { MousePositionUpdater = {} } },
 	}
 	local Knit = {
@@ -169,6 +170,8 @@ return function(Sources: { [string]: string }): string
 		Knit = Knit,
 		Trees = { Kendo = { Name = "Kendo", Branches = { { Name = "Kendo Proficiency I", Passive = true, PointsRequired = 1 } } } },
 		CharacterShared = { UpdateWalkspeed = function() end },
+		InventoryConfig = { DefaultBackpackTier = 1, Columns = 6, Rows = 8 },
+		HorseConfig = { DefaultTier = 1 },
 	}
 	local Env = setmetatable({
 		game = { GetService = function(_Self: any, Name: string): any
@@ -314,6 +317,14 @@ return function(Sources: { [string]: string }): string
 	Check(WeaponStows == 0 and BowStows == 0 and Defender:GetAttribute("WeaponEquipped")
 		and Defender:GetAttribute("BowEquipped"), "Rejected meditation must not stow weapons")
 	Defender.PrimaryPart.Position = VectorNew(0, 0, 0)
+	Defender:SetAttribute("RealmEditing", true)
+	Trainee:SetAttribute("MeditateAnywhere", true)
+	Stats:SetMeditating(Trainee, true)
+	Stats:SampleTraining(1)
+	Check(not Defender:GetAttribute("Meditating") and Training.Spirit.XP == 0 and WeaponStows == 0 and BowStows == 0,
+		"Realm editing blocks meditation and XP even with MeditateAnywhere")
+	Defender:SetAttribute("RealmEditing", false)
+	Trainee:SetAttribute("MeditateAnywhere", false)
 	Stats:SetMeditating(Trainee, true)
 	Check(WeaponStows == 1 and BowStows == 1 and not Defender:GetAttribute("WeaponEquipped")
 		and not Defender:GetAttribute("BowEquipped") and not Defender:GetAttribute("BowDrawing"),

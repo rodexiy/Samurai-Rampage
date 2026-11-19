@@ -71,6 +71,9 @@ function Meditate.callback(inputState: Enum.UserInputState)
 	if inputState ~= Enum.UserInputState.Begin then
 		return
 	end
+	if Character:GetAttribute("RealmEditing") then
+		return
+	end
 
 	if MeditationActive or Character:GetAttribute("Meditating") then
 		if Character:GetAttribute("RealmTeleporting") then

@@ -5,9 +5,43 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local Resources = require(ReplicatedStorage.Shared.RealmResources)
 local InventoryStacks = require(ReplicatedStorage.Shared.Utils.InventoryStacks)
 
-local RealmResourceService = Knit.CreateService({ Name = "RealmResourceService", Client = {} })
+local RealmResourceService = Knit.CreateService({
+	Name = "RealmResourceService",
+	Client = {
+		RequirementsRequested = Knit.CreateSignal(),
+		RequirementsChanged = Knit.CreateSignal(),
+	},
+})
 local DataService, InventoryService
 local Flushing: { [Player]: boolean } = {}
+local FreeBuilding: { [Player]: boolean } = {}
+
+function RealmResourceService:AreResourcesRequired(Player: Player): boolean
+	return FreeBuilding[Player] ~= true
+end
+
+function RealmResourceService:SetResourcesRequired(Player: Player, Required: any): (boolean, string?)
+	if typeof(Required) ~= "boolean" then
+		return false, "Resource requirement must be true or false."
+	end
+	if Player.Parent ~= Players then
+		return false, "Player is not connected."
+	end
+
+	FreeBuilding[Player] = if Required then nil else true
+	self.Client.RequirementsChanged:Fire(Player, Required)
+
+	return true
+end
+
+function RealmResourceService:GetPlacementCost(Player: Player, Asset: PVInstance): Resources.Cost?
+	local Cost = Resources.GetCost(Asset)
+	if not Cost then
+		return nil
+	end
+
+	return if self:AreResourcesRequired(Player) then Cost else {}
+end
 
 function RealmResourceService:CanSpend(Player: Player, Cost: Resources.Cost, IncludePending: boolean?): (boolean, string?)
 	local Data = DataService:GetData(Player)
@@ -85,11 +119,15 @@ function RealmResourceService.KnitInit()
 end
 
 function RealmResourceService.KnitStart()
+	RealmResourceService.Client.RequirementsRequested:Connect(function(Player: Player)
+		RealmResourceService.Client.RequirementsChanged:Fire(Player, RealmResourceService:AreResourcesRequired(Player))
+	end)
 	InventoryService.Changed:Connect(function(Player: Player)
 		RealmResourceService:FlushPending(Player)
 	end)
 	Players.PlayerRemoving:Connect(function(Player: Player)
 		Flushing[Player] = nil
+		FreeBuilding[Player] = nil
 	end)
 end
 

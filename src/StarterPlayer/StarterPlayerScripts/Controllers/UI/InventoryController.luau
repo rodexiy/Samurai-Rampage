@@ -306,6 +306,10 @@ function InventoryController:IsOpen(): boolean
 	return MainMenu ~= nil and MainMenu.Enabled
 end
 
+function InventoryController:GetCurrentTab(): string
+	return CurrentTab
+end
+
 function InventoryController:GetInventoryItem(Name: string): ItemData?
 	for _, Item in CachedEntries or {} do
 		if InventoryStacks.Key(Item) == Name then
@@ -1296,6 +1300,7 @@ function InventoryController:ChangeTab(TabName: string)
 
 	self:Unselect()
 	CurrentTab = TabName
+	HotbarController:UpdateVisibility()
 	self:UpdateContent()
 end
 

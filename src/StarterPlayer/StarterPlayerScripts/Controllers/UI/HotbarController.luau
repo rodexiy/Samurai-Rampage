@@ -81,12 +81,13 @@ end
 
 function HotbarController:UpdateVisibility()
 	local InventoryOpen = InventoryController:IsOpen()
+	local StatsOpen = InventoryOpen and InventoryController:GetCurrentTab() == "Stats"
 	if Background and Hotbar then
 		local Parent = if InventoryOpen and InventoryGui then InventoryGui else Hotbar
 		if Background.Parent ~= Parent then
 			Background.Parent = Parent
 		end
-		Background.Visible = not DialogHidden and not InventoryModalHidden
+		Background.Visible = not DialogHidden and not InventoryModalHidden and not StatsOpen
 	end
 
 	if Hotbar then
@@ -456,7 +457,7 @@ function HotbarController:LoadHotbar(ShowEmpty: boolean, Selected: boolean?)
 end
 
 function HotbarController:HandleEquip()
-	if not Character then
+	if not Character or Character:GetAttribute("RealmEditing") then
 		return
 	end
 
@@ -508,7 +509,7 @@ local Validate = require(ReplicatedStorage.Shared.Validate)
 
 local Released = false
 function HotbarController.OnKeyPress(value: number?, state: Enum.UserInputState)
-	if not value or not Character then
+	if not value or not Character or Character:GetAttribute("RealmEditing") then
 		return
 	end
 
@@ -710,6 +711,12 @@ function HotbarController:BindCharacter()
 			LockCharacterMouse.Enabled = false
 		end
 	end
+
+	Character:GetAttributeChangedSignal("RealmEditing"):Connect(function()
+		if BoundCharacter:GetAttribute("RealmEditing") then
+			ClearMouseLock()
+		end
+	end)
 
 	Character:GetAttributeChangedSignal("UnlockMouse"):Connect(function()
 		if not Character:GetAttribute("UnlockMouse") then

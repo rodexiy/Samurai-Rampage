@@ -24,7 +24,7 @@ local EquipWeapon = {
 		end
 
 		local CombatAnimations = AnimationController:GetCombatAnimationFolder(Character)
-		if Character:GetAttribute("Meditating") then
+		if Character:GetAttribute("Meditating") or Character:GetAttribute("RealmEditing") then
 			return
 		end
 

@@ -14,7 +14,7 @@ RealmPlacementController.Finished = Finished.Event
 RealmPlacementController.Started = Started.Event
 
 local Player = Players.LocalPlayer
-local Editor, Pointer, Service, InventoryService, AlertController
+local Editor, Pointer, ResourceController, Service, InventoryService, AlertController
 local RENDER = "RealmPlacementPreview"
 local Preview: PVInstance? = nil
 local Anchor: BasePart? = nil
@@ -22,6 +22,7 @@ local Highlight: Highlight? = nil
 local Selected: Building.AssetKey? = nil
 local Bounds: Building.Bounds? = nil
 local Angle = 0
+local MoveOrientation: CFrame? = nil
 local Hit: RaycastResult? = nil
 local Valid = false
 local Pending = false
@@ -73,6 +74,7 @@ function RealmPlacementController:Cancel()
 	Preview, Anchor, Highlight, Selected, Bounds, Hit = nil, nil, nil, nil, nil, nil
 	Pending, Valid = false, false
 	PreviewCost, LastValidity = nil, nil
+	MoveOrientation = nil
 	Finished:Fire()
 end
 
@@ -80,6 +82,10 @@ local function CanAfford(): boolean
 	if not PreviewCost then
 		return false
 	end
+	if not ResourceController:AreResourcesRequired() then
+		return true
+	end
+
 	for Name, Amount in PreviewCost do
 		if (OwnedResources[Name] or 0) < Amount then
 			return false
@@ -104,7 +110,7 @@ local function Step()
 	Hit = workspace:Raycast(Ray.Origin, Ray.Direction * 2048, Params)
 	Valid = false
 	if Hit then
-		local Frame = Building.GetPlacement(Preview, Bounds, Hit, Angle, Realm:GetPivot().Position)
+		local Frame = Building.GetPlacement(Preview, Bounds, Hit, Angle, Realm:GetPivot().Position, MoveOrientation)
 		Preview:PivotTo(Frame)
 		local Box = Frame * Bounds.Offset
 		Anchor.Position = Box.Position - Vector3.yAxis * (Bounds.Size.Y / 2 + 1)
@@ -123,10 +129,7 @@ local function Step()
 
 	if Highlight and LastValidity ~= Valid then
 		LastValidity = Valid
-		Highlight.FillColor = if Valid then Color3.fromRGB(130, 211, 150) else Color3.fromRGB(235, 55, 55)
-		Highlight.OutlineColor = Highlight.FillColor
-		Highlight.FillTransparency = if Valid then 0.8 else 0.35
-		Highlight.OutlineTransparency = if Valid then 0.2 else 0
+		Highlight.Enabled = not Valid
 	end
 end
 
@@ -162,7 +165,7 @@ local function CreateHint(): BasePart
 	return Part
 end
 
-local function CreatePreview(Asset: PVInstance): Model
+function RealmPlacementController:CreatePreview(Asset: PVInstance): Model
 	local Clone = Building.Clone(Asset)
 	local Model: Model
 	if Clone:IsA("Model") then
@@ -201,16 +204,22 @@ local function StartPreview(Asset: PVInstance, Key: Building.AssetKey?, Object: 
 
 	Selected = Key
 	Moving = Object
+	MoveOrientation = if Object and typeof(Object:GetAttribute("PlacementAngle")) ~= "number" then Object:GetPivot().Rotation else nil
 	PreviewCost = if Object then {} else Resources.GetCost(Asset)
 	TouchPlacement = Pointer:IsTouch()
-	Preview = CreatePreview(Asset)
-	Bounds = Building.GetBounds(Preview)
+	Preview = RealmPlacementController:CreatePreview(Asset)
+	Bounds = Building.GetBounds(Asset)
 	Preview.Name = "RealmPlacementPreview"
 	Preview.Parent = workspace
 	Anchor = CreateHint()
 	Highlight = Instance.new("Highlight")
 	Highlight.Name = "RealmPlacementHighlight"
 	Highlight.Adornee = Preview
+	Highlight.Enabled = false
+	Highlight.FillColor = Color3.fromRGB(235, 55, 55)
+	Highlight.OutlineColor = Highlight.FillColor
+	Highlight.FillTransparency = 0.35
+	Highlight.OutlineTransparency = 0
 	Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	Highlight.Parent = Preview
 	Angle = Rotation
@@ -251,8 +260,7 @@ function RealmPlacementController:StartMoving(Object: PVInstance, Input: InputOb
 	end
 	local Rotation = Object:GetAttribute("PlacementAngle")
 	if typeof(Rotation) ~= "number" then
-		local _, Yaw = Object:GetPivot():ToOrientation()
-		Rotation = math.round(-math.deg(Yaw) / Building.RotationStep) * Building.RotationStep % 360
+		Rotation = 0
 	end
 	StartPreview(Object, nil, Object, Rotation)
 	IgnoredInput = Input
@@ -319,6 +327,7 @@ end
 function RealmPlacementController.KnitInit()
 	Editor = Knit.GetController("RealmEditorController")
 	Pointer = Knit.GetController("RealmPointerController")
+	ResourceController = Knit.GetController("RealmResourceController")
 	AlertController = Knit.GetController("AlertController")
 	Service = Knit.GetService("RealmBuildingService")
 	InventoryService = Knit.GetService("InventoryService")

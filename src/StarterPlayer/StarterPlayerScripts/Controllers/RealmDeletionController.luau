@@ -94,20 +94,19 @@ local function Step()
 		return
 	end
 
-	if Pending then
+	if Pending or Pointer:IsTouch() then
 		SetTarget(nil)
 		return
 	end
 	SetTarget(Pointer:GetTarget(Realm))
 end
 
-function RealmDeletionController:Toggle()
+function RealmDeletionController:Start(): boolean
 	if Active then
-		self:Stop()
-		return
+		return true
 	end
-	if not Editor:IsOpen() or Pointer:IsTouch() or not UserInputService.MouseEnabled then
-		return
+	if not Editor:IsOpen() or (not Pointer:IsTouch() and not UserInputService.MouseEnabled) then
+		return false
 	end
 	Placement:Cancel()
 	Active = true
@@ -126,6 +125,16 @@ function RealmDeletionController:Toggle()
 	Selection.Parent = Effects
 	RunService:BindToRenderStep(RENDER, Enum.RenderPriority.Last.Value + 2, Step)
 	Changed:Fire(true)
+
+	return true
+end
+
+function RealmDeletionController:Toggle()
+	if Active then
+		self:Stop()
+	else
+		self:Start()
+	end
 end
 
 function RealmDeletionController.KnitInit()

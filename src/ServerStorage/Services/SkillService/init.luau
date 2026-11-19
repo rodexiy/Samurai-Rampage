@@ -64,7 +64,7 @@ function SkillService:WaitForRelease(Character: Model, Skill: string)
 end
 
 function SkillService:UseSkill(Character: Model, SkillName: string, Data: { any })
-	if not Skills[SkillName] then
+	if Character:GetAttribute("RealmEditing") or not Skills[SkillName] then
 		return
 	end
 

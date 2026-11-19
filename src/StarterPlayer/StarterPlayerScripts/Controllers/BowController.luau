@@ -127,7 +127,7 @@ local function StopEquipmentAnimations(Target: Model?)
 end
 
 local function IsBlocked(): boolean
-	if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then
+	if (Character and Character:GetAttribute("RealmEditing")) or GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then
 		return true
 	end
 
@@ -565,6 +565,11 @@ function BowController:ShootFirearm()
 end
 
 local function InputAction(Action: string, State: Enum.UserInputState): Enum.ContextActionResult
+	if Character and Character:GetAttribute("RealmEditing") then
+		BowController:CancelDraw()
+		return Enum.ContextActionResult.Pass
+	end
+
 	if UserInputService:GetFocusedTextBox() or not Character then
 		return Enum.ContextActionResult.Pass
 	end

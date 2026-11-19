@@ -9,7 +9,7 @@ local Changed = Instance.new("BindableEvent")
 RealmHistoryController.Changed = Changed.Event
 
 local ACTION = "RealmHistoryShortcuts"
-local Editor, Placement, Deletion, Service, AlertController
+local Editor, Placement, Deletion, Transform, Service, AlertController
 local UndoCount, RedoCount = 0, 0
 local Pending = false
 local RequestId = 0
@@ -23,12 +23,13 @@ function RealmHistoryController:CanRedo(): boolean
 end
 
 function RealmHistoryController:Request(Direction: string)
-	if (Direction ~= "Undo" and Direction ~= "Redo") or Placement:IsPending() or Deletion:IsPending()
+	if (Direction ~= "Undo" and Direction ~= "Redo") or Placement:IsPending() or Deletion:IsPending() or Transform:IsPending()
 		or (Direction == "Undo" and not self:CanUndo()) or (Direction == "Redo" and not self:CanRedo()) then
 		return
 	end
 	Placement:Cancel()
 	Deletion:Stop()
+	Transform:Cancel()
 	Pending = true
 	RequestId += 1
 	local Id = RequestId
@@ -71,6 +72,7 @@ function RealmHistoryController.KnitInit()
 	Editor = Knit.GetController("RealmEditorController")
 	Placement = Knit.GetController("RealmPlacementController")
 	Deletion = Knit.GetController("RealmDeletionController")
+	Transform = Knit.GetController("RealmTransformController")
 	AlertController = Knit.GetController("AlertController")
 	Service = Knit.GetService("RealmBuildingService")
 end

@@ -151,6 +151,9 @@ function MenuController:OpenMenu(MenuName: string, Force: boolean?)
 	if not Character or Character:GetAttribute("Died") then
 		return
 	end
+	if Character:GetAttribute("RealmEditing") and (MenuName == "MainMenu" or MenuName == "Inventory" or MenuName == "Meditate") then
+		return
+	end
 
 	if Character:GetAttribute("Meditating") and not Force then
 		return

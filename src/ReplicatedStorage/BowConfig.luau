@@ -72,7 +72,7 @@ local BowConfig = {
 	CancelAttributes = {
 		"Died", "Downed", "Ragdoll", "BeenHitted", "PostureBreak", "HeavyDeflect",
 		"BeenDeflected", "Meditating", "Rolling", "RollClientDebounce", "Climbing",
-		"Vaulting", "WallRunning", "CameraCutscene", "RealmTeleporting", "SkillLockMovement",
+		"Vaulting", "WallRunning", "CameraCutscene", "RealmTeleporting", "RealmEditing", "SkillLockMovement",
 		"InCell", "InLabor", "Attacking", "Blocking", "UsingSkillCantAttack",
 	},
 }

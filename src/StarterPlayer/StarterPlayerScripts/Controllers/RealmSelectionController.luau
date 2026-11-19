@@ -4,7 +4,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local RealmSelectionController = Knit.CreateController({ Name = "RealmSelectionController" })
-local Editor, Placement, Deletion, Pointer
+local Editor, Placement, Deletion, Transform, Pointer
 local RENDER = "RealmSelectionHover"
 local Target: PVInstance? = nil
 local Effects: Folder? = nil
@@ -24,7 +24,7 @@ end
 
 local function Step()
 	local Realm = Editor:GetRealm()
-	if Pointer:IsTouch() or not Editor:IsOpen() or not Realm or Placement:IsActive() or Deletion:IsActive() then
+	if Pointer:IsTouch() or not Editor:IsOpen() or not Realm or Placement:IsActive() or Deletion:IsActive() or Transform:IsActive() then
 		SetTarget(nil)
 		return
 	end
@@ -61,6 +61,7 @@ function RealmSelectionController.KnitInit()
 	Editor = Knit.GetController("RealmEditorController")
 	Placement = Knit.GetController("RealmPlacementController")
 	Deletion = Knit.GetController("RealmDeletionController")
+	Transform = Knit.GetController("RealmTransformController")
 	Pointer = Knit.GetController("RealmPointerController")
 end
 
@@ -69,7 +70,7 @@ function RealmSelectionController.KnitStart()
 	Bind(Editor:IsOpen())
 	UserInputService.InputBegan:Connect(function(Input: InputObject, Processed: boolean)
 		if Pointer:IsTouch() or Processed or Input.UserInputType ~= Enum.UserInputType.MouseButton1 or UserInputService:GetFocusedTextBox()
-			or not Editor:IsOpen() or Placement:IsActive() or Deletion:IsActive() then
+			or not Editor:IsOpen() or Placement:IsActive() or Deletion:IsActive() or Transform:IsActive() then
 			return
 		end
 		Step()

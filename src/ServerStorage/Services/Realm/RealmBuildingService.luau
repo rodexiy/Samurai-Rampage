@@ -15,6 +15,9 @@ local RealmBuildingService = Knit.CreateService({
 		PlacementResult = Knit.CreateSignal(),
 		Move = Knit.CreateSignal(),
 		MovementResult = Knit.CreateSignal(),
+		Transform = Knit.CreateSignal(),
+		TransformResult = Knit.CreateSignal(),
+		WindMoved = Knit.CreateSignal(),
 		Delete = Knit.CreateSignal(),
 		DeletionResult = Knit.CreateSignal(),
 		HistoryAction = Knit.CreateSignal(),
@@ -37,11 +40,30 @@ local function FindRecord(Data: any, Id: string): any
 	return nil
 end
 
+local function PublishWindMove(Object: PVInstance)
+	local Nodes = Object:QueryDescendants("BasePart, Bone")
+	if Object:IsA("BasePart") then
+		table.insert(Nodes, Object)
+	end
+
+	local Frames: { { Object: Instance, Frame: CFrame } } = {}
+	for _, Node in Nodes do
+		if Node:HasTag("WindShake") then
+			local Frame = if Node:IsA("Bone") then Node.WorldCFrame else (Node :: BasePart).CFrame
+			table.insert(Frames, { Object = Node, Frame = Frame })
+		end
+	end
+	if #Frames > 0 then
+		RealmBuildingService.Client.WindMoved:FireAll(Frames)
+	end
+end
+
 local function CommitMove(Realm: Model, Object: PVInstance, Record: any, Frame: CFrame, Angle: number?)
 	Object:PivotTo(Frame)
 	Object:SetAttribute("PlacementAngle", Angle)
 	Record.Transform = { Realm:GetPivot():ToObjectSpace(Frame):GetComponents() }
 	Record.Angle = Angle
+	PublishWindMove(Object)
 end
 
 local function GetOwnedObject(Realm: Model, Player: Player, Id: string): PVInstance?
@@ -161,7 +183,8 @@ function RealmBuildingService:GetPlacementFrame(Player: Player, Realm: Model, Re
 		return nil, "This object needs a suitable surface."
 	end
 
-	local Frame = Building.GetPlacement(Asset, Bounds, Hit, Request.Angle % 360, Realm:GetPivot().Position)
+	local Orientation = if Ignore and typeof(Ignore:GetAttribute("PlacementAngle")) ~= "number" then Ignore:GetPivot().Rotation else nil
+	local Frame = Building.GetPlacement(Asset, Bounds, Hit, Request.Angle % 360, Realm:GetPivot().Position, Orientation)
 	if not Building.IsClear(Realm, Bounds, Frame, Exclude) then
 		return nil, "This space is blocked or outside your realm."
 	end
@@ -201,7 +224,7 @@ function RealmBuildingService:Place(Player: Player, Request: any): (boolean, str
 	Object:SetAttribute("RealmId", Player.UserId)
 	Object:SetAttribute("PlacementAngle", Request.Angle % 360)
 	Object:PivotTo(Frame)
-	local Cost = Resources.GetCost(Asset)
+	local Cost = ResourceService:GetPlacementCost(Player, Asset)
 	if not Cost then
 		Object:Destroy()
 		return false, "This object has an invalid resource cost."
@@ -227,7 +250,37 @@ function RealmBuildingService:Place(Player: Player, Request: any): (boolean, str
 	return true
 end
 
-function RealmBuildingService:Move(Player: Player, Request: any): (boolean, string?)
+function RealmBuildingService:GetTransformFrame(Player: Player, Realm: Model, Request: any, Object: PVInstance): (CFrame?, string?)
+	if not Building.IsVector(Request.Position) or not Building.IsRotation(Request.Rotation)
+		or typeof(Request.Origin) ~= "CFrame" then
+		return nil, "Invalid transform."
+	end
+	for _, Component in { Request.Origin:GetComponents() } do
+		if not Building.IsFinite(Component) then
+			return nil, "Invalid transform."
+		end
+	end
+	local Origin = Object:GetPivot()
+	if (Request.Origin.Position - Origin.Position).Magnitude > 0.01
+		or Request.Origin.LookVector:Dot(Origin.LookVector) < 0.999999
+		or Request.Origin.UpVector:Dot(Origin.UpVector) < 0.999999 then
+		return nil, "This object changed. Please select it again."
+	end
+
+	-- Rebuild the rotation from the authoritative pivot and snapped angles.
+	local Frame = Building.GetTransform(Origin, Request.Position, Request.Rotation)
+	local Exclude: { Instance } = { Object }
+	if Player.Character then
+		table.insert(Exclude, Player.Character)
+	end
+	if not Building.IsClear(Realm, Building.GetBounds(Object), Frame, Exclude, true) then
+		return nil, "This space is blocked or outside your realm."
+	end
+
+	return Frame
+end
+
+function RealmBuildingService:UpdateObject(Player: Player, Request: any, Transform: boolean): (boolean, string?)
 	if not self:CanEdit(Player) or Sessions[Player] ~= RealmService:GetRealm(Player) then
 		return false, "Realm editor is no longer available."
 	end
@@ -241,7 +294,12 @@ function RealmBuildingService:Move(Player: Player, Request: any): (boolean, stri
 	if not Object or not Record then
 		return false, "Object is unavailable."
 	end
-	local Frame, Reason = self:GetPlacementFrame(Player, Realm, Request, Object, Object)
+	local Frame: CFrame?, Reason: string?
+	if Transform then
+		Frame, Reason = self:GetTransformFrame(Player, Realm, Request, Object)
+	else
+		Frame, Reason = self:GetPlacementFrame(Player, Realm, Request, Object, Object)
+	end
 	if not Frame then
 		return false, Reason
 	end
@@ -252,7 +310,8 @@ function RealmBuildingService:Move(Player: Player, Request: any): (boolean, stri
 	end
 	local Before = DeepCopy(Record.Transform)
 	local BeforeAngle = Record.Angle
-	CommitMove(Realm, Object, Record, Frame, Request.Angle % 360)
+	local Angle = if not Transform and typeof(Object:GetAttribute("PlacementAngle")) == "number" then Request.Angle % 360 else nil
+	CommitMove(Realm, Object, Record, Frame, Angle)
 	HistoryService:Record(Player, Realm, {
 		Kind = "Move", Record = { Id = Record.Id }, Refund = {},
 		Before = Before, After = Record.Transform, BeforeAngle = BeforeAngle, AfterAngle = Record.Angle,
@@ -260,6 +319,14 @@ function RealmBuildingService:Move(Player: Player, Request: any): (boolean, stri
 	self:PublishHistory(Player)
 
 	return true
+end
+
+function RealmBuildingService:Move(Player: Player, Request: any): (boolean, string?)
+	return self:UpdateObject(Player, Request, false)
+end
+
+function RealmBuildingService:Transform(Player: Player, Request: any): (boolean, string?)
+	return self:UpdateObject(Player, Request, true)
 end
 
 function RealmBuildingService:GetDeletionRefund(ResourcesSpent: any): { [string]: number }
@@ -339,7 +406,7 @@ function RealmBuildingService:RestoreRecord(Player: Player, Realm: Model, Record
 
 	local Frame = Realm:GetPivot() * CFrame.new(table.unpack(Record.Transform))
 	local Exclude: { Instance } = if Player.Character then { Player.Character } else {}
-	if not Building.IsClear(Realm, Building.GetBounds(Asset), Frame, Exclude) then
+	if not Building.IsClear(Realm, Building.GetBounds(Asset), Frame, Exclude, true) then
 		return false, "The original position is blocked or outside your realm."
 	end
 	local Object, RestoreTags = Building.Clone(Asset)
@@ -372,7 +439,7 @@ function RealmBuildingService:Replay(Player: Player, Realm: Model, Action: any, 
 		if Player.Character then
 			table.insert(Exclude, Player.Character)
 		end
-		if not Building.IsClear(Realm, Building.GetBounds(Object), Frame, Exclude) then
+		if not Building.IsClear(Realm, Building.GetBounds(Object), Frame, Exclude, true) then
 			return false, "The original position is blocked or outside your realm."
 		end
 		local Angle = if Undo then Action.BeforeAngle else Action.AfterAngle
@@ -441,6 +508,9 @@ end
 function RealmBuildingService.KnitStart()
 	RealmBuildingService.Client.Editing:Connect(function(Player: Player, Active: any)
 		Sessions[Player] = if Active == true and RealmBuildingService:CanEdit(Player) then RealmService:GetRealm(Player) else nil
+		if Player.Character then
+			Player.Character:SetAttribute("RealmEditing", Sessions[Player] ~= nil)
+		end
 		if Sessions[Player] then
 			RealmBuildingService:PublishHistory(Player)
 		end
@@ -486,6 +556,20 @@ function RealmBuildingService.KnitStart()
 
 		local Success, Reason = RealmBuildingService:Move(Player, Request)
 		RealmBuildingService.Client.MovementResult:Fire(Player, Request.Id, Success, Reason)
+	end)
+	RealmBuildingService.Client.Transform:Connect(function(Player: Player, Request: any)
+		if typeof(Request) ~= "table" or typeof(Request.Id) ~= "number" or not Building.IsFinite(Request.Id) then
+			return
+		end
+		local Now = os.clock()
+		if LastRequest[Player] and Now - LastRequest[Player] < 0.15 then
+			RealmBuildingService.Client.TransformResult:Fire(Player, Request.Id, false, "Please wait before transforming another object.")
+			return
+		end
+		LastRequest[Player] = Now
+
+		local Success, Reason = RealmBuildingService:Transform(Player, Request)
+		RealmBuildingService.Client.TransformResult:Fire(Player, Request.Id, Success, Reason)
 	end)
 	RealmBuildingService.Client.HistoryAction:Connect(function(Player: Player, Request: any)
 		if typeof(Request) ~= "table" or typeof(Request.Id) ~= "number" or not Building.IsFinite(Request.Id)

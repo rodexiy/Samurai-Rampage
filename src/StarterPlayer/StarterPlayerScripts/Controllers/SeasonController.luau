@@ -14,7 +14,7 @@ local FoliageUpdateQueued = false
 local SeasonColors = {
 	Winter = Color3.fromRGB(232, 238, 240),
 	Autumn = Color3.fromRGB(224, 125, 4),
-	Spring = Color3.fromRGB(0, 0, 0),
+	Spring = Color3.fromRGB(75, 125, 42),
 }
 
 local WinterLeafColors = {

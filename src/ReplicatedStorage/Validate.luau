@@ -5,6 +5,7 @@ local GeneralCantAttributes = {
 	"PostureBreak",
 	"HeavyDeflect",
 	"Meditating",
+	"RealmEditing",
 	"BeenDeflected",
 	"InCell",
 	"InLabor",
@@ -177,7 +178,7 @@ function Validate:CanStrongAttack(Character: Model)
 end
 
 function Validate:CanUseSkill(Character: Model, StaminaCost: number)
-	if Character:GetAttribute("BowEquipped") or Character:GetAttribute("Mounted") then
+	if Character:GetAttribute("RealmEditing") or Character:GetAttribute("BowEquipped") or Character:GetAttribute("Mounted") then
 		return false
 	end
 

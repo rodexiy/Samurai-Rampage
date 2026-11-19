@@ -370,7 +370,7 @@ return function(Sources: { [string]: string }): string
 	CheckReleased(F)
 	Check(F.ServerCharacter:GetAttribute("Blocking") == false, "Server cancellation must stop visual block even without attribute replication")
 
-	for _, Attribute in { "PostureBreak", "Ragdoll", "Died", "Rolling" } do
+	for _, Attribute in { "PostureBreak", "Ragdoll", "Died", "Rolling", "RealmEditing" } do
 		F = Fixture()
 		F:Press()
 		F:Request()
@@ -396,6 +396,25 @@ return function(Sources: { [string]: string }): string
 	Check(F.Playing, "Touch input must predict block")
 	F.MobileInput("Cancel")
 	CheckReleased(F)
+
+	F = Fixture()
+	F:SetBoth("RealmEditing", true)
+	F:Press()
+	F.MobileInput("Begin")
+	Check(#F.Requests == 0 and not F.Playing, "Realm editor must reject keyboard and touch block")
+	F:SetBoth("RealmEditing", false)
+	Check(#F.Requests == 0 and not F.Playing, "Leaving the editor must not replay blocked input")
+	F:Press()
+	F:Request()
+	Check(F.ServerCharacter:GetAttribute("Blocking") == true, "Fresh input must work after leaving the editor")
+
+	F = Fixture()
+	F:Press()
+	F.ServerCharacter:SetAttribute("RealmEditing", true)
+	F:Request()
+	Check(F.Starts == 0, "Server must reject combat requests arriving after editor activation")
+	F.ServerCharacter:SetAttribute("RealmEditing", false)
+	Check(F.Starts == 0, "Server must discard editor inputs instead of queuing them until exit")
 
 	F = Fixture()
 	F:Press()

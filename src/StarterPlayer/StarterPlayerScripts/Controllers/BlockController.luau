@@ -88,7 +88,8 @@ function BlockController:HandleInput(InputState: Enum.UserInputState)
 			SendInput(State, false)
 		end
 	elseif InputState == Enum.UserInputState.Begin and not State.Held
-		and State.Character:GetAttribute("WeaponEquipped") and not State.Character:GetAttribute("Died") then
+		and State.Character:GetAttribute("WeaponEquipped") and not State.Character:GetAttribute("Died")
+		and not State.Character:GetAttribute("RealmEditing") then
 		SendInput(State, true)
 	end
 end
@@ -148,7 +149,7 @@ local function TrackCharacter(Character: Model)
 		if Attribute == "WeaponEquipped" then
 			UpdateWeapon()
 		end
-		if ((Attribute == "Died" or Attribute == "PostureBreak" or Attribute == "Ragdoll") and Character:GetAttribute(Attribute))
+		if ((Attribute == "Died" or Attribute == "PostureBreak" or Attribute == "Ragdoll" or Attribute == "RealmEditing") and Character:GetAttribute(Attribute))
 			or (Attribute == "Rolling" and Character:GetAttribute("Rolling") and (Character:GetAttribute("Race") ~= "Raijin"
 				or SkillTreeController:IsSkillUnlocked("Lightning Dash"))) then
 			Release()

@@ -1,6 +1,8 @@
 local StarterGui = game:GetService("StarterGui")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local DeviceController = Knit.CreateController({
 	Name = "DeviceController",
@@ -8,7 +10,7 @@ local DeviceController = Knit.CreateController({
 
 local Device = "Desktop"
 
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 local Actions = PlayerGui:WaitForChild("Actions", math.huge)
 local content = Actions:WaitForChild("content")
@@ -21,9 +23,9 @@ function DeviceController:ApplyStrokeValue()
 				task.wait()
 			until #PlayerGui:GetDescendants() >= #StarterGui:GetDescendants()
 
-			for _, content: UIStroke in PlayerGui:GetDescendants() do
-				if content:IsA("UIStroke") then
-					content.Thickness = content.Thickness / 2
+			for _, Stroke: UIStroke in PlayerGui:GetDescendants() do
+				if Stroke:IsA("UIStroke") then
+					Stroke.Thickness = Stroke.Thickness / 2
 				end
 			end
 		end)
@@ -64,8 +66,13 @@ function DeviceController:BindAction(ActionName: string, callback: any, Name: st
 		local OldState
 		Action:GetPropertyChangedSignal("GuiState"):Connect(function()
 			if Action.GuiState == Enum.GuiState.Press then
+				local Character = Player.Character
+				if Character and Character:GetAttribute("RealmEditing") then
+					return
+				end
+
 				callback(Enum.UserInputState.Begin)
-			elseif ActionName.GuiState == nil then
+			elseif OldState == Enum.GuiState.Press then
 				callback(Enum.UserInputState.End)
 			end
 			OldState = Action.GuiState
