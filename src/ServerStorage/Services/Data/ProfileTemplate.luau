@@ -96,5 +96,6 @@ return {
 	Realm = {
 		Removable = {},
 		PlacedObjects = {},
+		PendingResourceRefunds = {},
 	},
 }

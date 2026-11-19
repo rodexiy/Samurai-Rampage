@@ -14,6 +14,8 @@ local InventoryService = Knit.CreateService({
 		InventoryLayoutUpdated = Knit.CreateSignal(),
 	},
 })
+local InventoryChanged = Instance.new("BindableEvent")
+InventoryService.Changed = InventoryChanged.Event
 
 local DataService
 local ToolService
@@ -101,6 +103,7 @@ function InventoryService:UpdateUI(Player: Player, HotbarToo: boolean)
 		InventoryService.Client.HotbarUpdated:Fire(Player)
 	end
 	InventoryService.Client.InventoryUpdated:Fire(Player, Entries, Snapshot)
+	InventoryChanged:Fire(Player)
 end
 
 function InventoryService:GetPlayerItemByName(Player: Player, ItemName: string): { any }

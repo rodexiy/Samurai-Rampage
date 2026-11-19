@@ -6,6 +6,18 @@ local HorseConfig = require(ReplicatedStorage.Shared.HorseConfig)
 
 local BowRaycast = {}
 
+function BowRaycast.GetCharacter(Part: Instance): Model?
+	local Current: Instance? = Part
+	while Current and Current ~= workspace do
+		if Current:IsA("Model") and Current:FindFirstChildWhichIsA("Humanoid") then
+			return Current
+		end
+		Current = Current.Parent
+	end
+
+	return nil
+end
+
 function BowRaycast.GetExclusions(Character: Model?): { Instance }
 	local Excluded: { Instance } = {}
 	if Character then
@@ -46,7 +58,18 @@ function BowRaycast.ShouldIgnore(Part: Instance): boolean
 	return true
 end
 
-function BowRaycast.CanPierce(_Cast: any, Result: RaycastResult, _Velocity: Vector3): boolean
+function BowRaycast.CanPierce(Cast: any, Result: RaycastResult, _Velocity: Vector3): boolean
+	local Data = Cast.UserData
+	if Data and (Data.Harmless or Data.ProtectedCharacters) then
+		local Character = BowRaycast.GetCharacter(Result.Instance)
+		if Character then
+			local Player = Players:GetPlayerFromCharacter(Character)
+			if Data.Harmless or (Data.ProtectedCharacters and table.find(Data.ProtectedCharacters, Character))
+				or (Player and Data.ProtectedPlayers and table.find(Data.ProtectedPlayers, Player)) then
+				return true
+			end
+		end
+	end
 	return BowRaycast.ShouldIgnore(Result.Instance)
 end
 

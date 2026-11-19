@@ -1,5 +1,7 @@
 local PolicyService = game:GetService("PolicyService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local StoreController = Knit.CreateController({
 	Name = "StoreController",
@@ -7,14 +9,14 @@ local StoreController = Knit.CreateController({
 
 local GamepassService
 
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local PlayerGui
 local Menu
 local Store
 local Background
 local Content
 
-local EasyVisuals = require(game.ReplicatedStorage.Assets.Libraries.EasyVisuals)
+local EasyVisuals = require(ReplicatedStorage.Assets.Libraries.EasyVisuals)
 
 local Visuals = {}
 
@@ -44,13 +46,6 @@ local Products = {
 		PaidRandomItem = true,
 	},
 
-	{
-		name = "ArtifactRemover",
-		displayName = "Artifact Remover",
-		price = 49,
-		description = "Remove your current artifact.",
-		icon = "0",
-	},
 }
 
 function StoreController:Load()

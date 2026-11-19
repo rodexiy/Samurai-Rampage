@@ -14,6 +14,6 @@ return {
 	Skills = {
 		"Grapple",
 	},
-
+ 
 	MaxStack = 1,
 }

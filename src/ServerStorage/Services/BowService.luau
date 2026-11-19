@@ -413,6 +413,8 @@ function BowService:Release(Player: Player, Aim: any?, Focused: boolean?)
 		Origin = Origin,
 		Charge = Charge,
 		Config = Config,
+		Shooter = Player,
+		ExpiresAt = Now + Config.MaxFlightTime,
 	}
 	task.delay(Config.MaxFlightTime, function()
 		if Cast.StateInfo and Cast.StateInfo.UpdateConnection then
@@ -432,12 +434,108 @@ function BowService:Release(Player: Player, Aim: any?, Focused: boolean?)
 	)
 end
 
-function BowService:ResolveProjectileHit(Target: Model, Attacker: Model, Damage: number, HitData: { [string]: any })
+function BowService:ResolveProjectileHit(Target: Model, Attacker: Model, Damage: number, HitData: { [string]: any }): string?
 	local WasDowned = Target:GetAttribute("Downed") == true
 	local Result = HitService:NormalHit(Target, Attacker, Damage, HitData)
 	if WasDowned and Result == "Hit" then
 		ExecutionService:Execute(Attacker, Target, true)
 	end
+
+	return Result
+end
+
+function BowService:DeflectProjectile(Cast: any, Result: RaycastResult, Velocity: Vector3, Target: Model, Outcome: string?): boolean
+	local Data = Cast.UserData
+	if Data.Harmless or Data.Config.IsFirearm or (Outcome ~= "Deflect" and Outcome ~= "Block") then
+		return false
+	end
+	local Now = workspace:GetServerTimeNow()
+	local Remaining = (Data.ExpiresAt or Now + Data.Config.MaxFlightTime) - Now
+	local Distance = (Data.Distance or 0) + (Result.Position - Data.Origin).Magnitude
+	local RemainingDistance = Data.Config.MaxDistance - Distance
+	if Remaining <= 0 or RemainingDistance <= 0 or Velocity.Magnitude < 0.001 then
+		return false
+	end
+
+	local Harmless = Outcome == "Block"
+	local Direction = -Vector3.yAxis
+	if not Harmless then
+		local Y = RandomGenerator:NextNumber(-1, 1)
+		local Yaw = RandomGenerator:NextNumber(0, math.pi * 2)
+		local Radius = math.sqrt(1 - Y * Y)
+		Direction = Vector3.new(math.cos(Yaw) * Radius, Y, math.sin(Yaw) * Radius)
+		if Direction:Dot(Result.Normal) < 0 then
+			Direction = -Direction
+		end
+	end
+	local ProtectedCharacters = table.clone(Data.ProtectedCharacters or {})
+	if not table.find(ProtectedCharacters, Target) then
+		table.insert(ProtectedCharacters, Target)
+	end
+	local ProtectedPlayers = table.clone(Data.ProtectedPlayers or {})
+	local Shooter = Players:GetPlayerFromCharacter(Target)
+	if Shooter and not table.find(ProtectedPlayers, Shooter) then
+		table.insert(ProtectedPlayers, Shooter)
+	end
+	local Origin = Result.Position + Direction * 0.05
+	local DeflectedVelocity = Direction * Velocity.Magnitude
+	local Params = RaycastParams.new()
+	Params.FilterType = Enum.RaycastFilterType.Exclude
+	local Excluded = BowRaycast.GetExclusions(Target)
+	for _, Character in ProtectedCharacters do
+		table.insert(Excluded, Character)
+	end
+	Params.FilterDescendantsInstances = Excluded
+	local Behavior = FastCast.newBehavior()
+	Behavior.RaycastParams = Params
+	Behavior.CanPierceFunction = BowRaycast.CanPierce
+	Behavior.Acceleration = Vector3.new(0, -workspace.Gravity, 0)
+	Behavior.MaxDistance = RemainingDistance
+	ShotId += 1
+	local NewCast = Caster:Fire(Origin, Direction, DeflectedVelocity, Behavior)
+	NewCast.UserData = {
+		Id = ShotId, Character = Target, Shooter = Shooter, Origin = Origin, Distance = Distance,
+		Charge = Data.Charge, Config = Data.Config, ExpiresAt = Now + Remaining,
+		ProtectedCharacters = ProtectedCharacters, ProtectedPlayers = ProtectedPlayers, Harmless = Harmless,
+	}
+	task.delay(Remaining, function()
+		if NewCast.StateInfo and NewCast.StateInfo.UpdateConnection then
+			NewCast:Terminate()
+		end
+	end)
+	self.Client.Projectile:FireAll("Deflect", Data.Id, ShotId, Shooter, Origin, DeflectedVelocity,
+		Behavior.Acceleration, Now, Data.Config.WeaponName, {
+			Character = Target, ProtectedCharacters = ProtectedCharacters, ProtectedPlayers = ProtectedPlayers,
+			Harmless = Harmless, MaxDistance = RemainingDistance, MaxFlightTime = Remaining,
+			ImpactPosition = Result.Position, IncomingVelocity = Velocity,
+		})
+
+	return true
+end
+
+function BowService:HandleProjectileHit(Cast: any, Result: RaycastResult, Velocity: Vector3)
+	local Data = Cast.UserData
+	if not Data then
+		return
+	end
+	local Target = BowRaycast.GetCharacter(Result.Instance)
+	if Target and not Data.Harmless and typeof(Target:GetAttribute("Health")) == "number"
+		and Target ~= Data.Character and Data.Character.Parent and not Target:GetAttribute("Died")
+		and not (Data.ProtectedCharacters and table.find(Data.ProtectedCharacters, Target)) then
+		local Player = Players:GetPlayerFromCharacter(Target)
+		if not (Player and Data.ProtectedPlayers and table.find(Data.ProtectedPlayers, Player)) then
+			local Distance = (Data.Distance or 0) + (Result.Position - Data.Origin).Magnitude
+			local Outcome = self:ResolveProjectileHit(Target, Data.Character, Data.Config.GetDamage(Data.Charge, Distance), {
+				By = Data.Config.WeaponName, Ranged = true, NoStun = true,
+				RayCFrame = CFrame.lookAt(Result.Position, Result.Position + Velocity),
+			})
+			if self:DeflectProjectile(Cast, Result, Velocity, Target, Outcome) then
+				return
+			end
+		end
+	end
+	local ImpactType = BowConfig.GetImpactSoundType(Result.Instance, Result.Material)
+	self.Client.Projectile:FireAll("Hit", Data.Id, Result.Position, Velocity, Result.Instance, ImpactType)
 end
 
 local function BindCharacter(Player: Player, Character: Model)
@@ -554,38 +652,7 @@ function BowService.KnitStart()
 		end
 	end)
 	Caster.RayHit:Connect(function(Cast: any, Result: RaycastResult, Velocity: Vector3)
-		local Data = Cast.UserData
-		if not Data then
-			return
-		end
-
-		local ImpactType = BowConfig.GetImpactSoundType(Result.Instance, Result.Material)
-		BowService.Client.Projectile:FireAll("Hit", Data.Id, Result.Position, Velocity, Result.Instance, ImpactType)
-		local Target: Instance? = Result.Instance
-		while Target and Target ~= workspace do
-			if
-				Target:IsA("Model")
-				and Target:FindFirstChildWhichIsA("Humanoid")
-				and typeof(Target:GetAttribute("Health")) == "number"
-			then
-				if Target ~= Data.Character and Data.Character.Parent and not Target:GetAttribute("Died") then
-					local Distance = (Result.Position - Data.Origin).Magnitude
-					BowService:ResolveProjectileHit(
-						Target,
-						Data.Character,
-						Data.Config.GetDamage(Data.Charge, Distance),
-						{
-							By = Data.Config.WeaponName,
-							Ranged = true,
-							NoStun = true,
-							RayCFrame = CFrame.lookAt(Result.Position, Result.Position + Velocity),
-						}
-					)
-				end
-				break
-			end
-			Target = Target.Parent
-		end
+		BowService:HandleProjectileHit(Cast, Result, Velocity)
 	end)
 
 	HitService.HitResolved.Event:Connect(function(Target: Model, _Attacker: Model, Result: string)

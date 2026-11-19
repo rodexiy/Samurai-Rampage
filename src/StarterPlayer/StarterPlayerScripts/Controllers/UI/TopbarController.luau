@@ -14,8 +14,43 @@ local AlertController
 local RealmEditorController
 
 local TopbarPlus
+local RealmEditorIcon
+local SavedIconStates: { [any]: boolean } = {}
 
 local Player = game.Players.LocalPlayer
+
+local function HideOtherIcon(Icon: any)
+	if Icon == RealmEditorIcon then
+		return
+	end
+	if SavedIconStates[Icon] == nil then
+		SavedIconStates[Icon] = Icon.isEnabled
+	end
+	Icon:setEnabled(false)
+end
+
+local function SetRealmEditorFocus(Active: boolean)
+	if Active then
+		for _, Icon in TopbarPlus.getIcons() do
+			HideOtherIcon(Icon)
+		end
+	else
+		for Icon, Enabled in SavedIconStates do
+			if Icon.widget.Parent then
+				Icon:setEnabled(Enabled)
+			end
+		end
+		table.clear(SavedIconStates)
+	end
+end
+
+function TopBarController:GetRealmEditorGui(): ScreenGui?
+	if not RealmEditorIcon then
+		return nil
+	end
+
+	return RealmEditorIcon.widget:FindFirstAncestorWhichIsA("ScreenGui") :: ScreenGui?
+end
 
 function TopBarController:LoadHub()
 	if PlaceController:IsArena() then
@@ -135,8 +170,9 @@ function TopBarController:BindTopbar()
 	end)
 
 	local Settings = TopbarPlus.new():setImage(108728167119436):oneClick()
-	local RealmEditor = TopbarPlus.new():setLabel("Edit Realm"):setImage(11656483170)
-	RealmEditor:setEnabled(RealmEditorController:CanOpen())
+	local RealmEditor = TopbarPlus.new():setName("RealmEditor"):setLabel("Edit Realm"):setImage(11656483170)
+	RealmEditorIcon = RealmEditor
+	RealmEditor:setEnabled(RealmEditorController:IsOpen() or RealmEditorController:CanOpen())
 	RealmEditor.selected:Connect(function()
 		if not RealmEditorController:Open() then
 			RealmEditor:deselect()
@@ -146,9 +182,10 @@ function TopBarController:BindTopbar()
 		RealmEditorController:Close()
 	end)
 	RealmEditorController.AvailabilityChanged:Connect(function(Enabled: boolean)
-		RealmEditor:setEnabled(Enabled)
+		RealmEditor:setEnabled(Enabled or RealmEditorController:IsOpen())
 	end)
 	RealmEditorController.Changed:Connect(function(Opened: boolean)
+		SetRealmEditorFocus(Opened)
 		if Opened then
 			RealmEditor:setLabel("Exit editor")
 			RealmEditor:select()
@@ -207,6 +244,11 @@ end
 
 function TopBarController.KnitStart()
 	TopbarPlus = require(ReplicatedStorage.Assets.Libraries.TopbarPlus)
+	TopbarPlus.iconAdded:Connect(function(Icon: any)
+		if RealmEditorController:IsOpen() then
+			HideOtherIcon(Icon)
+		end
+	end)
 
 	if isPlayerAdmin(game.Players.LocalPlayer) or RunService:IsStudio() then
 		Cmdr:SetActivationKeys({ Enum.KeyCode.F2 })

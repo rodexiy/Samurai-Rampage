@@ -2,7 +2,8 @@ local HttpService = game:GetService("HttpService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local GamepassService = Knit.CreateService({
 	Name = "GamepassService",
@@ -85,17 +86,12 @@ local NamesToId = {
 	RaceReroll = 2675020429,
 	MeditateAnywhere = 966346738,
 	TradingSign = 2671790112,
-	ArtifactBag = 13600173502,
-	ArtifactRemover = 2676937508,
 	PrivateServer = 13600173502,
 }
 
 local DevProductVariant = {
 	MeditateAnywhere = 2670571196,
-	ArtifactBag = 2676455504,
 }
-
-local Validation = {}
 
 local function CheckProductAmount(Player: Player, GiftingTo: Player, DevProductName: string)
 	local ItemData = ItemService:GetItemData(DevProductName)
@@ -149,7 +145,14 @@ function GamepassService:GetAllGamepass(Player: Player)
 	if not Passes then
 		return {}
 	end
-	for _, Pass in Passes do
+	for Index = #Passes, 1, -1 do
+		local Pass = Passes[Index]
+		local Name = (Pass.name or ""):gsub("%W", "")
+		if Name == "ArtifactBag" or Name == "ArtifactRemover" then
+			table.remove(Passes, Index)
+			continue
+		end
+
 		local MarketData = MarketplaceService:GetProductInfo(Pass.id, Enum.InfoType.GamePass)
 		if MarketData then
 			Pass.icon = MarketData.IconImageAssetId

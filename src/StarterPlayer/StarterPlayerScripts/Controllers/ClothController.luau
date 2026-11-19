@@ -13,6 +13,8 @@ local ARROW_HOLE_RADIUS = 0.18
 local BULLET_HOLE_RADIUS = 0.3
 local SWORD_CUT_WIDTH = 0.06
 local REGENERATION_DISTANCE = 1000
+local PREPARATION_DISTANCE = 120
+local MAX_PREPARED_MESHES = 3
 local DISTANCE_CHECK_INTERVAL = 1
 local EPSILON = 1e-7
 
@@ -36,6 +38,10 @@ local Failed: { [MeshPart]: boolean } = {}
 local DistantMeshes: { [MeshPart]: boolean } = {}
 local RootConnections: { [Instance]: { RBXScriptConnection } } = {}
 local RefreshPending = false
+local PreparationActive = false
+local MemoryBlocked = false
+local BudgetWarningShown = false
+local ScheduleRefresh: () -> ()
 
 local function IsEnabled(): boolean
 	return Players.LocalPlayer:GetAttribute("ClothCut") ~= false
@@ -51,15 +57,31 @@ local function DestroyState(State: State)
 	State.Prepared:Destroy()
 	State.Original:Destroy()
 	State.Editable:Destroy()
+	MemoryBlocked = false
+	if next(Failed) then
+		table.clear(Failed)
+		ScheduleRefresh()
+	end
 end
 
 local function LoadMesh(Mesh: MeshPart)
-	if not IsEnabled() or States[Mesh] or Loading[Mesh] or Failed[Mesh] or DistantMeshes[Mesh] then
+	if PreparationActive or MemoryBlocked or not IsEnabled() or States[Mesh] or Loading[Mesh] or Failed[Mesh] or DistantMeshes[Mesh] then
+		return
+	end
+	local Character = Players.LocalPlayer.Character
+	local Root = Character and Character.PrimaryPart
+	if not Root or not Character:GetAttribute("Loaded") then
+		return
+	end
+	local Offset = Mesh.Position - Root.Position
+	if Offset:Dot(Offset) >= PREPARATION_DISTANCE * PREPARATION_DISTANCE then
+		DistantMeshes[Mesh] = true
 		return
 	end
 
 	local Token = {}
 	Loading[Mesh] = Token
+	PreparationActive = true
 	task.spawn(function()
 		local Editable: EditableMesh?
 		local Prepared: MeshPart?
@@ -121,11 +143,13 @@ local function LoadMesh(Mesh: MeshPart)
 		end)
 
 		local Active = Loading[Mesh] == Token
+		PreparationActive = false
 		if Active then
 			Loading[Mesh] = nil
 		end
 		if Success and Active and Mesh:IsDescendantOf(workspace) then
 			States[Mesh] = Result
+			ScheduleRefresh()
 			return
 		end
 
@@ -138,17 +162,32 @@ local function LoadMesh(Mesh: MeshPart)
 		if Editable then
 			Editable:Destroy()
 		end
+		if not Active and Editable and next(Failed) then
+			table.clear(Failed)
+			MemoryBlocked = false
+			ScheduleRefresh()
+		end
 		if not Success and Active then
 			Failed[Mesh] = true
-			warn("[ClothController] Cannot prepare " .. Mesh:GetFullName() .. ": " .. tostring(Result))
+			local Message = string.lower(tostring(Result))
+			if string.find(Message, "budget", 1, true) or string.find(Message, "memory", 1, true) then
+				MemoryBlocked = true
+				if not BudgetWarningShown then
+					BudgetWarningShown = true
+					warn("[ClothController] EditableMesh budget reached; preparation paused until buffers are released.")
+				end
+			else
+				warn("[ClothController] Cannot prepare " .. Mesh:GetFullName() .. ": " .. tostring(Result))
+			end
 		end
+		ScheduleRefresh()
 	end)
 end
 
 local function UpdateDistance()
 	local Character = Players.LocalPlayer.Character
 	local Root = Character and Character.PrimaryPart
-	if not Root then
+	if not Root or not Character:GetAttribute("Loaded") then
 		return
 	end
 
@@ -156,7 +195,8 @@ local function UpdateDistance()
 	local DistanceSquared = REGENERATION_DISTANCE * REGENERATION_DISTANCE
 	for Mesh, State in States do
 		local Offset = Mesh.Position - Position
-		if State.Applied and Offset:Dot(Offset) >= DistanceSquared then
+		local Limit = if State.Applied then DistanceSquared else PREPARATION_DISTANCE * PREPARATION_DISTANCE
+		if Offset:Dot(Offset) >= Limit then
 			States[Mesh] = nil
 			DistantMeshes[Mesh] = true
 			DestroyState(State)
@@ -165,11 +205,12 @@ local function UpdateDistance()
 
 	for Mesh in DistantMeshes do
 		local Offset = Mesh.Position - Position
-		if Offset:Dot(Offset) < DistanceSquared then
+		if Offset:Dot(Offset) < PREPARATION_DISTANCE * PREPARATION_DISTANCE then
 			DistantMeshes[Mesh] = nil
-			LoadMesh(Mesh)
+			ScheduleRefresh()
 		end
 	end
+	ScheduleRefresh()
 end
 
 local function Refresh()
@@ -209,16 +250,70 @@ local function Refresh()
 			DistantMeshes[Mesh] = nil
 		end
 	end
+	local Ordered = {}
 	for Mesh in Eligible do
+		table.insert(Ordered, Mesh)
+	end
+	local Character = Players.LocalPlayer.Character
+	local Root = Character and Character.PrimaryPart
+	if Root then
+		local Position = Root.Position
+		table.sort(Ordered, function(A: MeshPart, B: MeshPart): boolean
+			return (A.Position - Position).Magnitude < (B.Position - Position).Magnitude
+		end)
+	end
+	local PreparedCount = 0
+	for _, State in States do
+		if not State.Applied then
+			PreparedCount += 1
+		end
+	end
+	for _, Mesh in Ordered do
+		if PreparationActive or MemoryBlocked or PreparedCount >= MAX_PREPARED_MESHES then
+			break
+		end
 		LoadMesh(Mesh)
 	end
 end
 
-local function ScheduleRefresh()
+ScheduleRefresh = function()
 	if not RefreshPending then
 		RefreshPending = true
 		task.defer(Refresh)
 	end
+end
+
+local function RefreshCharacter(Character: Model)
+	if Character ~= Players.LocalPlayer.Character or not Character.PrimaryPart then
+		return
+	end
+
+	-- Release unused preparation buffers; keep nearby cuts until normal regeneration.
+	table.clear(Loading)
+	table.clear(Failed)
+	MemoryBlocked = false
+	for Mesh, State in States do
+		if not State.Applied then
+			States[Mesh] = nil
+			DestroyState(State)
+		end
+	end
+	UpdateDistance()
+	ScheduleRefresh()
+end
+
+local function BindCharacter(Character: Model)
+	if Character:GetAttribute("Loaded") then
+		RefreshCharacter(Character)
+		return
+	end
+	local Connection: RBXScriptConnection
+	Connection = Character:GetAttributeChangedSignal("Loaded"):Connect(function()
+		if Character:GetAttribute("Loaded") then
+			Connection:Disconnect()
+			RefreshCharacter(Character)
+		end
+	end)
 end
 
 local function TrackRoot(Root: Instance)
@@ -614,6 +709,10 @@ end
 
 function ClothController.KnitStart()
 	Players.LocalPlayer:GetAttributeChangedSignal("ClothCut"):Connect(ScheduleRefresh)
+	Players.LocalPlayer.CharacterAdded:Connect(BindCharacter)
+	if Players.LocalPlayer.Character then
+		BindCharacter(Players.LocalPlayer.Character)
+	end
 
 	local Elapsed = 0
 	RunService.Heartbeat:Connect(function(DeltaTime: number)

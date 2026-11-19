@@ -1,251 +1,171 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
-
 local CollectionService = game:GetService("CollectionService")
-local ContextActionService = game:GetService("ContextActionService")
-local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
-local MovementService
-local CameraController
-local SoundEffectController
-local DeviceController
-local SkillTreeController
 
-local Player = game.Players.LocalPlayer
-local Character = Player.Character
-local Humanoid = Character:WaitForChild("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local Validate = require(ReplicatedStorage.Shared.Validate)
+local TeleportCharacter = require(ReplicatedStorage.Shared.Utils.TeleportCharacter)
+local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
+local RollDirection = require(ReplicatedStorage.Shared.Utils.RollDirection)
+local SetAutoRotate = require(ReplicatedStorage.Shared.Utils.SetAutoRotate)
 
-local TeleportCharacter = require(game.ReplicatedStorage.Shared.Utils.TeleportCharacter)
+local MovementService, CameraController, DeviceController, SkillTreeController
+local Player = Players.LocalPlayer
+local Character = Player.Character :: Model
+local Humanoid = Character:WaitForChild("Humanoid") :: Humanoid
+local RootPart = Character.PrimaryPart
+assert(RootPart, "Character must have a PrimaryPart")
 
+local Animator = Humanoid:WaitForChild("Animator") :: Animator
 local RollDirectionsAnimations = {
-	Forward = Humanoid.Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Combat.Roll.Forward),
-	Backward = Humanoid.Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Combat.Roll.Backward),
-	Left = Humanoid.Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Combat.Roll.Left),
-	Right = Humanoid.Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Combat.Roll.Right),
+	Forward = Animator:LoadAnimation(ReplicatedStorage.Assets.Animations.Combat.Roll.Forward),
+	Backward = Animator:LoadAnimation(ReplicatedStorage.Assets.Animations.Combat.Roll.Backward),
+	Left = Animator:LoadAnimation(ReplicatedStorage.Assets.Animations.Combat.Roll.Left),
+	Right = Animator:LoadAnimation(ReplicatedStorage.Assets.Animations.Combat.Roll.Right),
 }
-local Camera = game.Workspace.CurrentCamera
 
-local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
+local function GetMovement(): Vector3
+	if Humanoid.MoveDirection.Magnitude > 0.001 then
+		return Humanoid.MoveDirection
+	end
 
-local _LinearVelocity
+	local Camera = workspace.CurrentCamera
+	local X = (if UserInputService:IsKeyDown(Enum.KeyCode.D) then 1 else 0)
+		- (if UserInputService:IsKeyDown(Enum.KeyCode.A) then 1 else 0)
+	local Z = (if UserInputService:IsKeyDown(Enum.KeyCode.S) then 1 else 0)
+		- (if UserInputService:IsKeyDown(Enum.KeyCode.W) then 1 else 0)
+	if Camera and (X ~= 0 or Z ~= 0) then
+		local Forward = Camera.CFrame.LookVector * Vector3.new(1, 0, 1)
+		if Forward.Magnitude > 0.001 then
+			return CFrame.lookAt(Vector3.zero, Forward):VectorToWorldSpace(Vector3.new(X, 0, Z))
+		end
+	end
+
+	return Vector3.zero
+end
+
+local function AnimateCamera()
+	local Elapsed = 0
+	local Connection: RBXScriptConnection
+	Connection = RunService.PreRender:Connect(function(DeltaTime: number)
+		Elapsed += DeltaTime
+		if Player.Character ~= Character or not RootPart.Parent or Elapsed >= 0.65 then
+			Connection:Disconnect()
+			CameraController:SetCustomCameraSubjectCFrameOffset(nil)
+			return
+		end
+
+		local Depth = if Elapsed < 0.1 then Elapsed / 0.1
+			elseif Elapsed < 0.35 then 1 else 1 - (Elapsed - 0.35) / 0.3
+		CameraController:SetCustomCameraSubjectCFrameOffset(
+			CameraController:GetDefaultCameraSubjectCFrameOffset() * CFrame.new(0, -Depth, 0)
+		)
+	end)
+end
+
 local Roll = {
-	callback = function(inputState, inputObject)
-		if inputState ~= Enum.UserInputState.Begin then
-			return
-		end
-		if not Validate:CanRoll(Character) then
+	callback = function(InputState: Enum.UserInputState, _InputObject: InputObject?)
+		if InputState ~= Enum.UserInputState.Begin or not Validate:CanRoll(Character) then
 			return
 		end
 
+		local FacingLocked = CameraController:IsFacingCamera()
+		local WasRunning = Character:GetAttribute("Running") == true
+		local Camera = workspace.CurrentCamera
+		local Facing = RootPart.CFrame
+		if FacingLocked and Camera then
+			local Flat = Camera.CFrame.LookVector * Vector3.new(1, 0, 1)
+			if Flat.Magnitude > 0.001 then
+				Facing = CFrame.lookAt(RootPart.Position, RootPart.Position + Flat)
+			end
+		end
+		local Direction, Movement = RollDirection.Resolve(Facing, GetMovement(), FacingLocked, WasRunning)
+		local FirstPerson = Camera ~= nil and (Camera.CFrame.Position - Camera.Focus.Position).Magnitude <= 1
+		CameraController:ReleaseRotation()
+		if not FacingLocked and not FirstPerson then
+			RootPart.CFrame = CFrame.lookAt(RootPart.Position, RootPart.Position + Movement)
+		end
 		Character:SetAttribute("RollClientDebounce", true)
+		Character:SetAttribute("Rolling", true)
 		task.delay(0.5, function()
 			Character:SetAttribute("RollClientDebounce", false)
 		end)
-		local WasRunning = Character:GetAttribute("Running")
-		Character:SetAttribute("Rolling", true)
-
-		local function MapKeys()
-			local result = Vector3.new(0, 0, 0)
-
-			if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-				result += Vector3.new(1, 0, 0)
-			end
-
-			if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-				result += Vector3.new(-1, 0, 0)
-			end
-
-			if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-				result += Vector3.new(0, 0, 1)
-			end
-
-			if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-				if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
-					result += Vector3.new(0, 0, -1)
-				else
-					if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.D) then
-						result = Vector3.new(0, 0, 1)
-					else
-						result += Vector3.new(0, 0, 1)
-					end
-				end
-			end
-
-			if result.Magnitude == 0 then
-				result = Vector3.new(0, 0, -1)
-			end
-
-			return result
-		end
-
-		local function GetDirectionFromMap(map: Vector3)
-			if WasRunning then
-				return "Forward"
-			end
-
-			local dir = "Backward"
-
-			if map.X == 1 then
-				dir = "Right"
-			end
-			if map.X == -1 then
-				dir = "Left"
-			end
-
-			if map.Z == 1 then
-				dir = "Forward"
-			end
-			if map.Z == -1 then
-				dir = "Backward"
-			end
-
-			if
-				UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter
-				and Humanoid.MoveDirection.Magnitude ~= 0
-			then
-				dir = "Forward"
-			end
-
-			return dir
-		end
-
-		local Direction = "Backward"
-
-		local MoveDirection = Humanoid.MoveDirection
-		local StarterDirection
-		local map
-
-		local function UpdateMoveDirection()
-			if StarterDirection then
-				return
-			end
-
-			map = MapKeys()
-			local dir = GetDirectionFromMap(map)
-			map = map.Unit
-
-			Direction = dir
-			StarterDirection = Direction
-		end
-		UpdateMoveDirection()
-
+		local StartFrame = Character:GetPivot()
 		task.spawn(function()
-			MovementService:Roll(Direction, Character:GetPivot())
+			MovementService:Roll(Direction, StartFrame)
 		end)
+
+		local Params = RaycastParams.new()
+		Params.RespectCanCollide = true
+		Params.FilterDescendantsInstances = CollectionService:GetTagged("Entity")
+		Params:AddToFilter(Character)
+		Params.FilterType = Enum.RaycastFilterType.Exclude
 
 		local HasLightningDash = Character:GetAttribute("Race") == "Raijin"
 			and SkillTreeController:IsSkillUnlocked("Lightning Dash")
-		if WasRunning and HasLightningDash then
-			map = Vector3.new(0, 0, 1)
-		end
-
-		local reversed = Vector3.new(map.X, 0, -map.Z).Unit
-
-		local ForwardRayParams = RaycastParams.new()
-		ForwardRayParams.RespectCanCollide = true
-
-		ForwardRayParams.FilterDescendantsInstances = { CollectionService:GetTagged("Entity") }
-		ForwardRayParams.FilterType = Enum.RaycastFilterType.Exclude
-
 		if HasLightningDash then
-			local LookDirection =
-				CFrame.new(RootPart.CFrame.Position, (RootPart.CFrame * CFrame.new(reversed)).Position).LookVector.Unit
-
-			local ForwardRay = Workspace:Raycast(RootPart:GetPivot().Position, LookDirection * 8, ForwardRayParams)
-			if not ForwardRay then
-				TeleportCharacter(Character, Character:GetPivot() * CFrame.new(reversed * 8))
-			else
-				TeleportCharacter(Character, Character:GetPivot() * CFrame.new(reversed * ForwardRay.Distance))
-			end
-
+			local Hit = workspace:Raycast(RootPart.Position, Movement * 8, Params)
+			local Distance = if Hit then math.max(0, Hit.Distance - 0.5) else 8
+			TeleportCharacter(Character, Character:GetPivot() + Movement * Distance)
 			return
 		end
 
-		local RollAnimation = RollDirectionsAnimations[Direction] :: AnimationTrack
-		if RollAnimation then
-			RollAnimation.Priority = Enum.AnimationPriority.Action
-			RollAnimation:Play()
-		end
+		local Animation = RollDirectionsAnimations[Direction] :: AnimationTrack
+		Animation.Priority = Enum.AnimationPriority.Action
+		Animation:Play()
+		AnimateCamera()
 
-		task.spawn(function()
-			for i = 0.1, 1, 0.1 do
-				CameraController:SetCustomCameraSubjectCFrameOffset(
-					CameraController:GetDefaultCameraSubjectCFrameOffset() * CFrame.new(0, -i, 0)
-				)
-				task.wait()
+		local WasAutoRotate = Humanoid.AutoRotate
+		Humanoid.AutoRotate = false
+		local Velocity = Instance.new("LinearVelocity")
+		Velocity.Attachment0 = RootPart:WaitForChild("RootAttachment") :: Attachment
+		Velocity.ForceLimitMode = Enum.ForceLimitMode.PerAxis
+		Velocity.MaxAxesForce = Vector3.new(1, 0, 1) * 25000
+		Velocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+		Velocity.VectorVelocity = Movement * GetModelMass(Character) * 0.35
+		RootPart.AssemblyLinearVelocity = Vector3.new(Velocity.VectorVelocity.X,
+			RootPart.AssemblyLinearVelocity.Y, Velocity.VectorVelocity.Z)
+		Velocity.Parent = RootPart
+
+		local Stopped = false
+		local CollisionConnection: RBXScriptConnection?
+		local function Stop()
+			if Stopped then
+				return
 			end
-
-			task.wait(0.25)
-			local i = 1
-			while i >= 0.1 do
-				i -= 0.05
-				CameraController:SetCustomCameraSubjectCFrameOffset(
-					CameraController:GetDefaultCameraSubjectCFrameOffset() * CFrame.new(0, -i, 0)
-				)
-				task.wait()
+			Stopped = true
+			if CollisionConnection then
+				CollisionConnection:Disconnect()
 			end
-
-			CameraController:SetCustomCameraSubjectCFrameOffset(nil)
-		end)
-
-		local VelocityMultiplier = 200
-
-		if Humanoid.MoveDirection.Magnitude == 0 then
-			MoveDirection = -RootPart.CFrame.LookVector
-		end
-
-		local LinearVelocity = Instance.new("LinearVelocity")
-		LinearVelocity.Attachment0 = RootPart.RootAttachment
-		LinearVelocity.ForceLimitMode = Enum.ForceLimitMode.PerAxis
-		LinearVelocity.Visible = true
-		LinearVelocity.MaxAxesForce = Vector3.new(1, 0, 1) * 25000
-		LinearVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-
-		LinearVelocity.VectorVelocity = (
-			CFrame.new(RootPart.CFrame.Position, RootPart.CFrame.Position + MoveDirection).LookVector
-			* (GetModelMass(Character))
-		) * 0.35
-		RootPart.AssemblyLinearVelocity = Vector3.new(
-			LinearVelocity.VectorVelocity.X,
-			RootPart.AssemblyLinearVelocity.Y,
-			LinearVelocity.VectorVelocity.Z
-		)
-		LinearVelocity.Parent = RootPart
-
-		task.delay(0.15, function()
-			LinearVelocity:Destroy()
-			RootPart.AssemblyLinearVelocity = Vector3.new(0, RootPart.AssemblyLinearVelocity.Y, 0)
-		end)
-
-		task.spawn(function()
-			while LinearVelocity and VelocityMultiplier > 38 and Character:GetAttribute("Rolling") do
-				local LookDirection = CFrame.new(
-					RootPart.CFrame.Position,
-					(RootPart.CFrame * CFrame.new(reversed)).Position
-				).LookVector.Unit
-
-				local ForwardRay = Workspace:Raycast(RootPart:GetPivot().Position, LookDirection * 28, ForwardRayParams)
-				if ForwardRay and ForwardRay.Distance <= 3 then
-					RootPart.AssemblyLinearVelocity = Vector3.new(0, RootPart.AssemblyLinearVelocity.Y, 0)
-					break
+			Velocity:Destroy()
+			if RootPart.Parent then
+				RootPart.AssemblyLinearVelocity = Vector3.new(0, RootPart.AssemblyLinearVelocity.Y, 0)
+				if WasAutoRotate then
+					SetAutoRotate(Character, true)
 				end
-
-				task.wait()
+			end
+		end
+		CollisionConnection = RunService.PreSimulation:Connect(function()
+			if Player.Character ~= Character or not RootPart.Parent or not Character:GetAttribute("Rolling") then
+				Stop()
+				return
+			end
+			local Hit = workspace:Raycast(RootPart.Position, Movement * 3, Params)
+			if Hit then
+				Stop()
 			end
 		end)
-
-		StarterDirection = nil
+		task.delay(0.15, Stop)
 	end,
 
 	keys = { Enum.KeyCode.Q },
 }
 
-function Roll.Start(_srvs)
+function Roll.Start(_Services: any)
 	MovementService = Knit.GetService("MovementService")
 	CameraController = Knit.GetController("CameraController")
-	SoundEffectController = Knit.GetController("SoundEffectController")
 	DeviceController = Knit.GetController("DeviceController")
 	SkillTreeController = Knit.GetController("SkillTreeController")
 

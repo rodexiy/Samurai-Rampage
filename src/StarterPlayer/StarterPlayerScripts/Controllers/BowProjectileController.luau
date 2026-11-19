@@ -16,6 +16,7 @@ type Shot = {
 	HitCloths: { [MeshPart]: boolean },
 	ClothPosition: Vector3, ClothFinished: boolean,
 	CanCutCloth: boolean,
+	Harmless: boolean?,
 }
 local Caster = FastCast.new()
 local Shots: { [number]: Shot } = {}
@@ -80,11 +81,18 @@ local function AddTrail(Arrow: BasePart, Config: any): Trail
 	return Trail
 end
 
-local function Launch(Id: number, Shooter: Player, Origin: Vector3, Velocity: Vector3, Acceleration: Vector3, _ServerTime: number, ItemName: string?)
+local function Launch(Id: number, Shooter: Player?, Origin: Vector3, Velocity: Vector3, Acceleration: Vector3,
+	_ServerTime: number, ItemName: string?, Options: any?)
 	local Config = RangedWeaponConfig.Get(ItemName)
 	local Params = RaycastParams.new()
 	Params.FilterType = Enum.RaycastFilterType.Exclude
-	local Excluded = BowRaycast.GetExclusions(Shooter.Character)
+	local Character = if Options then Options.Character else Shooter and Shooter.Character
+	local Excluded = BowRaycast.GetExclusions(Character)
+	if Options then
+		for _, Protected in Options.ProtectedCharacters do
+			table.insert(Excluded, Protected)
+		end
+	end
 	table.insert(Excluded, Container)
 	-- ClothController tests the deformed triangles; the static collision mesh can truncate the segment before them.
 	for _, Cloth in CollectionService:GetTagged("Cloth") do
@@ -96,13 +104,16 @@ local function Launch(Id: number, Shooter: Player, Origin: Vector3, Velocity: Ve
 
 	local Behavior = FastCast.newBehavior()
 	Behavior.Acceleration = Acceleration
-	Behavior.MaxDistance = Config.MaxDistance
+	Behavior.MaxDistance = if Options then Options.MaxDistance else Config.MaxDistance
 	Behavior.RaycastParams = Params
 	Behavior.CanPierceFunction = BowRaycast.CanPierce
 	Behavior.CosmeticBulletTemplate = if Config.IsFirearm then TracerTemplate else Template
 	Behavior.CosmeticBulletContainer = Container
 	local Cast = Caster:Fire(Origin, Velocity.Unit, Velocity, Behavior)
 	Cast.UserData.Id = Id
+	Cast.UserData.Harmless = Options and Options.Harmless
+	Cast.UserData.ProtectedCharacters = Options and Options.ProtectedCharacters
+	Cast.UserData.ProtectedPlayers = Options and Options.ProtectedPlayers
 	local Arrow = Cast.RayInfo.CosmeticBulletObject :: BasePart
 	Arrow.CFrame = BowConfig.GetArrowCFrame(Origin, Velocity, Arrow.Size.Z)
 	if Shooter == Players.LocalPlayer and not Config.IsFirearm then
@@ -120,11 +131,13 @@ local function Launch(Id: number, Shooter: Player, Origin: Vector3, Velocity: Ve
 		Arrow = Arrow, Trail = AddTrail(Arrow, Config), Cast = Cast,
 		IsFirearm = Config.IsFirearm, HitCloths = {},
 		ClothPosition = Origin, ClothFinished = false,
-		CanCutCloth = Shooter == Players.LocalPlayer,
+		CanCutCloth = Shooter == Players.LocalPlayer and not (Options and Options.Harmless),
+		Harmless = Options and Options.Harmless,
 	}
 	Shots[Id] = Shot
-	Debris:AddItem(Arrow, Config.MaxFlightTime + 6)
-	task.delay(Config.MaxFlightTime + 6, function()
+	local FlightTime = if Options then Options.MaxFlightTime else Config.MaxFlightTime
+	Debris:AddItem(Arrow, FlightTime + 6)
+	task.delay(FlightTime + 6, function()
 		if Shots[Id] == Shot then
 			if Shot.Cast then
 				Shot.Cast:Terminate()
@@ -168,7 +181,9 @@ function BowProjectileController.KnitStart()
 	Caster.LengthChanged:Connect(function(Cast: any, LastPoint: Vector3, Direction: Vector3, Length: number, Velocity: Vector3, Arrow: BasePart?)
 		local Shot = Shots[Cast.UserData.Id]
 		if Shot then
-			BirdController:HitByProjectile(LastPoint, Direction * Length, Velocity)
+			if not Shot.Harmless then
+				BirdController:HitByProjectile(LastPoint, Direction * Length, Velocity)
+			end
 			TraceCloth(Shot, LastPoint + Direction * Length)
 		end
 
@@ -190,6 +205,22 @@ function BowProjectileController.KnitStart()
 	Knit.GetService("BowService").Projectile:Connect(function(Action: string, Id: number, ...: any)
 		if Action == "Launch" then
 			Launch(Id, ...)
+		elseif Action == "Deflect" then
+			local NewId, Shooter, Position, Velocity, Acceleration, ServerTime, ItemName, Options = ...
+			local Shot = Shots[Id]
+			if Shot then
+				local Impact = Options.ImpactPosition or Position
+				local Incoming = Options.IncomingVelocity or Velocity
+				if (Impact - Shot.ClothPosition):Dot(Incoming) >= 0 then
+					TraceCloth(Shot, Impact)
+				end
+				Shot.ClothFinished = true
+				if Shot.Cast then
+					Shot.Cast:Terminate()
+				end
+				DestroyShot(Id, Shot)
+			end
+			Launch(NewId, Shooter, Position, Velocity, Acceleration, ServerTime, ItemName, Options)
 		elseif Action == "Hit" then
 			local Position, Velocity, HitPart = ...
 			local Shot = Shots[Id]

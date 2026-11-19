@@ -20,6 +20,7 @@ return function(ProductionSource: string): string
 	end
 
 	local TraceCalls = {}
+	local BirdCalls = 0
 	local Caster = { LengthChanged = Signal(), CastTerminating = Signal() }
 	local Casts: { [number]: any } = {}
 	local NextCast = 0
@@ -54,6 +55,8 @@ return function(ProductionSource: string): string
 					HitByProjectile = function(_Self: any, Origin: Vector3, Displacement: Vector3, IsFirearm: any, _Hits: any): boolean
 						if Name == "ClothController" then
 							table.insert(TraceCalls, { Origin = Origin, Displacement = Displacement, IsFirearm = IsFirearm })
+						elseif Name == "BirdController" then
+							BirdCalls += 1
 						end
 						return false
 					end,
@@ -119,6 +122,31 @@ return function(ProductionSource: string): string
 			Projectile:Fire("Hit", Id, Origin + Vector3.xAxis * 6, Velocity, nil)
 			Check(#TraceCalls == 0, "Other players' projectiles must never cut this client's cloth")
 		end
+
+		Projectile:Fire("Launch", 7, Player, Origin, Velocity, Vector3.zero, 0, "Bow")
+		local Options = { Character = nil, ProtectedCharacters = {}, ProtectedPlayers = {},
+			Harmless = false, MaxDistance = 100, MaxFlightTime = 2,
+			ImpactPosition = Origin + Vector3.xAxis * 2, IncomingVelocity = Velocity }
+		Projectile:Fire("Deflect", 7, 8, OtherPlayer, Origin + Vector3.xAxis * 2, -Velocity, Vector3.zero, 0, "Bow", Options)
+		Check(Casts[7].RayInfo.CosmeticBulletObject.Parent == nil and Casts[8].UserData.Id == 8,
+			"Deflection replaces the incoming visual with a separately identified outgoing arrow")
+		Check(Casts[8].UserData.ProtectedCharacters == Options.ProtectedCharacters and not Casts[8].UserData.Harmless,
+			"The visual cast retains the server's parry protections")
+		local Traces = #TraceCalls
+		Caster.LengthChanged:Fire(Casts[7], Origin, Vector3.xAxis, 3, Velocity, nil)
+		Caster.CastTerminating:Fire(Casts[7])
+		Check(#TraceCalls == Traces and Casts[8].RayInfo.CosmeticBulletObject.Parent ~= nil,
+			"Late callbacks from the incoming arrow cannot alter its deflected replacement")
+
+		Projectile:Fire("Launch", 9, Player, Origin, Velocity, Vector3.zero, 0, "Bow")
+		Options.Harmless = true
+		Projectile:Fire("Deflect", 9, 10, Player, Origin + Vector3.xAxis * 2, -Vector3.yAxis * 100, Vector3.zero, 0, "Bow", Options)
+		Traces = #TraceCalls
+		local Birds = BirdCalls
+		Caster.LengthChanged:Fire(Casts[10], Origin, -Vector3.yAxis, 3, -Vector3.yAxis * 100, nil)
+		Projectile:Fire("Hit", 10, Origin - Vector3.yAxis * 3, -Vector3.yAxis * 100, nil)
+		Check(Casts[10].UserData.Harmless and #TraceCalls == Traces and BirdCalls == Birds,
+			"A blocked arrow cannot cut cloth or hit birds during its fall or final impact")
 	end)
 
 	for _, Cast in Casts do

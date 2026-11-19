@@ -24,7 +24,6 @@ InventoryConfig.DefaultSize = { Width = 1, Height = 1 }
 InventoryConfig.ClassSizes = {
 	Equipable = { Width = 2, Height = 2 },
 	Resource = { Width = 1, Height = 1 },
-	Artifact = { Width = 1, Height = 1 },
 	Usable = { Width = 1, Height = 1 },
 	Health = { Width = 1, Height = 1 },
 }
@@ -63,7 +62,6 @@ InventoryConfig.ItemSizes = {
 	Handcuffs = { Width = 2, Height = 1 },
 	TradingSign = { Width = 2, Height = 3 },
 	PortableRug = { Width = 2, Height = 2 },
-	LanternOfCinders = { Width = 1, Height = 2 },
 }
 
 function InventoryConfig.GetSize(Item: ItemData): GridSize

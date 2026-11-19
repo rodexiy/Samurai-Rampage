@@ -12,7 +12,6 @@ local TetsuService
 local StatService
 local ItemService
 local InventoryService
-local ArtifactService
 local FloorDropService
 
 function RewardService:GetRandomRewardFromWeight(Rewards: { any }, LuckBoost: number?)
@@ -111,8 +110,7 @@ function RewardService:GiveRewards(Character: Model, Position: Vector3)
 				continue
 			end
 
-			if ItemService:GetItemData(ItemName).Class == "Artifact" then
-				ArtifactService:PickArtifact(Player, ItemName, true)
+			if not ItemService:GetItemData(ItemName) then
 				continue
 			end
 
@@ -135,7 +133,6 @@ function RewardService.KnitInit()
 	MobService = Knit.GetService("MobService")
 	ItemService = Knit.GetService("ItemService")
 	InventoryService = Knit.GetService("InventoryService")
-	ArtifactService = Knit.GetService("ArtifactService")
 	FloorDropService = Knit.GetService("FloorDropService")
 end
 

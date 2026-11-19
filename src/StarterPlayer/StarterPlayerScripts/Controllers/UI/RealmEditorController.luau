@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
+local Building = require(ReplicatedStorage.Shared.RealmBuilding)
 
 local RealmEditorController = Knit.CreateController({ Name = "RealmEditorController" })
 local Player = Players.LocalPlayer
@@ -10,14 +11,10 @@ local AvailabilityChanged = Instance.new("BindableEvent")
 RealmEditorController.Changed = Changed.Event
 RealmEditorController.AvailabilityChanged = AvailabilityChanged.Event
 
-local Freecam, MenuController, AlertController
+local Freecam, MenuController, AlertController, TopbarController
 local Active = false
 local Available: boolean? = nil
-local Blocked = {
-	"Died", "Downed", "Ragdoll", "InCombat", "RealmTeleporting", "InWisdomWorld",
-	"Mounted", "InHorse", "Climbing", "WallRunning", "Vaulting", "Meditating",
-	"Attack", "Attacking", "Blocking", "BowDrawing", "SkillLockMovement",
-}
+local Blocked = Building.BlockedStates
 
 function RealmEditorController:GetRealm(): Model?
 	local Folder = workspace:FindFirstChild("Realms")
@@ -80,7 +77,7 @@ function RealmEditorController:Open(): boolean
 
 	Active = true
 	MenuController:CloseAllMenus()
-	MenuController:SetHudFocus(true)
+	MenuController:SetHudFocus(true, TopbarController:GetRealmEditorGui())
 	Changed:Fire(true)
 
 	return true
@@ -130,6 +127,7 @@ function RealmEditorController.KnitInit()
 	Freecam = Knit.GetController("RealmFreecamController")
 	MenuController = Knit.GetController("MenuController")
 	AlertController = Knit.GetController("AlertController")
+	TopbarController = Knit.GetController("TopBarController")
 end
 
 function RealmEditorController.KnitStart()

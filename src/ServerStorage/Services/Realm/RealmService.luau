@@ -6,7 +6,7 @@ local TeleportCharacter = require(ReplicatedStorage.Shared.Utils.TeleportCharact
 local TerrainRegionService = require(ServerStorage.Services.Services.Realm.TerrainRegionService)
 
 local RealmService = Knit.CreateService({ Name = "RealmService", Client = {} })
-local AlertService, DataService, StatService
+local AlertService, DataService, StatService, RealmBuildingService
 local RealmsFolder: Folder
 local Realms, Busy, Plots = {}, {}, {}
 local PLOT_SPACE = 4096
@@ -151,6 +151,7 @@ function RealmService:LoadRealm(Player: Player): Model?
 		local TerrainCenter = Realm:GetAttribute("TerrainCenter") :: Vector3
 		Realm:PivotTo(Realm:GetPivot() + (TerrainCenter - Center))
 		self:LoadRemovable(Player)
+		RealmBuildingService:Load(Player, Realm)
 	end)
 	if not Success or Player.Parent ~= Players or Realms[Player.UserId] ~= Realm or Realm:GetAttribute("Unloading") then
 		self:DestroyRealmByPlayer(Player)
@@ -239,6 +240,7 @@ function RealmService.KnitInit()
 	DataService = Knit.GetService("DataService")
 	AlertService = Knit.GetService("AlertService")
 	StatService = Knit.GetService("StatService")
+	RealmBuildingService = Knit.GetService("RealmBuildingService")
 end
 
 function RealmService.KnitStart()

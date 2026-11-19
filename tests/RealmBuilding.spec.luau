@@ -1,0 +1,122 @@
+return function(Building: any): string
+	local Checks = 0
+	local Origin = Vector3.new(28000, 500, 28000)
+	local Realm = Instance.new("Model")
+	Realm.Name = "RealmBuildingGeometryTest"
+	Realm:SetAttribute("TerrainCenter", Origin)
+	Realm:SetAttribute("TerrainSize", Vector3.one * 64)
+	Realm.Parent = workspace
+	local Asset = Instance.new("Model")
+	local GridEnabled = Building.GridEnabled
+
+	local function Check(Condition: boolean, Message: string)
+		assert(Condition, Message)
+		Checks += 1
+	end
+
+	local function Part(Name: string, Size: Vector3, Position: Vector3, Parent: Instance): Part
+		local Result = Instance.new("Part")
+		Result.Name, Result.Size, Result.Position = Name, Size, Position
+		Result.Anchored = true
+		Result.Parent = Parent
+
+		return Result
+	end
+
+	local Success, Error = pcall(function()
+		Part("Floor", Vector3.new(60, 2, 60), Origin, Realm)
+		Part("Wall", Vector3.new(1, 20, 30), Origin + Vector3.new(20, 10, 0), Realm)
+		Part("Body", Vector3.new(4, 4, 4), Vector3.zero, Asset)
+		Asset.WorldPivot = CFrame.new(3, -1, 2)
+		local Bounds = Building.GetBounds(Asset)
+		local Helper = Part("EffectCarrier", Vector3.one * 20, Vector3.new(0, -8, 0), Asset)
+		Helper.Transparency = 1
+		Helper.CanCollide = false
+		local VisibleBounds = Building.GetBounds(Asset)
+		Check((VisibleBounds.Size - Bounds.Size).Magnitude < 0.001
+			and (VisibleBounds.Offset.Position - Bounds.Offset.Position).Magnitude < 0.001,
+			"Invisible noncollidable effect carriers do not enlarge or offset placement bounds")
+		Helper.CanCollide = true
+		Check(Building.GetBounds(Asset).Size.Y > Bounds.Size.Y, "Invisible collision surfaces remain part of placement bounds")
+		Helper:Destroy()
+		local Params = RaycastParams.new()
+		Params.FilterType = Enum.RaycastFilterType.Include
+		Params.FilterDescendantsInstances = { Realm }
+		local Hit = workspace:Raycast(Origin + Vector3.new(0.37, 20, 0.42), -Vector3.yAxis * 40, Params)
+		assert(Hit, "Test ray must hit floor")
+
+		Check(Building.CanUseSurface(Realm, Hit, Asset), "Accept a realm floor")
+		Building.GridEnabled = false
+		local Frame = Building.GetPlacement(Asset, Bounds, Hit, 15, Origin)
+		local Box = Frame * Bounds.Offset
+		Check(math.abs(Box.Position.Y - Bounds.Size.Y / 2 - Hit.Position.Y - 0.025) < 0.002,
+			"Seat the bounding box correctly with an offset pivot")
+		Check(math.abs(Box.Position.X - Hit.Position.X) < 0.002, "Disabled grid preserves arbitrary coordinates")
+		Check(math.abs(Frame.RightVector.Z - math.sin(math.rad(15))) < 0.001, "R rotates clockwise by 15 degrees")
+		Check(Building.IsClear(Realm, Bounds, Frame, {}), "Contact with the floor does not count as overlap")
+		Check(not Building.IsInside(Realm, CFrame.new(Origin + Vector3.xAxis * 32), Bounds.Size), "Check the entire object at realm edges")
+
+		local Obstacle = Part("Obstacle", Vector3.one * 2, Box.Position, Realm)
+		Check(not Building.IsClear(Realm, Bounds, Frame, {}), "Block intersection with collidable parts")
+		Obstacle.CanCollide = false
+		Check(Building.IsClear(Realm, Bounds, Frame, {}), "Ignore noncollidable visual geometry")
+		Obstacle:Destroy()
+
+		Building.GridEnabled = true
+		local Snapped = Building.GetPlacement(Asset, Bounds, Hit, 0, Origin) * Bounds.Offset
+		Check(math.abs(Snapped.Position.X - Origin.X) < 0.002, "Floor grid snaps relative to realm origin")
+		Building.GridEnabled = false
+
+		local WallHit = workspace:Raycast(Origin + Vector3.new(0, 10.37, 0.42), Vector3.xAxis * 30, Params)
+		assert(WallHit, "Test ray must hit wall")
+		Check(not Building.CanUseSurface(Realm, WallHit, Asset), "Floor assets reject walls")
+		Asset:SetAttribute("PlacementType", "Wall")
+		Check(not Building.CanUseSurface(Realm, Hit, Asset), "Wall assets reject floors")
+		Check(Building.CanUseSurface(Realm, WallHit, Asset), "Wall assets accept vertical realm surfaces")
+		local WallFrame = Building.GetPlacement(Asset, Bounds, WallHit, 0, Origin)
+		Check(WallFrame.LookVector:Dot(WallHit.Normal) > 0.999, "Wall asset front faces away from the wall")
+		Check(Building.IsClear(Realm, Bounds, WallFrame, {}), "A flush wall placement is clear")
+		Building.GridEnabled = true
+		local WallBox = Building.GetPlacement(Asset, Bounds, WallHit, 0, Origin) * Bounds.Offset
+		Check(math.abs(WallBox.Position.Y - (Origin.Y + 10)) < 0.002, "Wall grid snaps within the wall plane")
+		Building.GridEnabled = false
+		Asset:SetAttribute("PlacementType", "Floor")
+
+		local Objects = Instance.new("Folder")
+		Objects.Name = "PlacedObjects"
+		Objects.Parent = Realm
+		local Table = Instance.new("Model")
+		Table.Parent = Objects
+		local Top = Part("Top", Vector3.new(8, 1, 8), Origin + Vector3.new(-12, 5, 0), Table)
+		local TableHit = workspace:Raycast(Top.Position + Vector3.yAxis * 10, -Vector3.yAxis * 20, Params)
+		assert(TableHit, "Test ray must hit table")
+		Check(not Building.CanUseSurface(Realm, TableHit, Asset), "Placed objects do not support stacking by default")
+		Table:SetAttribute("SupportsPlacement", true)
+		Check(Building.CanUseSurface(Realm, TableHit, Asset), "Tables opt in to supporting objects")
+		local TableFrame = Building.GetPlacement(Asset, Bounds, TableHit, 0, Origin)
+		Check(Building.IsClear(Realm, Bounds, TableFrame, {}), "Placing on top of a table does not overlap it")
+		Table:SetAttribute("SupportsPlacement", false)
+		Top:SetAttribute("PlacementSurface", "Floor")
+		Check(Building.CanUseSurface(Realm, TableHit, Asset), "Explicit support surfaces opt in independently")
+		Top.CanCollide = false
+		Check(not Building.IsClear(Realm, Bounds, CFrame.new(Top.Position) * Bounds.Offset:Inverse(), {}),
+			"Noncollidable placed decorations still block overlap")
+		Top.Transparency = 1
+		Check(Building.IsClear(Realm, Bounds, CFrame.new(Top.Position) * Bounds.Offset:Inverse(), {}),
+			"Invisible noncollidable placed effect carriers do not block other objects")
+		Top.CanCollide = true
+		Check(not Building.IsClear(Realm, Bounds, CFrame.new(Top.Position) * Bounds.Offset:Inverse(), {}),
+			"Invisible collidable support geometry still blocks overlap")
+
+		Check(not Building.IsVector(Vector3.new(0 / 0, 0, 0)), "Reject NaN coordinates")
+		Check(not Building.IsVector(Vector3.new(math.huge, 0, 0)), "Reject infinite coordinates")
+		Check(Building.Resolve({ Tab = "Invalid", Category = "Chair", Name = "Fake" }) == nil, "Reject unknown catalog tabs")
+	end)
+
+	Building.GridEnabled = GridEnabled
+	Realm:Destroy()
+	Asset:Destroy()
+	assert(Success, Error)
+
+	return tostring(Checks) .. " realm building checks passed"
+end

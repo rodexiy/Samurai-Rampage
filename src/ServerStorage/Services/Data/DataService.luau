@@ -2,14 +2,15 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
+local ServerStorage = game:GetService("ServerStorage")
 
 local STUDIO_DATA_STORE_KEY = "Rampage Studio 2"
 local LIVE_DATA_STORE_KEY = "Progression Test 2"
 local DataStoreKey = if RunService:IsStudio() then STUDIO_DATA_STORE_KEY else LIVE_DATA_STORE_KEY
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
-local ProfileStore = require(game.ServerStorage.ServerAssets.Libraries.ProfileStore)
-local PROFILE_TEMPLATE = require(script.Parent.ProfileTemplate)
+local ProfileStore = require(ServerStorage.ServerAssets.Libraries.ProfileStore)
+local PROFILE_TEMPLATE = require(ServerStorage.Services.Services.Data.ProfileTemplate)
 local DeepCopy = require(ReplicatedStorage.Shared.Utils.DeepCopy)
 local PlayerStore = ProfileStore.New(DataStoreKey, PROFILE_TEMPLATE)
 local Profiles: { [Player]: typeof(PlayerStore:StartSessionAsync()) } = {}
@@ -19,6 +20,7 @@ local DataService = Knit.CreateService({
 })
 
 local GamepassService
+local RemovedItemService
 
 local Gifts = {}
 
@@ -54,8 +56,6 @@ local function processReceipt(receipt_info)
 
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
-		local productName = GamepassService:GetGamepassName(receipt_info.ProductId)
-			or GamepassService:GetProductName(receipt_info.ProductId)
 		local PlayerToGiftId = player:GetAttribute("PlayerToGift")
 
 		if Gifts and Gifts[player.UserId] and Gifts[player.UserId].PlayerToGift then
@@ -99,6 +99,7 @@ function DataService:LoadData(player)
 	if profile ~= nil then
 		profile:AddUserId(player.UserId) -- GDPR compliance
 		profile:Reconcile() -- Fill in missing variables from PROFILE_TEMPLATE (optional)
+		RemovedItemService:Migrate(profile.Data)
 
 		profile.OnSessionEnd:Connect(function()
 			Profiles[player] = nil
@@ -138,6 +139,7 @@ end
 function DataService.KnitInit()
 	MarketplaceService.ProcessReceipt = processReceipt
 	GamepassService = Knit.GetService("GamepassService")
+	RemovedItemService = Knit.GetService("RemovedItemService")
 end
 
 return DataService

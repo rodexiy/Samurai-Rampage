@@ -25,7 +25,6 @@ local SHOULDER_OFFSET = Vector2.new(2.15, 0.25)
 local SHOULDER_RESPONSE = 10
 local ANIMATION_INFLUENCE = 0.18
 local MAX_CAMERA_ROLL = math.rad(0.35)
-local MOVEMENT_TURN_RESPONSE = 8
 local AIM_TURN_RESPONSE = 32
 local COLLISION_RADIUS = 0.35
 
@@ -46,6 +45,8 @@ local SmoothedShoulderSide = 1
 local ShoulderBlend = 0
 local CameraRoll = 0
 local CharacterRotation: CFrame? = nil
+local FirstPersonRotation: CFrame? = nil
+local RotationAutoRotate: boolean? = nil
 local TransitionCapture: CFrame? = nil
 local TransitionFocusCapture: Vector3? = nil
 local TransitionOffset: CFrame? = nil
@@ -96,6 +97,22 @@ local function IsShiftLocked(): boolean
 	return not IsMenuMouseUnlocked() and (Player:GetAttribute("MouseLocked") == true or next(ForcedShiftLocks) ~= nil)
 end
 
+function CameraController:IsFacingCamera(): boolean
+	return Character ~= nil and not IsMenuMouseUnlocked()
+		and (next(ForcedShiftLocks) ~= nil or ShouldFaceAim(Character) or Character:GetAttribute("LockedOnEnemy") == true)
+end
+
+local function ReleaseFirstPersonRotation()
+	if Humanoid and RotationAutoRotate ~= nil and not Humanoid.AutoRotate then
+		Humanoid.AutoRotate = RotationAutoRotate
+	end
+	RotationAutoRotate, FirstPersonRotation = nil, nil
+end
+
+function CameraController:ReleaseRotation()
+	ReleaseFirstPersonRotation()
+end
+
 local function ReleaseForcedMouse()
 	if not ForcedMouseApplied then
 		return
@@ -127,6 +144,18 @@ local function UpdateMenuMouse()
 		end
 		SavedMenuMouseIcon = nil
 		MenuMouseApplied = false
+	end
+
+	-- A previous override (bow or lock-on) must never become the free-camera baseline.
+	if not IsMenuMouseUnlocked() and Camera and Character and Camera.CameraType == Enum.CameraType.Custom
+		and not Character:GetAttribute("CameraCutscene") and not Character:GetAttribute("RealmTeleporting")
+		and not Character:GetAttribute("LockedOnEnemy") and not IsShiftLocked()
+		and not FirstPersonController.IsFirstPerson(Camera, Character)
+		and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+		and UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
+		CameraUtils.restoreMouseBehavior()
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		CameraUtils.setMouseBehaviorOverride(Enum.MouseBehavior.Default)
 	end
 end
 
@@ -495,7 +524,7 @@ end
 
 local function PrepareNativeCamera(DeltaTime: number)
 	UpdateMenuMouse()
-	ApplyForcedShiftLock()
+	ReleaseForcedMouse()
 	-- Capture transitions from the displayed view, then remove last frame's visual offsets.
 	UpdateCombatZoom()
 
@@ -584,11 +613,24 @@ local function UpdateShoulderCamera(DeltaTime: number)
 end
 
 local function UpdateCharacterRotation(DeltaTime: number)
-	local Aiming = Character ~= nil and ShouldFaceAim(Character)
+	local FirstPerson = Camera ~= nil and Character ~= nil and FirstPersonController.IsFirstPerson(Camera, Character)
+	local Aiming = CameraController:IsFacingCamera()
+	if Camera and Camera.CameraType == Enum.CameraType.Custom and IsShiftLocked() and not FirstPerson and not Aiming then
+		-- Native shift lock also changes Humanoid rotation; retain only its cursor/shoulder behavior.
+		CameraUtils.setRotationTypeOverride(Enum.RotationType.MovementRelative)
+	end
+	if not FirstPerson then
+		FirstPersonRotation = nil
+		if not Aiming then
+			ReleaseFirstPersonRotation()
+		end
+	elseif RootPart and not FirstPersonRotation then
+		FirstPersonRotation = RootPart.CFrame.Rotation
+	end
 
 	if not Camera or not Character or not RootPart or not RootPart.Parent or RootPart.Anchored or not Humanoid
-		or Camera.CameraType ~= Enum.CameraType.Custom or (not IsShiftLocked() and not Aiming)
-		or not Humanoid.AutoRotate or Character:GetAttribute("LockedOnEnemy")
+		or Camera.CameraType ~= Enum.CameraType.Custom or (not FirstPerson and not Aiming)
+		or (not Humanoid.AutoRotate and RotationAutoRotate == nil) or Character:GetAttribute("LockedOnEnemy")
 		or Character:GetAttribute("Died") or Character:GetAttribute("Downed")
 		or Character:GetAttribute("Ragdoll") or Character:GetAttribute("PostureBreak")
 		or Character:GetAttribute("HeavyDeflect") or Character:GetAttribute("Meditating")
@@ -598,18 +640,33 @@ local function UpdateCharacterRotation(DeltaTime: number)
 		or Character:GetAttribute("RealmTeleporting") or Character:GetAttribute("SkillLockMovement")
 		or Humanoid:GetState() == Enum.HumanoidStateType.Seated
 	then
+		if not FirstPerson or not Character or not Character:GetAttribute("Rolling") then
+			ReleaseFirstPersonRotation()
+		end
 		CharacterRotation = nil
 		return
 	end
 
 	local MouseFacing = RootPart:FindFirstChild("LookAtMouse") :: AlignOrientation?
 	if MouseFacing and MouseFacing.Enabled then
+		ReleaseFirstPersonRotation()
 		CharacterRotation = nil
 		return
 	end
 
-	-- Face movement while free; use the native camera direction while attacking, blocking, or drawing.
-	local Direction = if Aiming then Camera.CFrame.LookVector else Humanoid.MoveDirection
+	if RotationAutoRotate == nil then
+		RotationAutoRotate = Humanoid.AutoRotate
+	end
+	Humanoid.AutoRotate = false
+	if FirstPerson then
+		if not Aiming and FirstPersonRotation then
+			CharacterRotation = FirstPersonRotation
+			RootPart.CFrame = CFrame.new(RootPart.Position) * FirstPersonRotation
+			return
+		end
+	end
+
+	local Direction = Camera.CFrame.LookVector
 	Direction *= Vector3.new(1, 0, 1)
 	if Direction.Magnitude < 0.001 then
 		CharacterRotation = RootPart.CFrame.Rotation
@@ -619,9 +676,12 @@ local function UpdateCharacterRotation(DeltaTime: number)
 	local Target = CFrame.lookAt(Vector3.zero, Direction)
 	CharacterRotation = (CharacterRotation or RootPart.CFrame.Rotation):Lerp(
 		Target,
-		SmoothingAlpha(if Aiming then AIM_TURN_RESPONSE else MOVEMENT_TURN_RESPONSE, DeltaTime)
+		SmoothingAlpha(AIM_TURN_RESPONSE, DeltaTime)
 	)
 	RootPart.CFrame = CFrame.new(RootPart.Position) * CharacterRotation
+	if FirstPerson then
+		FirstPersonRotation = CharacterRotation
+	end
 end
 
 function CameraController:BindShiftLock()
@@ -669,6 +729,7 @@ end
 
 local function ResetCharacter()
 	CameraController:UnbindShiftLock()
+	ReleaseFirstPersonRotation()
 	table.clear(ForcedShiftLocks)
 	ReleaseForcedMouse()
 	CameraController:SetBowFocusZoom(false)

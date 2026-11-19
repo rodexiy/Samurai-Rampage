@@ -45,9 +45,9 @@ end
 local Camera = workspace.CurrentCamera
 local LockOn = {}
 local enemyLocked: Model? = nil
-local PreviousMouseBehavior = Enum.MouseBehavior.Default
 local PreviousMouseIconEnabled = true
 local PreviousMouseLocked: boolean? = nil
+local PreviousAutoRotate: boolean? = nil
 local SmoothedCameraPosition = Vector3.zero
 local SmoothedFocus = Vector3.zero
 local CombatZoomDistance = 8
@@ -109,8 +109,12 @@ Unlock = function()
 		return
 	end
 	Player:SetAttribute("MouseLocked", PreviousMouseLocked)
-	UserInputService.MouseBehavior = PreviousMouseBehavior
+	UserInputService.MouseBehavior = if PreviousMouseLocked then Enum.MouseBehavior.LockCenter else Enum.MouseBehavior.Default
 	UserInputService.MouseIconEnabled = PreviousMouseIconEnabled
+	if PreviousAutoRotate ~= nil then
+		Humanoid.AutoRotate = PreviousAutoRotate
+		PreviousAutoRotate = nil
+	end
 	if not Character:GetAttribute("CameraCutscene") then
 		CameraController:SetCombatZoomDistance(CombatZoomDistance)
 		Camera.CameraType = Enum.CameraType.Custom
@@ -170,7 +174,9 @@ LockOn.callback = function(inputState: Enum.UserInputState, _Input: InputObject?
 			end
 
 			enemyLocked = ClosestEnemy
-			PreviousMouseBehavior = UserInputService.MouseBehavior
+			CameraController:ReleaseRotation()
+			PreviousAutoRotate = Humanoid.AutoRotate
+			Humanoid.AutoRotate = false
 			PreviousMouseIconEnabled = UserInputService.MouseIconEnabled
 			PreviousMouseLocked = Player:GetAttribute("MouseLocked")
 			SmoothedCameraPosition = Camera.CFrame.Position
@@ -257,7 +263,7 @@ LockOn.callback = function(inputState: Enum.UserInputState, _Input: InputObject?
 					Camera.Focus = CFrame.new(SmoothedFocus)
 				end
 
-				if Humanoid.AutoRotate and not Character:GetAttribute("Ragdoll")
+				if PreviousAutoRotate ~= false and not Character:GetAttribute("Ragdoll")
 					and not Character:GetAttribute("PostureBreak") and not Character:GetAttribute("HeavyDeflect")
 					and not Character:GetAttribute("Climbing")
 				then
