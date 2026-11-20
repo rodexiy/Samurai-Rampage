@@ -26,8 +26,8 @@ local Highlight: Highlight? = nil
 local Anchor: Part? = nil
 local Bounds: Building.Bounds? = nil
 local Origin = CFrame.identity
-local Position, Rotation = Vector3.zero, Vector3.zero
-local DragPosition, DragRotation = Vector3.zero, Vector3.zero
+local Position, DragPosition = Vector3.zero, Vector3.zero
+local Rotation, DragRotation = CFrame.identity, CFrame.identity
 local HiddenParts: { [BasePart]: number } = {}
 local WORLD_AXES = { Vector3.xAxis, Vector3.yAxis, Vector3.zAxis }
 
@@ -159,7 +159,7 @@ function RealmTransformController:Start(ObjectToEdit: PVInstance): boolean
 	Deletion:Stop()
 	Object = ObjectToEdit
 	Origin = ObjectToEdit:GetPivot()
-	Position, Rotation = Origin.Position, Vector3.zero
+	Position, Rotation = Origin.Position, CFrame.identity
 	Effects = Instance.new("Folder")
 	Effects.Name = "RealmTransformEffects"
 	Effects.Parent = workspace
@@ -268,8 +268,8 @@ function RealmTransformController.KnitStart()
 			Position = DragPosition + Direction * Delta
 		else
 			local Value = math.round(Delta / Building.RotationStep) * Building.RotationStep
-			Rotation = DragRotation + Direction * Value
-			Rotation = Vector3.new(Rotation.X % 360, Rotation.Y % 360, Rotation.Z % 360)
+			local Angles = Direction * math.rad(Value % 360)
+			Rotation = DragRotation * CFrame.Angles(Angles.X, Angles.Y, Angles.Z)
 		end
 		Refresh()
 	end)

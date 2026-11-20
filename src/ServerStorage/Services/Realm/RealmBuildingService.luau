@@ -267,7 +267,7 @@ function RealmBuildingService:GetTransformFrame(Player: Player, Realm: Model, Re
 		return nil, "This object changed. Please select it again."
 	end
 
-	-- Rebuild the rotation from the authoritative pivot and snapped angles.
+	-- Apply the validated relative rotation to the authoritative pivot.
 	local Frame = Building.GetTransform(Origin, Request.Position, Request.Rotation)
 	local Exclude: { Instance } = { Object }
 	if Player.Character then

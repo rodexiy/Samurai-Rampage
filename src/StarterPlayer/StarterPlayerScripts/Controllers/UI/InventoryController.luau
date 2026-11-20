@@ -1360,6 +1360,7 @@ function InventoryController.KnitStart()
 	local Buttons = ItemInfo:WaitForChild("Buttons") :: Frame
 	EquipButton = Buttons:WaitForChild("Equip") :: ImageButton
 	EquipLeftButton = Buttons:WaitForChild("EquipLeft") :: ImageButton
+	EquipLeftButton.Active = true
 
 	local LegacyTemplates = Inventory:FindFirstChild("Templates") :: Frame?
 	if LegacyTemplates then

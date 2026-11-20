@@ -13,8 +13,19 @@ return function(Transform: any, Deletion: any, Mobile: any, Context: any): strin
 		Transform:Toggle()
 		Check(Transform:Start(First), "Select an object after explicitly activating Transform")
 		Transform:SetMode("Rotate")
+		local Preview = Transform:GetAnchor().Parent:FindFirstChild("RealmTransformPreview") :: Model
+		local Origin = Preview:GetPivot()
 		Gizmo.Began:Fire(2)
-		Gizmo.Dragged:Fire(2, 15)
+		Gizmo.Dragged:Fire(2, 90)
+		local Yaw = Origin * CFrame.Angles(0, math.rad(90), 0)
+		Check(Preview:GetPivot().RightVector:Dot(Yaw.RightVector) > 0.999999,
+			"A quarter turn around Y preserves the selected object's local orientation")
+		Gizmo.Began:Fire(1)
+		Gizmo.Dragged:Fire(1, 16)
+		local Tilted = Yaw * CFrame.Angles(math.rad(15), 0, 0)
+		Check(Preview:GetPivot().UpVector:Dot(Tilted.UpVector) > 0.999999
+			and Preview:GetPivot().LookVector:Dot(Tilted.LookVector) > 0.999999,
+			"After Y reaches 90 degrees, X still rotates around the current local axis with 15-degree snapping")
 		Check(Transform:Apply() and Transform:IsPending(), "Apply a changed object")
 		Service.TransformResult:Fire(Context.TransformRequest.Id, true)
 		Check(Transform:IsActive() and not Transform:IsPending() and Transform:GetAnchor() == nil,

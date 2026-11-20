@@ -177,21 +177,36 @@ function RealmBuilding.IsVector(Value: any): boolean
 end
 
 function RealmBuilding.IsRotation(Value: any): boolean
+	if typeof(Value) == "CFrame" then
+		for _, Component in { Value:GetComponents() } do
+			if not RealmBuilding.IsFinite(Component) then
+				return false
+			end
+		end
+
+		local X, Y, Z = Value.RightVector, Value.UpVector, -Value.LookVector
+
+		return Value.Position.Magnitude < 0.0001
+			and math.abs(X.Magnitude - 1) < 0.0001 and math.abs(Y.Magnitude - 1) < 0.0001
+			and math.abs(Z.Magnitude - 1) < 0.0001 and math.abs(X:Dot(Y)) < 0.0001
+			and (X:Cross(Y) - Z).Magnitude < 0.0001
+	end
+
 	return RealmBuilding.IsVector(Value) and Value.X % RealmBuilding.RotationStep == 0
 		and Value.Y % RealmBuilding.RotationStep == 0 and Value.Z % RealmBuilding.RotationStep == 0
 end
 
-function RealmBuilding.GetTransform(Origin: CFrame, Position: Vector3, Rotation: Vector3): CFrame
-	return CFrame.new(Position) * Origin.Rotation
-		* CFrame.Angles(math.rad(Rotation.X), math.rad(Rotation.Y), math.rad(Rotation.Z))
+function RealmBuilding.GetTransform(Origin: CFrame, Position: Vector3, Rotation: Vector3 | CFrame): CFrame
+	local Offset = if typeof(Rotation) == "CFrame" then Rotation.Rotation
+		else CFrame.Angles(math.rad(Rotation.X), math.rad(Rotation.Y), math.rad(Rotation.Z))
+
+	return CFrame.new(Position) * Origin.Rotation * Offset
 end
 
-function RealmBuilding.GetTransformAxes(Origin: CFrame, Rotation: Vector3): { Vector3 }
-	local X = Origin.Rotation
-	local Y = X * CFrame.Angles(math.rad(Rotation.X), 0, 0)
-	local Z = Y * CFrame.Angles(0, math.rad(Rotation.Y), 0)
+function RealmBuilding.GetTransformAxes(Origin: CFrame, Rotation: Vector3 | CFrame): { Vector3 }
+	local Frame = RealmBuilding.GetTransform(Origin, Vector3.zero, Rotation)
 
-	return { X.RightVector, Y.UpVector, -Z.LookVector }
+	return { Frame.RightVector, Frame.UpVector, -Frame.LookVector }
 end
 
 function RealmBuilding.IsInside(Realm: Model, Frame: CFrame, Size: Vector3): boolean

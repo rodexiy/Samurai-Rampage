@@ -156,7 +156,7 @@ local function Step(DeltaTime: number)
 	Current.Camera.CFrame = CFrame.new(Current.Position) * Frame
 	Current.Camera.Focus = Current.Camera.CFrame * CFrame.new(0, 0, -32)
 	UserInputService.MouseBehavior = if Looking then Enum.MouseBehavior.LockCurrentPosition else Enum.MouseBehavior.Default
-	UserInputService.MouseIconEnabled = not Looking
+	UserInputService.MouseIconEnabled = true
 	Mouse.Icon = ""
 end
 

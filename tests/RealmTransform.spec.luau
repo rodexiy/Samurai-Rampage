@@ -95,6 +95,24 @@ return function(Building: any, Service: any, History: any, Context: any): string
 		Request.Position = Request.Origin.Position
 		Request.Rotation = Vector3.zero
 		Check(Service:Transform(Player, Request) and History:GetCounts(Player, Realm) == 1, "Unchanged transforms do not consume history")
+		Request.Rotation = CFrame.Angles(0, math.rad(90), 0) * CFrame.Angles(math.rad(15), 0, 0)
+		Check(Service:Transform(Player, Request), "Accept composed local rotations after a quarter turn around Y")
+		local LocalFrame = Building.GetTransform(Expected, Expected.Position, Request.Rotation)
+		Check(Matches(Object:GetPivot(), LocalFrame), "The server commits the same composed rotation as the preview")
+		local Axes = Building.GetTransformAxes(Expected, Request.Rotation)
+		Check(math.abs(Axes[1]:Dot(Axes[2])) < 0.0001 and math.abs(Axes[1]:Dot(Axes[3])) < 0.0001
+			and math.abs(Axes[2]:Dot(Axes[3])) < 0.0001, "Rotation handles remain perpendicular after a Y quarter turn")
+		Check(Axes[1]:Dot(LocalFrame.RightVector) > 0.999999 and Axes[2]:Dot(LocalFrame.UpVector) > 0.999999
+			and Axes[3]:Dot(-LocalFrame.LookVector) > 0.999999, "Every handle follows the final local axes")
+		Check(Service:ChangeHistory(Player, "Undo") and Matches(Object:GetPivot(), Expected), "Undo restores the pivot before composed rotation")
+		for _, Invalid in {
+			CFrame.new(1, 0, 0), CFrame.new(0 / 0, 0, 0),
+			CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, -1),
+			CFrame.new(0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 1),
+		} do
+			Request.Rotation = Invalid
+			Check(not Service:Transform(Player, Request), "Reject translated, nonfinite, reflected, or scaled rotation frames")
+		end
 		for _, Invalid in { Vector3.new(14, 0, 0), Vector3.new(0, 1, 0), Vector3.new(0, 0, 16), Vector3.new(0 / 0, 0, 0) } do
 			Request.Rotation = Invalid
 			Check(not Service:Transform(Player, Request), "Reject unsnapped or nonfinite angles on every axis")
