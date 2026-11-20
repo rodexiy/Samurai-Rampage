@@ -57,7 +57,7 @@ return function(Animator: any): string
 					local FirstPair = false
 					for Frame = 1, FPS * 1.5 do
 						local Before = { Active.Feet[1].InSwing, Active.Feet[2].InSwing }
-						Step(math.min(Stats.Speed * Config.Gaits.TrotMultiplier, Stats.Acceleration * Frame / FPS))
+						Step(math.min(Config.Gaits.TrotSpeed, Stats.Acceleration * Frame / FPS))
 						for Index = 1, 2 do
 							local Foot = Active.Feet[Index]
 							if Foot.InSwing and not Before[Index] and not Started[Index] then

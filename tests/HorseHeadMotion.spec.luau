@@ -51,7 +51,7 @@ return function(Animator: any): string
 			local Chest = Horse:FindFirstChild("SK_spine_4", true) :: Bone
 			local AnatomicalUp = Head.Bone.TransformedWorldCFrame:VectorToObjectSpace(Root.CFrame.UpVector)
 			local Previous = 0
-			for Stage, Multiplier in { Config.Gaits.TrotMultiplier, Config.Gaits.GallopMultiplier, 1 } do
+			for Stage, Multiplier in { Config.Gaits.TrotSpeed / Stats.Speed, Config.Gaits.GallopMultiplier, 1 } do
 				local Low, High, NoseLow, NoseHigh = math.huge, -math.huge, math.huge, -math.huge
 				local WorldLow, WorldHigh = math.huge, -math.huge
 				local ReachLow, ReachHigh = math.huge, -math.huge

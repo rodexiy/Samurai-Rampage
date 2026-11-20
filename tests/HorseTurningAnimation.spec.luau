@@ -21,7 +21,7 @@ return function(Animator: any): string
 	local Success, Error = pcall(function()
 		for _, Tier in { 1, 5 } do
 			for _, FPS in { 30, 60, 120 } do
-				for _, Multiplier in { Config.Gaits.TrotMultiplier, Config.Gaits.GallopMultiplier, 1 } do
+				for _, Multiplier in { Config.Gaits.TrotSpeed / Config.GetTier(Tier).Speed, Config.Gaits.GallopMultiplier, 1 } do
 					local Horse = (ReplicatedStorage.Assets.Models.Horses:FindFirstChild("Horse" .. Tier) :: Model):Clone()
 					for _, Part in Horse:QueryDescendants("BasePart") :: { BasePart } do
 						Part.Anchored = true

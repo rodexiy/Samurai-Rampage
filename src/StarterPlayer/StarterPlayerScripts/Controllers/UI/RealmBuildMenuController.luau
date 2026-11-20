@@ -28,7 +28,11 @@ local Tools: Frame? = nil
 local ToolsContent: Frame? = nil
 local DeleteIcon: ImageLabel? = nil
 local DeleteTitle: TextLabel? = nil
+local TransformIcon: ImageLabel? = nil
+local TransformTitle: TextLabel? = nil
 local HistoryButtons: { [string]: ImageButton } = {}
+local BuildOptionImages: { [ImageButton]: string } = {}
+local ListButtonWidths: { [ImageButton]: UDim } = {}
 local OwnedResources: { [string]: number } = {}
 local ResourceLabels: { [string]: TextLabel } = {}
 local DetailsCost: Resources.Cost = {}
@@ -36,6 +40,7 @@ local InventoryVersion = 0
 type ObjectButtonState = { Cost: Resources.Cost?, Background: Color3 }
 local ObjectButtons: { [ImageButton]: ObjectButtonState } = {}
 local UNAVAILABLE_COLOR = Color3.fromRGB(160, 43, 43)
+local SELECTED_BUILD_OPTION_IMAGE = "rbxassetid://76901907637872"
 
 local function CanAfford(Cost: Resources.Cost?): boolean
 	if not Cost then
@@ -69,7 +74,7 @@ local function RenderTools()
 	Tools.Visible = UserInputService.MouseEnabled and not Pointer:IsTouch()
 	for _, Tool in ToolsContent:GetChildren() do
 		if Tool:IsA("GuiButton") then
-			Tool.Visible = (Tool.Name == "Delete" and not Transforming) or Tool.Name == "Transform"
+			Tool.Visible = (Tool.Name == "Delete" and not Transforming) or (Tool.Name == "Transform" and not Deleting)
 				or (not Deleting and not Transforming and (Tool.Name == "Back" or Tool.Name == "Forward"))
 		end
 	end
@@ -81,6 +86,12 @@ local function RenderTools()
 	end
 	if DeleteTitle then
 		DeleteTitle.Visible = Deleting
+	end
+	if TransformIcon then
+		TransformIcon.Visible = not Transforming
+	end
+	if TransformTitle then
+		TransformTitle.Visible = Transforming
 	end
 end
 
@@ -222,6 +233,7 @@ end
 local function ClearList()
 	Details.Visible = false
 	table.clear(ObjectButtons)
+	table.clear(ListButtonWidths)
 	for _, Child in Scroll:GetChildren() do
 		if Child:IsA("GuiButton") then
 			Child:Destroy()
@@ -229,10 +241,26 @@ local function ClearList()
 	end
 end
 
+local function ResizeListButton(Button: ImageButton, Width: UDim)
+	Button.Size = UDim2.new(0, Scroll.AbsoluteWindowSize.X * Width.Scale + Width.Offset,
+		Button.Size.Y.Scale, Button.Size.Y.Offset)
+end
+
+local function RegisterListButton(Button: ImageButton)
+	local Width = Button.Size.X
+	ListButtonWidths[Button] = Width
+	ResizeListButton(Button, Width)
+end
+
 local function Render()
 	if not Gui then
 		return
 	end
+
+	for Button, OriginalImage in BuildOptionImages do
+		Button.Image = if Button.Name == SelectedTab then SELECTED_BUILD_OPTION_IMAGE else OriginalImage
+	end
+
 	RenderTools()
 	ClearList()
 	Scroll.CanvasPosition = Vector2.zero
@@ -252,6 +280,7 @@ local function Render()
 		for Index, Entry in Catalog.GetObjects(Tab, CategoryName, Search.Text) do
 			local Child = Entry.Asset
 			local Button = Templates:WaitForChild("ObjectTemplate"):Clone() :: ImageButton
+			RegisterListButton(Button)
 			ObjectButtons[Button] = { Cost = Resources.GetCost(Child), Background = Button.BackgroundColor3 }
 			Button.Name = Child.Name
 			Button.LayoutOrder = Index
@@ -290,6 +319,7 @@ local function Render()
 			end
 			local IsAll = Child == Tab
 			local Button = Templates:WaitForChild("CategoryTemplate"):Clone() :: ImageButton
+			RegisterListButton(Button)
 			Button.Name = if IsAll then "ALL" else Child.Name
 			Button.LayoutOrder = Index
 			SetText(Button, "ItemName", if IsAll then "ALL" else Child:GetAttribute("DisplayName") or Child.Name)
@@ -316,13 +346,34 @@ local function BindGui(Screen: ScreenGui)
 	Scroll = Wrapper:WaitForChild("Scroll") :: ScrollingFrame
 	local SearchFrame = List:WaitForChild("Search") :: ImageLabel
 	Search = SearchFrame:WaitForChild("Search") :: TextBox
-	Scroll.AutomaticCanvasSize = Enum.AutomaticSize.X
+	Scroll.Active = true
+	Scroll.ScrollingEnabled = true
+	Scroll.ClipsDescendants = true
+	Scroll.AutomaticCanvasSize = Enum.AutomaticSize.None
 	Scroll.CanvasSize = UDim2.fromScale(0, 0)
 	Scroll.ScrollingDirection = Enum.ScrollingDirection.X
 	local Layout = Scroll:FindFirstChildWhichIsA("UIListLayout")
 	if Layout then
 		Layout.FillDirection = Enum.FillDirection.Horizontal
+		Layout.Wraps = false
 		Layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+		local Padding = Layout.Padding
+		local function ResizeList()
+			Layout.Padding = UDim.new(0, Scroll.AbsoluteWindowSize.X * Padding.Scale + Padding.Offset)
+			for Button, Width in ListButtonWidths do
+				ResizeListButton(Button, Width)
+			end
+		end
+
+		local function UpdateCanvas()
+			Scroll.CanvasSize = UDim2.fromOffset(math.ceil(Layout.AbsoluteContentSize.X), 0)
+		end
+
+		Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateCanvas)
+		Scroll:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(ResizeList)
+		ResizeList()
+		UpdateCanvas()
 	end
 
 	local ResourcePanel = Gui:FindFirstChild("Resources") :: Frame?
@@ -340,6 +391,8 @@ local function BindGui(Screen: ScreenGui)
 		Deletion:Toggle()
 	end)
 	local TransformButton = ToolsContent:WaitForChild("Transform") :: ImageButton
+	TransformIcon = TransformButton:FindFirstChild("Icon") :: ImageLabel?
+	TransformTitle = TransformButton:FindFirstChild("Title") :: TextLabel?
 	TransformStroke = TransformButton:FindFirstChildWhichIsA("UIStroke")
 	TransformStrokeColor = if TransformStroke then TransformStroke.Color else nil
 	TransformButton.Activated:Connect(function()
@@ -355,8 +408,10 @@ local function BindGui(Screen: ScreenGui)
 	RenderHistoryButtons()
 	local Options = Gui:WaitForChild("BuildOptions") :: Frame
 	local Buttons = Options:WaitForChild("Buttons") :: Frame
+	table.clear(BuildOptionImages)
 	for _, TabName in { "Decorations", "Utility", "Terrain" } do
 		local Button = Buttons:WaitForChild(TabName) :: ImageButton
+		BuildOptionImages[Button] = Button.Image
 		Button.Activated:Connect(function()
 			if not Editor:IsOpen() then
 				return

@@ -9,10 +9,13 @@ export type State = {
 	Boost: number,
 	LastTap: number,
 	Multiplier: number,
+	TrotMultiplier: number,
 }
 
-function HorseGaitController.Create(): State
-	return { Held = false, Boost = 0, LastTap = -math.huge, Multiplier = Settings.TrotMultiplier }
+function HorseGaitController.Create(MaximumSpeed: number): State
+	local TrotMultiplier = Settings.TrotSpeed / MaximumSpeed
+
+	return { Held = false, Boost = 0, LastTap = -math.huge, Multiplier = TrotMultiplier, TrotMultiplier = TrotMultiplier }
 end
 
 function HorseGaitController.SetHeld(State: State, Held: boolean, Now: number)
@@ -46,9 +49,9 @@ function HorseGaitController.Update(State: State, DeltaTime: number, Now: number
 	elseif Now - State.LastTap > Settings.TapGrace then
 		State.Boost = math.max(0, State.Boost - Settings.BoostDecay * DeltaTime)
 	end
-	local Target = Settings.TrotMultiplier
+	local Target = State.TrotMultiplier
 	if Moving then
-		Target += (1 - Settings.TrotMultiplier) * State.Boost
+		Target += (1 - State.TrotMultiplier) * State.Boost
 		if State.Held then
 			Target = math.max(Target, Settings.GallopMultiplier)
 		end

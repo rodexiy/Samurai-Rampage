@@ -50,7 +50,7 @@ return function(Animator: any): string
 			end
 			local CanterFrequency = 0
 			local CanterFrontSpan, CanterRearSpan, CanterFrontLift = 0, 0, 0
-			for Stage, Multiplier in { Config.Gaits.TrotMultiplier, Config.Gaits.GallopMultiplier, 1 } do
+			for Stage, Multiplier in { Config.Gaits.TrotSpeed / Stats.Speed, Config.Gaits.GallopMultiplier, 1 } do
 				local Contacts = {}
 				local BodyLow, BodyHigh, PitchLow, PitchHigh = math.huge, -math.huge, math.huge, -math.huge
 				local MaximumFrontBend, Extended, Recovery = 0, 0, 0

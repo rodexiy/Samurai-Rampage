@@ -41,7 +41,7 @@ return function(Animator: any): string
 			Horse.Parent = Fixture
 			Active = Animator.Create(Horse, Targets)
 			local Frequencies = {}
-			for Index, Multiplier in { Config.Gaits.TrotMultiplier, Config.Gaits.GallopMultiplier, 1 } do
+			for Index, Multiplier in { Config.Gaits.TrotSpeed / Stats.Speed, Config.Gaits.GallopMultiplier, 1 } do
 				for _ = 1, 150 do
 					Horse:PivotTo(Horse:GetPivot() - Vector3.zAxis * Stats.Speed * Multiplier / 60)
 					Animator.Update(Active, 1 / 60, 0, 2, true)
@@ -55,7 +55,7 @@ return function(Animator: any): string
 			end
 			Check(Frequencies[3] > Frequencies[2] + 0.1, "Repeated Shift presses produce a visibly faster running cadence")
 			for _ = 1, 150 do
-				Horse:PivotTo(Horse:GetPivot() - Vector3.zAxis * Stats.Speed * Config.Gaits.TrotMultiplier / 60)
+				Horse:PivotTo(Horse:GetPivot() - Vector3.zAxis * Config.Gaits.TrotSpeed / 60)
 				Animator.Update(Active, 1 / 60, 0, 2, true)
 			end
 			Check(Active.Gallop < 0.01, "Slowing down blends the animation back into the trot")

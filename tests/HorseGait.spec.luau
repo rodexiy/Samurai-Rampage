@@ -2,6 +2,8 @@ return function(Gait: any, Steering: any): string
 	local ReplicatedStorage = game:GetService("ReplicatedStorage")
 	local Config = require(ReplicatedStorage.Shared.HorseConfig)
 	local Settings = Config.Gaits
+	local DefaultSpeed = Config.Tiers[1].Speed
+	local TrotMultiplier = Settings.TrotSpeed / DefaultSpeed
 	local Checks = 0
 	local function Check(Condition: boolean, Message: string)
 		assert(Condition, Message)
@@ -9,8 +11,8 @@ return function(Gait: any, Steering: any): string
 	end
 
 	for _, FPS in { 30, 60, 120 } do
-		local State = Gait.Create()
-		Check(State.Multiplier == Settings.TrotMultiplier, "Start in trot")
+		local State = Gait.Create(DefaultSpeed)
+		Check(State.Multiplier == TrotMultiplier, "Start in trot")
 		Gait.SetHeld(State, true, 0)
 		for Frame = 1, FPS * 2 do
 			Gait.SetHeld(State, true, Frame / FPS)
@@ -18,7 +20,7 @@ return function(Gait: any, Steering: any): string
 		end
 		Check(State.Boost == 0 and math.abs(State.Multiplier - Settings.GallopMultiplier) < 0.001,
 			"Holding Shift reaches gallop without generating repeated taps")
-		State = Gait.Create()
+		State = Gait.Create(DefaultSpeed)
 		for Frame = 0, FPS * 3 do
 			local Time = Frame / FPS
 			local Held = Time % 0.3 < 0.1
@@ -37,11 +39,11 @@ return function(Gait: any, Steering: any): string
 				Check(Value > Settings.GallopMultiplier, "Stopping the taps preserves momentum briefly")
 			end
 		end
-		Check(math.abs(State.Multiplier - Settings.TrotMultiplier) < 0.001 and State.Boost == 0,
+		Check(math.abs(State.Multiplier - TrotMultiplier) < 0.001 and State.Boost == 0,
 			"No new presses eventually return to trot")
 	end
 
-	local State = Gait.Create()
+	local State = Gait.Create(DefaultSpeed)
 	Gait.SetHeld(State, true, 0)
 	Gait.SetHeld(State, false, 0.01)
 	Gait.SetHeld(State, true, 0.02)
@@ -50,25 +52,41 @@ return function(Gait: any, Steering: any): string
 		Gait.SetHeld(State, Frame % 10 < 5, Frame / 60)
 		Gait.Update(State, 1 / 60, Frame / 60, false)
 	end
-	Check(State.Boost == 0 and State.Multiplier == Settings.TrotMultiplier, "Standing still cannot bank running boosts")
+	Check(State.Boost == 0 and State.Multiplier == TrotMultiplier, "Standing still cannot bank running boosts")
 	Gait.Cancel(State)
 	Check(not State.Held and State.Boost == 0, "Losing focus releases the gait control")
 
 	for _, Stats in Config.Tiers do
+		local TierGait = Gait.Create(Stats.Speed)
+		local WalkMultiplier = Gait.Update(TierGait, 1 / 60, 0, true)
 		local Motion = Steering.Create(CFrame.identity, Vector3.zero)
-		for _, Multiplier in { Settings.TrotMultiplier, Settings.GallopMultiplier, 1 } do
+		for Index, Multiplier in { WalkMultiplier, Settings.GallopMultiplier, 1 } do
 			for _ = 1, 180 do
 				local Frame = CFrame.lookAt(Vector3.zero, Motion.Heading)
 				Steering.Update(Motion, Frame, Frame.LookVector * Motion.Speed, -Vector3.zAxis,
 					Stats, 1 / 60, true, Vector3.zero, Multiplier)
 			end
 			Check(math.abs(Motion.Speed - Stats.Speed * Multiplier) < 0.01, "Each tier reaches the selected gait speed")
+			if Index == 1 then
+				Check(math.abs(Motion.Speed - Settings.TrotSpeed) < 0.01, "Walking speed is identical across tiers")
+			end
 		end
 		local Before = Motion.Speed
 		Steering.Update(Motion, CFrame.identity, -Vector3.zAxis * Before, -Vector3.zAxis,
-			Stats, 1 / 60, true, Vector3.zero, Settings.TrotMultiplier)
-		Check(Motion.Speed > Stats.Speed * Settings.TrotMultiplier and Motion.Speed < Before,
+			Stats, 1 / 60, true, Vector3.zero, WalkMultiplier)
+		Check(Motion.Speed > Settings.TrotSpeed and Motion.Speed < Before,
 			"Changing the gait cannot instantly clamp the physical speed")
+		for Frame = 1, 60 * 6 do
+			Gait.SetHeld(TierGait, Frame / 60 % 0.3 < 0.1, Frame / 60)
+			Gait.Update(TierGait, 1 / 60, Frame / 60, true)
+		end
+		Check(TierGait.Multiplier > 0.99, "Every tier can still reach its full running speed")
+		Gait.Cancel(TierGait)
+		for Frame = 1, 60 * 6 do
+			Gait.Update(TierGait, 1 / 60, 6 + Frame / 60, true)
+		end
+		Check(math.abs(TierGait.Multiplier * Stats.Speed - Settings.TrotSpeed) < 0.01,
+			"Every tier returns to the shared walking speed after running")
 	end
 
 	return string.format("HorseGait: %d checks passed", Checks)

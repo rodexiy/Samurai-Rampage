@@ -10,8 +10,10 @@ local Resources = require(ReplicatedStorage.Shared.RealmResources)
 local RealmPlacementController = Knit.CreateController({ Name = "RealmPlacementController" })
 local Finished = Instance.new("BindableEvent")
 local Started = Instance.new("BindableEvent")
+local Placed = Instance.new("BindableEvent")
 RealmPlacementController.Finished = Finished.Event
 RealmPlacementController.Started = Started.Event
+RealmPlacementController.Placed = Placed.Event
 
 local Player = Players.LocalPlayer
 local Editor, Pointer, ResourceController, Service, InventoryService, AlertController
@@ -317,6 +319,9 @@ local function PlacementResult(Id: number, Success: boolean, Reason: string?)
 		if Moving then
 			RealmPlacementController:Cancel()
 		else
+			if Preview and Selected then
+				Placed:Fire(Preview, Selected.Category)
+			end
 			Step()
 		end
 	else

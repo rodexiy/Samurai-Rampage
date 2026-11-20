@@ -24,9 +24,9 @@ return function(Animator: any): string
 		for _, Tier in { 1, 5 } do
 			for _, Pitch in { -35, 35 } do
 				for _, Playback in {
-					{ FPS = 30, Multiplier = Config.Gaits.TrotMultiplier },
-					{ FPS = 60, Multiplier = Config.Gaits.TrotMultiplier },
-					{ FPS = 120, Multiplier = Config.Gaits.TrotMultiplier },
+					{ FPS = 30, Multiplier = Config.Gaits.TrotSpeed / Config.GetTier(Tier).Speed },
+					{ FPS = 60, Multiplier = Config.Gaits.TrotSpeed / Config.GetTier(Tier).Speed },
+					{ FPS = 120, Multiplier = Config.Gaits.TrotSpeed / Config.GetTier(Tier).Speed },
 					{ FPS = 60, Multiplier = Config.Gaits.GallopMultiplier },
 					{ FPS = 60, Multiplier = 1 },
 				} do

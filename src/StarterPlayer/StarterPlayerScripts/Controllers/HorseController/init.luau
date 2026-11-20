@@ -77,7 +77,8 @@ local function SetControlledHorse(Model: Model?)
 	HorseMountedAnimationController.Reset(MountedAnimation)
 	ControlledHorse = Model
 	Grounding = if Model then HorseGrounding.Create(Model) else nil
-	Gait = if Model then HorseGaitController.Create() else nil
+	local Stats = if Model then HorseConfig.GetTier(Model:GetAttribute("HorseTier")) else nil
+	Gait = if Stats then HorseGaitController.Create(Stats.Speed) else nil
 	Avoidance = if Model then HorseAvoidanceController.Create() else nil
 	table.clear(ShiftKeys)
 	Steering = if Model and Model.PrimaryPart
@@ -165,7 +166,7 @@ local function Simulate(DeltaTime: number)
 			Steering = HorseSteeringController.Create(Root.CFrame, Root.AssemblyLinearVelocity)
 		end
 		local SpeedMultiplier = if Gait then HorseGaitController.Update(Gait, DeltaTime, os.clock(), Direction.Magnitude > 0.01)
-			else HorseConfig.Gaits.TrotMultiplier
+			else HorseConfig.Gaits.TrotSpeed / Stats.Speed
 		local AvoidanceMultiplier = 1
 		if Avoidance then
 			Direction, AvoidanceMultiplier = HorseAvoidanceController.Update(Avoidance, Grounding, Direction,

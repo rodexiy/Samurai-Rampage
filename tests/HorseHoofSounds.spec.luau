@@ -182,7 +182,7 @@ return function(Animator: any, Audio: any): string
 			Horse:PivotTo(CFrame.new(Origin + Vector3.yAxis * Height * 0.5))
 			Horse.Parent = Fixture
 			Active = Animator.Create(Horse, Targets)
-			for _, Speed in { Config.GetTier(Tier).Speed * Config.Gaits.TrotMultiplier, Config.GetTier(Tier).Speed } do
+			for _, Speed in { Config.Gaits.TrotSpeed, Config.GetTier(Tier).Speed } do
 				local Steps = { 0, 0, 0, 0 }
 				for _ = 1, 240 do
 					local Before = {}
