@@ -52,6 +52,7 @@ function FinderService:GetClosestTarget(
 	local Target
 	local ClosestDistance
 	local WisdomWorldOwnerId = Character:GetAttribute("WisdomWorldOwnerId")
+	local OwnerId = WisdomWorldOwnerId or Character:GetAttribute("IntroOwnerUserId")
 
 	local function CheckCandidate(Entity: Model)
 		if not Entity then
@@ -66,9 +67,9 @@ function FinderService:GetClosestTarget(
 		if Entity:GetAttribute("ForceField") and not WisdomWorldOwnerId then
 			return
 		end
-		if WisdomWorldOwnerId then
+		if OwnerId then
 			local CandidatePlayer = Players:GetPlayerFromCharacter(Entity)
-			if not CandidatePlayer or CandidatePlayer.UserId ~= WisdomWorldOwnerId then
+			if not CandidatePlayer or CandidatePlayer.UserId ~= OwnerId then
 				return
 			end
 		end

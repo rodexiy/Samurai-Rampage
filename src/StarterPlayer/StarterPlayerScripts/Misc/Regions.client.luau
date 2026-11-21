@@ -225,6 +225,7 @@ local function PlayCombatMusic(regionName)
 	local song = combatFolder:GetChildren()[math.random(1, #combatFolder:GetChildren())]
 	DebugPrint("[COMBAT] Playing combat track:", song.Name)
 	CurrentCombatOST = song:Clone()
+	CurrentCombatOST:SetAttribute("CombatMusic", true)
 	CurrentCombatOST.Parent = SoundService
 	CurrentCombatOST.Volume = 0
 	CurrentCombatOST:Play()

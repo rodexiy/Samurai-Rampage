@@ -9,6 +9,7 @@ local LightingController = Knit.CreateController({
 })
 
 local LightLoader = require(ReplicatedStorage.Shared.LightLoader)
+local IntroCutsceneConfig = require(ReplicatedStorage.Shared.IntroCutsceneConfig)
 
 local Player = Players.LocalPlayer
 
@@ -32,7 +33,9 @@ end
 function LightingController:LoadLighting()
 	local LightingToApply
 
-	if Player:GetAttribute("InWisdomWorld") then
+	if Player:GetAttribute("InIntroCutscene") then
+		LightingToApply = Lighting:FindFirstChild(IntroCutsceneConfig.StormLightingName) or Lighting.Normal
+	elseif Player:GetAttribute("InWisdomWorld") then
 		LightingToApply = GetWisdomWorldLighting()
 	elseif Player:GetAttribute("LightingRegion") then
 		LightingToApply = Lighting:FindFirstChild(Player:GetAttribute("LightingRegion")) or Lighting.Normal
@@ -53,6 +56,10 @@ function LightingController.KnitStart()
 	end)
 
 	Player:GetAttributeChangedSignal("InWisdomWorld"):Connect(function()
+		LightingController:LoadLighting()
+	end)
+
+	Player:GetAttributeChangedSignal("InIntroCutscene"):Connect(function()
 		LightingController:LoadLighting()
 	end)
 

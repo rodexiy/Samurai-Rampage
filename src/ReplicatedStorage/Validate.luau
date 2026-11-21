@@ -1,4 +1,5 @@
 local GeneralCantAttributes = {
+	"IntroOpening",
 	"Mounted",
 	"Died",
 	"Ragdoll",
@@ -37,6 +38,7 @@ end
 local Validate = {}
 
 function Validate:CanEquipWeapon(Character: Model, AllowRangedSwitch: boolean?): boolean
+	if Character:GetAttribute("IntroTutorialAction") then return false end
 	if Character:GetAttribute("BowEquipped") and not AllowRangedSwitch then
 		return false
 	end
@@ -60,6 +62,7 @@ function Validate:CanEquipWeapon(Character: Model, AllowRangedSwitch: boolean?):
 end
 
 function Validate:CanRun(Character: Model)
+	if Character:GetAttribute("IntroTutorialAction") then return false end
 	local Humanoid = Character:FindFirstChild("Humanoid")
 	return isFalse(Character, GeneralCantAttributes)
 		and isFalse(Character, {
@@ -78,6 +81,8 @@ function Validate:CanRun(Character: Model)
 end
 
 function Validate:CanRoll(Character: Model)
+	local Action = Character:GetAttribute("IntroTutorialAction")
+	if Action and Action ~= "Dodge" then return false end
 	return isFalse(Character, GeneralCantAttributes)
 		and isFalse(Character, {
 			"UsingSkillCantAttack",
@@ -94,6 +99,8 @@ function Validate:CanRoll(Character: Model)
 end
 
 function Validate:CanBlock(Character: Model)
+	local Action = Character:GetAttribute("IntroTutorialAction")
+	if Action and Action ~= "Parry" then return false end
 	if Character:GetAttribute("BowEquipped") then
 		return false
 	end
@@ -113,6 +120,8 @@ function Validate:CanBlock(Character: Model)
 end
 
 function Validate:CanAttack(Character: Model)
+	local Action = Character:GetAttribute("IntroTutorialAction")
+	if Action and Action ~= "Attack" then return false end
 	if Character:GetAttribute("BowEquipped") then
 		return false
 	end
@@ -146,6 +155,7 @@ function Validate:CanAttack(Character: Model)
 end
 
 function Validate:CanStrongAttack(Character: Model)
+	if Character:GetAttribute("IntroTutorialAction") then return false end
 	if Character:GetAttribute("BowEquipped") then
 		return false
 	end

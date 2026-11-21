@@ -18,6 +18,8 @@ local BloodService
 local BuffService
 local SkillService
 local InCombatService
+local IntroCutsceneService
+local IntroCombatTutorialService
 
 function HitService:IsInFront(Attacker: Model, Character: Model)
 	local amountForward = Character:GetPivot().LookVector
@@ -42,6 +44,13 @@ function HitService:ApplyWeaponHitBuffs(Character: Model, Attacker: Model, _Data
 end
 
 function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data: { any })
+	if Character:GetAttribute("IntroTutorialProtected") then
+		local Result = IntroCombatTutorialService:ResolveHit(Character, Attacker, Data)
+		if Result then
+			return Result
+		end
+	end
+
 	if Character.Parent == workspace.NPCs then
 		return
 	end
@@ -52,6 +61,10 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 
 	if not DamageService:CanDamage(Character, Attacker) then
 		return
+	end
+
+	if IntroCutsceneService:TryInterceptHit(Character, Damage, Attacker) then
+		return "HeavyParry"
 	end
 
 	InCombatService:SetInCombat(Character, true, Attacker)
@@ -93,6 +106,13 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 end
 
 function HitService:NormalHit(Character: Model, Attacker: Model, Damage: number, Data: { any })
+	if Character:GetAttribute("IntroTutorialProtected") then
+		local Result = IntroCombatTutorialService:ResolveHit(Character, Attacker, Data)
+		if Result then
+			return self:ResolveHitResult(Character, Attacker, Damage, Data, Result)
+		end
+	end
+
 	if not DamageService:CanDamage(Character, Attacker) then
 		return
 	end
@@ -152,6 +172,8 @@ function HitService.KnitInit()
 	BuffService = Knit.GetService("BuffService")
 	SkillService = Knit.GetService("SkillService")
 	InCombatService = Knit.GetService("InCombatService")
+	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
+	IntroCombatTutorialService = Knit.GetService("IntroCombatTutorialService")
 end
 
 function HitService.KnitStart() end

@@ -69,6 +69,7 @@ local ForcedMouseApplied = false
 local MenuMouseApplied = false
 local SavedMenuMouseIcon: boolean? = nil
 local HotbarController
+local IntroCutsceneController
 local BowDrawStarted: number? = nil
 local BowDrawSeed = 0
 local BowFocusZoom = false
@@ -603,6 +604,10 @@ local function UpdateShoulderCamera(DeltaTime: number)
 		Pose = CFrame.new(Position) * Pose.Rotation
 	end
 
+	if IntroCutsceneController and IsGameplayCamera() then
+		Pose = IntroCutsceneController:ApplyCameraSway(Pose, DeltaTime)
+	end
+
 	AppliedCamera = Camera
 	NativeCFrame = BaseCFrame
 	NativeFocus = Camera.Focus
@@ -791,6 +796,7 @@ end
 
 function CameraController.KnitInit()
 	HotbarController = Knit.GetController("HotbarController")
+	IntroCutsceneController = Knit.GetController("IntroCutsceneController")
 end
 
 function CameraController.KnitStart()

@@ -41,6 +41,7 @@ return {
 	},
 
 	Story = {},
+	IntroCutsceneCompleted = false,
 	CompletedTriggers = {},
 
 	RaceVariant = 1,

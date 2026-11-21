@@ -14,6 +14,7 @@ local Connections = Collector.new()
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local DeviceController = Knit.GetController("DeviceController")
 local CameraController = Knit.GetController("CameraController")
+local IntroCutsceneController = Knit.GetController("IntroCutsceneController")
 
 local function getClosestEnemy(): (Model?, { Model })
 	local dist = math.huge
@@ -21,7 +22,12 @@ local function getClosestEnemy(): (Model?, { Model })
 	local EnemiesInArea = {}
 
 	for _, enemy in workspace.Entity:GetChildren() do
-		if enemy:IsA("Model") and enemy ~= Character and not enemy:GetAttribute("Died") and not enemy:GetAttribute("Downed") then
+		if
+			enemy:IsA("Model")
+			and enemy ~= Character
+			and not enemy:GetAttribute("Died")
+			and not enemy:GetAttribute("Downed")
+		then
 			local Primary = enemy.PrimaryPart
 			if not Primary then
 				continue
@@ -109,7 +115,9 @@ Unlock = function()
 		return
 	end
 	Player:SetAttribute("MouseLocked", PreviousMouseLocked)
-	UserInputService.MouseBehavior = if PreviousMouseLocked then Enum.MouseBehavior.LockCenter else Enum.MouseBehavior.Default
+	UserInputService.MouseBehavior = if PreviousMouseLocked
+		then Enum.MouseBehavior.LockCenter
+		else Enum.MouseBehavior.Default
 	UserInputService.MouseIconEnabled = PreviousMouseIconEnabled
 	if PreviousAutoRotate ~= nil then
 		Humanoid.AutoRotate = PreviousAutoRotate
@@ -137,7 +145,12 @@ Unlock = function()
 	enemyLocked = nil
 end
 
-LockOn.callback = function(inputState: Enum.UserInputState, _Input: InputObject?, TargetOverride: Model?, ZoomOverride: number?)
+LockOn.callback = function(
+	inputState: Enum.UserInputState,
+	_Input: InputObject?,
+	TargetOverride: Model?,
+	ZoomOverride: number?
+)
 	if inputState ~= Enum.UserInputState.Begin or Character:GetAttribute("BowEquipped") then
 		return
 	end
@@ -145,8 +158,11 @@ LockOn.callback = function(inputState: Enum.UserInputState, _Input: InputObject?
 	local LockStatus = {
 		[true] = function()
 			Camera = workspace.CurrentCamera
-			if not Camera or Camera.CameraType ~= Enum.CameraType.Custom
-				or Character:GetAttribute("RealmTeleporting") or Character:GetAttribute("CameraCutscene")
+			if
+				not Camera
+				or Camera.CameraType ~= Enum.CameraType.Custom
+				or Character:GetAttribute("RealmTeleporting")
+				or Character:GetAttribute("CameraCutscene")
 			then
 				return
 			end
@@ -212,67 +228,89 @@ LockOn.callback = function(inputState: Enum.UserInputState, _Input: InputObject?
 			Camera.CameraType = Enum.CameraType.Scriptable
 			UserInputService.MouseIconEnabled = false
 
-			RunService:BindToRenderStep("LockCameraRenderStep", Enum.RenderPriority.Camera.Value + 1, function(dt: number)
-				if not Character.Parent or not enemyLocked or not enemyLocked.Parent or not enemyLocked.PrimaryPart
-					or Character:GetAttribute("Died") or Character:GetAttribute("Meditating")
-					or Character:GetAttribute("RealmTeleporting")
-					or Character:GetAttribute("CameraCutscene")
-					or enemyLocked:GetAttribute("Died") or enemyLocked:GetAttribute("Downed")
-					or workspace.CurrentCamera ~= Camera
-				then
-					Unlock()
-					return
-				end
+			RunService:BindToRenderStep(
+				"LockCameraRenderStep",
+				Enum.RenderPriority.Camera.Value + 1,
+				function(dt: number)
+					if
+						not Character.Parent
+						or not enemyLocked
+						or not enemyLocked.Parent
+						or not enemyLocked.PrimaryPart
+						or Character:GetAttribute("Died")
+						or Character:GetAttribute("Meditating")
+						or Character:GetAttribute("RealmTeleporting")
+						or Character:GetAttribute("CameraCutscene")
+						or enemyLocked:GetAttribute("Died")
+						or enemyLocked:GetAttribute("Downed")
+						or workspace.CurrentCamera ~= Camera
+					then
+						Unlock()
+						return
+					end
 
-				local MouseUnlocked = CameraController:IsMouseUnlocked()
-				if not MouseUnlocked then
-					ChangeTarget()
-				end
-				if not enemyLocked or not enemyLocked.PrimaryPart then
-					return
-				end
+					local MouseUnlocked = CameraController:IsMouseUnlocked()
+					if not MouseUnlocked then
+						ChangeTarget()
+					end
+					if not enemyLocked or not enemyLocked.PrimaryPart then
+						return
+					end
 
-				UserInputService.MouseBehavior = if MouseUnlocked then Enum.MouseBehavior.Default else Enum.MouseBehavior.LockCenter
-				UserInputService.MouseIconEnabled = MouseUnlocked
+					UserInputService.MouseBehavior = if MouseUnlocked
+						then Enum.MouseBehavior.Default
+						else Enum.MouseBehavior.LockCenter
+					UserInputService.MouseIconEnabled = MouseUnlocked
 
-				local PlayerFocus = RootPart.Position + Vector3.new(0, 1.2, 0)
-				local EnemyFocus = enemyLocked.PrimaryPart.Position + Vector3.new(0, 1, 0)
-				local Difference = EnemyFocus - PlayerFocus
-				if Difference.Magnitude > 65 then
-					Unlock()
-					return
-				end
+					local PlayerFocus = RootPart.Position + Vector3.new(0, 1.2, 0)
+					local EnemyFocus = enemyLocked.PrimaryPart.Position + Vector3.new(0, 1, 0)
+					local Difference = EnemyFocus - PlayerFocus
+					if Difference.Magnitude > 65 then
+						Unlock()
+						return
+					end
 
-				local FlatDirection = Difference * Vector3.new(1, 0, 1)
-				if FlatDirection.Magnitude < 0.001 then
-					return
-				end
+					local FlatDirection = Difference * Vector3.new(1, 0, 1)
+					if FlatDirection.Magnitude < 0.001 then
+						return
+					end
 
-				local Facing = CFrame.lookAt(PlayerFocus, PlayerFocus + FlatDirection)
-				local Alpha = 1 - math.exp(-10 * math.max(dt, 0))
-				SmoothedZoomDistance += (CombatZoomDistance - SmoothedZoomDistance) * Alpha
-				local DesiredPosition = (Facing * CFrame.new(2.15 * CameraController:GetShoulderSide(), 1.8, SmoothedZoomDistance)).Position
-				DesiredPosition = CameraController:GetCollisionSafePosition(PlayerFocus, DesiredPosition)
-				SmoothedCameraPosition = CameraController:GetCollisionSafePosition(
-					PlayerFocus,
-					SmoothedCameraPosition:Lerp(DesiredPosition, Alpha)
-				)
-				SmoothedFocus = SmoothedFocus:Lerp(PlayerFocus:Lerp(EnemyFocus, 0.45), Alpha)
-				if (SmoothedFocus - SmoothedCameraPosition).Magnitude > 0.001 then
-					Camera.CFrame = CFrame.lookAt(SmoothedCameraPosition, SmoothedFocus)
-					Camera.Focus = CFrame.new(SmoothedFocus)
-				end
-
-				if PreviousAutoRotate ~= false and not Character:GetAttribute("Ragdoll")
-					and not Character:GetAttribute("PostureBreak") and not Character:GetAttribute("HeavyDeflect")
-					and not Character:GetAttribute("Climbing")
-				then
-					RootPart.CFrame = RootPart.CFrame:Lerp(
-						CFrame.lookAt(RootPart.Position, RootPart.Position + FlatDirection),
-						1 - math.exp(-15 * math.max(dt, 0))
+					local Facing = CFrame.lookAt(PlayerFocus, PlayerFocus + FlatDirection)
+					local Alpha = 1 - math.exp(-10 * math.max(dt, 0))
+					SmoothedZoomDistance += (CombatZoomDistance - SmoothedZoomDistance) * Alpha
+					local DesiredPosition = (Facing * CFrame.new(
+						2.15 * CameraController:GetShoulderSide(),
+						1.8,
+						SmoothedZoomDistance
+					)).Position
+					DesiredPosition = CameraController:GetCollisionSafePosition(PlayerFocus, DesiredPosition)
+					SmoothedCameraPosition = CameraController:GetCollisionSafePosition(
+						PlayerFocus,
+						SmoothedCameraPosition:Lerp(DesiredPosition, Alpha)
 					)
+					SmoothedFocus = SmoothedFocus:Lerp(PlayerFocus:Lerp(EnemyFocus, 0.45), Alpha)
+					if (SmoothedFocus - SmoothedCameraPosition).Magnitude > 0.001 then
+						Camera.CFrame = IntroCutsceneController:ApplyCameraSway(
+							CFrame.lookAt(SmoothedCameraPosition, SmoothedFocus),
+							dt
+						)
+						Camera.Focus = CFrame.new(SmoothedFocus)
+					end
+
+					if
+						PreviousAutoRotate ~= false
+						and not Character:GetAttribute("Ragdoll")
+						and not Character:GetAttribute("PostureBreak")
+						and not Character:GetAttribute("HeavyDeflect")
+						and not Character:GetAttribute("Climbing")
+					then
+						RootPart.CFrame = RootPart.CFrame:Lerp(
+							CFrame.lookAt(RootPart.Position, RootPart.Position + FlatDirection),
+							1 - math.exp(-15 * math.max(dt, 0))
+						)
+					end
 				end
-			end)
+			)
 		end,
 
 		[false] = function()

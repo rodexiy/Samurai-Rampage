@@ -179,6 +179,13 @@ local GeneralSkillDebounce = 0
 function Yamarashi:TryAttack()
 	local Distance = (Target:GetPivot().Position - RootPart:GetPivot().Position).Magnitude
 
+	if Character:GetAttribute("IntroTutorialArmed") then
+		if Distance <= Config.AttackDistance then
+			WeaponService:WeaponInput(Character, "Attack", { RootCFrame = Character:GetPivot() })
+		end
+		return
+	end
+
 	if Config.Skills and math.random(0, 100) <= Config.SkillChance and tick() > GeneralSkillDebounce then
 		local SkillToUse = Config.Skills[math.random(1, #Config.Skills)]
 
@@ -227,6 +234,10 @@ function Yamarashi:CheckDistanceFromSpawn()
 end
 
 function Yamarashi:Run()
+	if Character:GetAttribute("IntroTutorialActive") then
+		return
+	end
+
 	if Character:GetPivot().Y < 0 then
 		Character:PivotTo(Character:GetAttribute("SpawnCFrame"))
 		return
@@ -366,6 +377,10 @@ function Yamarashi.Start(_Config)
 
 	if HitboxDetected then
 		HitboxDetected.Event:Connect(function(Attacker: Model)
+			if Character:GetAttribute("IntroTutorialActive") then
+				return
+			end
+
 			if not Target then
 				Target = Attacker
 			end

@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
+local IntroCutsceneConfig = require(ReplicatedStorage.Shared.IntroCutsceneConfig)
 
 local WeatherController = Knit.CreateController({
 	Name = "WeatherController",
@@ -251,6 +252,7 @@ end
 
 local Cloud: Clouds = workspace.Terrain.Clouds
 local CoverTweenInfo = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local CoverTween: Tween?
 
 function WeatherController:UpdateWeather()
 	if workspace:GetAttribute("InMainMenu") then
@@ -267,7 +269,17 @@ function WeatherController:UpdateWeather()
 		workspace:SetAttribute("Weather", "Clear")
 	end
 
-	TweenService:Create(Cloud, CoverTweenInfo, { Cover = currentHumidity }):Play()
+	if CoverTween then
+		CoverTween:Cancel()
+		CoverTween = nil
+	end
+
+	if Players.LocalPlayer:GetAttribute("InIntroCutscene") then
+		Cloud.Cover = IntroCutsceneConfig.Environment.CloudCover
+	else
+		CoverTween = TweenService:Create(Cloud, CoverTweenInfo, { Cover = currentHumidity })
+		CoverTween:Play()
+	end
 
 	currentWeather = workspace:GetAttribute("Weather")
 end
@@ -277,6 +289,10 @@ function WeatherController.KnitInit()
 end
 
 function WeatherController.KnitStart()
+	Players.LocalPlayer:GetAttributeChangedSignal("InIntroCutscene"):Connect(function()
+		WeatherController:UpdateWeather()
+	end)
+
 	Players.PlayerAdded:Connect(bindPlayer)
 	Players.PlayerRemoving:Connect(function(Player: Player)
 		WeatherController:RemoveBreathEffect(Player.Character)

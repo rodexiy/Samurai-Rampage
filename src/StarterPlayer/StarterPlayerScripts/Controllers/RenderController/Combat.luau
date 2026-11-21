@@ -157,8 +157,7 @@ function Combat.Deflect(Data)
 	VFX.Parent = workspace.VFX
 
 	if not IsCounter then
-		local Deflect = SoundEffectController:PlayRandomFromFolder("Deflect", true, CharacterToRender.PrimaryPart)
-		SoundEffectController:AddPitchEffect(Deflect, 0.9, 1.25)
+		SoundEffectController:PlayRandomFromFolder("Deflect", true, CharacterToRender.PrimaryPart)
 	else
 		SoundEffectController:PlaySoundEffect("Deflected", true, CharacterToRender.PrimaryPart)
 	end

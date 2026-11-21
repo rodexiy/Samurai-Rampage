@@ -16,34 +16,9 @@ local StatusDisplayManager = require(game.ReplicatedStorage.Shared.Utils.StatusD
 
 local MobData = require(game.ReplicatedStorage.Shared.Index.Mobs)
 
-local function ScaleCFramePosition(CFrameValue: CFrame, Scale: number): CFrame
-	return CFrameValue.Rotation + (CFrameValue.Position * Scale)
-end
-
 local function ScaleModel(Model: Model, Scale: number)
-	local Pivot = Model:GetPivot()
-
-	for _, Descendant in Model:GetDescendants() do
-		if Descendant:IsA("BasePart") then
-			local RelativeCFrame = Pivot:ToObjectSpace(Descendant.CFrame)
-			Descendant.Size *= Scale
-			Descendant.CFrame = Pivot * ScaleCFramePosition(RelativeCFrame, Scale)
-		elseif Descendant:IsA("Attachment") then
-			Descendant.Position *= Scale
-		elseif Descendant:IsA("SpecialMesh") then
-			Descendant.Scale *= Scale
-			Descendant.Offset *= Scale
-		elseif Descendant:IsA("Motor6D") or Descendant:IsA("Weld") then
-			Descendant.C0 = ScaleCFramePosition(Descendant.C0, Scale)
-			Descendant.C1 = ScaleCFramePosition(Descendant.C1, Scale)
-		end
-	end
-
-	local Humanoid = Model:FindFirstChildOfClass("Humanoid")
-	if Humanoid then
-		Humanoid.HipHeight *= Scale
-	end
-
+	-- Native scaling preserves built-in Head meshes instead of enlarging them twice.
+	Model:ScaleTo(Model:GetScale() * Scale)
 	Model:SetAttribute("AppliedModelScale", Scale)
 end
 

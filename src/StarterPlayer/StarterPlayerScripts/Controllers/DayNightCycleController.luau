@@ -1,8 +1,9 @@
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local IntroCutsceneConfig = require(ReplicatedStorage.Shared.IntroCutsceneConfig)
 
 local DayNightCycleController = Knit.CreateController({
 	Name = "DayNightCycleController",
@@ -27,19 +28,19 @@ local DefaultLightPartColors = {}
 local LightsOn
 
 local function GetCycleWaitTime()
-	return Workspace:GetAttribute(WAIT_TIME_ATTRIBUTE) or DEFAULT_WAIT_TIME
+	return workspace:GetAttribute(WAIT_TIME_ATTRIBUTE) or DEFAULT_WAIT_TIME
 end
 
 local function GetSyncedMinutesAfterMidnight()
-	local StartMinutes = Workspace:GetAttribute(START_MINUTES_ATTRIBUTE)
-	local StartServerTime = Workspace:GetAttribute(START_SERVER_TIME_ATTRIBUTE)
-	local MinutesPerSecond = Workspace:GetAttribute(MINUTES_PER_SECOND_ATTRIBUTE)
+	local StartMinutes = workspace:GetAttribute(START_MINUTES_ATTRIBUTE)
+	local StartServerTime = workspace:GetAttribute(START_SERVER_TIME_ATTRIBUTE)
+	local MinutesPerSecond = workspace:GetAttribute(MINUTES_PER_SECOND_ATTRIBUTE)
 
 	if typeof(StartMinutes) ~= "number" or typeof(StartServerTime) ~= "number" or typeof(MinutesPerSecond) ~= "number" then
 		return Lighting:GetMinutesAfterMidnight()
 	end
 
-	local Elapsed = math.max(0, Workspace:GetServerTimeNow() - StartServerTime)
+	local Elapsed = math.max(0, workspace:GetServerTimeNow() - StartServerTime)
 	return (StartMinutes + Elapsed * MinutesPerSecond) % DAY_MINUTES
 end
 
@@ -96,7 +97,9 @@ local function ToggleLights(IsLightsOn: boolean)
 end
 
 local function UpdateClock()
-	if Player:GetAttribute("InWisdomWorld") then
+	if Player:GetAttribute("InIntroCutscene") then
+		Lighting.ClockTime = IntroCutsceneConfig.Environment.ClockTime
+	elseif Player:GetAttribute("InWisdomWorld") then
 		Lighting.ClockTime = WISDOM_WORLD_CLOCK_TIME
 	else
 		Lighting:SetMinutesAfterMidnight(GetSyncedMinutesAfterMidnight())
@@ -114,6 +117,7 @@ function DayNightCycleController.KnitStart()
 	end)
 
 	Player:GetAttributeChangedSignal("InWisdomWorld"):Connect(UpdateClock)
+	Player:GetAttributeChangedSignal("InIntroCutscene"):Connect(UpdateClock)
 
 	task.spawn(function()
 		while true do

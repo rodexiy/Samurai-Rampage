@@ -5,6 +5,7 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local TeleportCharacter = require(ReplicatedStorage.Shared.Utils.TeleportCharacter)
+local IntroCutsceneConfig = require(ReplicatedStorage.Shared.IntroCutsceneConfig)
 
 local CharacterService = Knit.CreateService({
 	Name = "CharacterService",
@@ -35,6 +36,7 @@ local InCombatService
 local PrisonService
 local KillStreakService
 local RugService
+local IntroCutsceneService
 
 local CachedParts = {}
 local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
@@ -409,27 +411,34 @@ function CharacterService:RestoreCollision(Character: Model, debug: boolean?)
 end
 
 function CharacterService:LoadCharacter(Player: Player)
-	if Player.Parent ~= game.Players then
+	if Player.Parent ~= Players then
 		return
 	end
 
-	local RugSpawn = RugService:GetSpawnCFrame(Player)
+	local IntroSpawn = IntroCutsceneService:GetSpawnCFrame(Player)
+	local SpawnCFrame = IntroSpawn or RugService:GetSpawnCFrame(Player)
 
 	Player:LoadCharacter()
 
 	local Character = Player.Character or Player.CharacterAdded:Wait()
 	InCombatService:SetInCombat(Character, false)
-	local RootPart = Character:WaitForChild("HumanoidRootPart")
+	local RootPart = Character.PrimaryPart
+	assert(RootPart, "Player character requires a PrimaryPart")
 	RootPart.Anchored = true
 	self:SetCollisionGroup(Character)
 
-	repeat
-		Character.Parent = game.Workspace.Entity
-		task.wait()
-	until Character.Parent == game.Workspace.Entity
+	Character.Parent = workspace.Entity
 
-	if RugSpawn then
-		Character:PivotTo(RugSpawn)
+	if SpawnCFrame then
+		if IntroSpawn then
+			Player:RequestStreamAroundAsync(SpawnCFrame.Position, IntroCutsceneConfig.StreamTimeout)
+
+			if Player.Parent ~= Players or Player.Character ~= Character or not Character.Parent then
+				return
+			end
+		end
+
+		Character:PivotTo(SpawnCFrame)
 		ClearAssemblyVelocity(Character)
 	end
 
@@ -461,7 +470,7 @@ function CharacterService:LoadCharacter(Player: Player)
 
 	PrisonService:CheckJoin(Player)
 
-	if not Character or not Character.Parent or not Character:FindFirstChild("HumanoidRootPart") then
+	if not Character or not Character.Parent or not Character.PrimaryPart then
 		return
 	end
 
@@ -470,11 +479,24 @@ function CharacterService:LoadCharacter(Player: Player)
 
 	HitboxService:LoadR6Hitbox(Character)
 
-	RootPart.Anchored = false
+	if IntroSpawn then
+		Character:PivotTo(IntroSpawn)
+		ClearAssemblyVelocity(Character)
+	end
+
+	if IntroSpawn then
+		IntroCutsceneService:PrepareCharacter(Player, Character)
+	else
+		RootPart.Anchored = false
+	end
 
 	ConfigureSmartBoneCollision(Character)
 
 	Character:SetAttribute("Loaded", true)
+
+	if IntroSpawn then
+		IntroCutsceneService:StartOpening(Player, Character)
+	end
 end
 
 function CharacterService:LoadHairByUserId(Character: Model, UserId: number)
@@ -549,7 +571,7 @@ end
 
 function CharacterService:BindRegeneration(Character: Model)
 	task.spawn(function()
-		while Character and not Character:GetAttribute("Died") do
+		while Character.Parent and not Character:GetAttribute("Died") do
 			local MaxHealth = Character:GetAttribute("MaxHealth") or 100
 			local Health = Character:GetAttribute("Health") or MaxHealth
 			local MaxStamina = Character:GetAttribute("MaxStamina") or 100
@@ -649,6 +671,7 @@ function CharacterService.KnitInit()
 	PrisonService = Knit.GetService("PrisonService")
 	KillStreakService = Knit.GetService("KillStreakService")
 	RugService = Knit.GetService("RugService")
+	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
 	local Entity = Instance.new("Folder")
 	Entity.Name = "Entity"
 	Entity.Parent = game.Workspace

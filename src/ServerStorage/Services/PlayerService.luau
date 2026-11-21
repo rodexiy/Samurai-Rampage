@@ -27,6 +27,7 @@ local TutorialService
 local CombatTutorialService
 local TriggerService
 local StatService
+local IntroCutsceneService
 
 function PlayerService:PlayerAdded(Player: Player)
 	if Player:HasTag("Player") then
@@ -64,7 +65,9 @@ function PlayerService:PlayerAdded(Player: Player)
 	end
 
 	TriggerService:SendCompletedTriggers(Player)
-	TutorialService:CreateTutorialMission(Player)
+	if not IntroCutsceneService:ShouldPlay(Player) then
+		TutorialService:CreateTutorialMission(Player)
+	end
 	CharacterService:LoadCharacter(Player)
 end
 
@@ -153,6 +156,8 @@ function PlayerService:ResetDataAndRestartTutorial(Player: Player)
 		PartyService:LeaveParty(Player)
 	end)
 
+	IntroCutsceneService:Cleanup(Player)
+
 	local PlayerData = DataService:ResetData(Player)
 	if not PlayerData then
 		return false, "Data reset failed."
@@ -176,7 +181,9 @@ function PlayerService:ResetDataAndRestartTutorial(Player: Player)
 	Player:SetAttribute("Loaded", true)
 
 	TriggerService:SendCompletedTriggers(Player)
-	TutorialService:CreateTutorialMission(Player)
+	if not IntroCutsceneService:ShouldPlay(Player) then
+		TutorialService:CreateTutorialMission(Player)
+	end
 	CharacterService:LoadCharacter(Player)
 
 	return true
@@ -232,6 +239,7 @@ function PlayerService.KnitInit()
 	CombatTutorialService = Knit.GetService("CombatTutorialService")
 	TriggerService = Knit.GetService("TriggerService")
 	StatService = Knit.GetService("StatService")
+	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
 end
 
 function PlayerService.KnitStart()

@@ -13,10 +13,13 @@ local ItemService
 local ValuesService
 local StanceService
 local StatService
+local IntroCutsceneService
 local Progression = require(ReplicatedStorage.Shared.StatProgression)
 
 function DamageService:CanDamage(Character: Model, _Attacker: Model?): boolean
 	return not Character:GetAttribute("Died") and not Character:GetAttribute("ForceField")
+		and not Character:GetAttribute("IntroOpening")
+		and not Character:GetAttribute("IntroTutorialProtected")
 end
 
 function DamageService:GetMultiplierTotalFromEquipments(Character: Model, MultiplierName: string)
@@ -134,12 +137,19 @@ function DamageService:DealDamage(Character: Model, Amount: number, Attacker: Mo
 		end
 	end
 
+	if IntroCutsceneService:TryInterceptHit(Character, Amount, Attacker) then
+		return
+	end
+
 	local PreviousHealth = Character:GetAttribute("Health")
 	local RemainingDamage = PreviousHealth - Amount
-	Character:SetAttribute(
-		"Health",
-		math.clamp(Character:GetAttribute("Health") - Amount, 0, Character:GetAttribute("MaxHealth"))
-	)
+	local NextHealth = math.clamp(PreviousHealth - Amount, 0, Character:GetAttribute("MaxHealth"))
+	local HealthFloor = Character:GetAttribute("IntroHealthFloor")
+	if typeof(HealthFloor) == "number" then
+		NextHealth = math.max(NextHealth, math.min(HealthFloor, Character:GetAttribute("MaxHealth")))
+		Amount = math.max(0, PreviousHealth - NextHealth)
+	end
+	Character:SetAttribute("Health", NextHealth)
 
 	DamageService:IncrementDamage(Character, Amount, Attacker)
 	StatService:RecordDamage(Character, Attacker, math.min(Amount, PreviousHealth))
@@ -179,6 +189,7 @@ function DamageService.KnitInit()
 	ValuesService = Knit.GetService("ValuesService")
 	StanceService = Knit.GetService("StanceService")
 	StatService = Knit.GetService("StatService")
+	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
 end
 
 function DamageService.KnitStart() end

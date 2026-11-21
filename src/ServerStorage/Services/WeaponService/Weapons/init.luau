@@ -17,6 +17,7 @@ local HitService = Knit.GetService("HitService")
 local DamageService = Knit.GetService("DamageService")
 local ValuesService = Knit.GetService("ValuesService")
 local ClothService = Knit.GetService("ClothService")
+local IntroCombatTutorialService = Knit.GetService("IntroCombatTutorialService")
 
 local Validate = require(ReplicatedStorage.Shared.Validate)
 local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
@@ -78,7 +79,7 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 	AnimationService:StopAnimationFind(Attacker, "Deflected")
 	AnimationService:StopAttackAnimations(Attacker)
 
-	local AttackAnimation, M1Animation: AnimationTrack = WeaponService:PlayM1Animation(Attacker)
+	local AttackAnimation: AnimationTrack, M1Animation: Animation = WeaponService:PlayM1Animation(Attacker)
 	local M1Config = GetM1Config(Attacker)
 	local WeaponSide = GetWeaponSide(M1Config)
 	local AttackAdjustSpeed = Data.Server.AttackAdjustSpeed or 1
@@ -98,6 +99,12 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 	local AttackDelay = (M1Config and M1Config.HitboxDelay) or (AttackDuration * 0.2)
 	local SecondsAdjusted = AttackDuration - (AttackDuration * AttackAdjustSpeed)
 	AttackDelay = AttackDelay - AdjustedSubtract
+
+	-- The intro owns this first sword swing before any hitbox or delayed damage is created.
+	if Attacker:GetAttribute("IntroTutorialArmed")
+		and IntroCombatTutorialService:CaptureSwordAttack(Attacker, AttackAnimation, M1Animation, AttackDelay) then
+		return
+	end
 
 	task.delay(AttackDelay, function()
 		local Difference = tick() - StartTime
