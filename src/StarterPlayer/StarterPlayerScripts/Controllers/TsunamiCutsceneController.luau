@@ -2,11 +2,13 @@ local ContentProvider = game:GetService("ContentProvider")
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local IntroCutsceneConfig = require(ReplicatedStorage.Shared.IntroCutsceneConfig)
+local Constants = require(ReplicatedStorage.Shared.Constants)
 local TsunamiCutsceneController = Knit.CreateController({ Name = "TsunamiCutsceneController" })
 
 type Sequence = {
@@ -14,6 +16,7 @@ type Sequence = {
 	Character: Model,
 	Boss: Model,
 	Revealed: boolean,
+	WakingUp: boolean?,
 	Wave: Model?,
 	WaveStartPosition: Vector3?,
 	WaveTravelDistance: number?,
@@ -21,6 +24,10 @@ type Sequence = {
 	Values: { CFrameValue },
 	Tweens: { Tween },
 	Animations: { AnimationTrack },
+	Grounding: {
+		Restore: () -> (),
+		Connections: { RBXScriptConnection },
+	}?,
 }
 
 type ParryState = {
@@ -32,6 +39,7 @@ type ParryState = {
 
 local Player = Players.LocalPlayer
 local Config = IntroCutsceneConfig.Tsunami
+local WakeUpConfig = IntroCutsceneConfig.WakeUp
 local Active: Sequence?
 local Parry: ParryState?
 local IntroCutsceneService
@@ -42,10 +50,14 @@ local ShipAmbienceController
 local CombatMusicController
 local AnimationController
 local RenderController
+local CameraController
+local WakeUpAnimation = Instance.new("Animation")
+WakeUpAnimation.Name = "IntroWakeUp"
+WakeUpAnimation.AnimationId = IntroCutsceneConfig.WakeUp.AnimationId
 
 local function IsActive(Sequence: Sequence): boolean
 	return Active == Sequence and Player.Character == Sequence.Character
-		and Sequence.Character.Parent ~= nil and Sequence.Boss.Parent ~= nil
+		and Sequence.Character.Parent ~= nil and (Sequence.WakingUp == true or Sequence.Boss.Parent ~= nil)
 end
 
 local function ApplyWaveShake(Sequence: Sequence, Frame: CFrame): CFrame
@@ -74,6 +86,15 @@ local function ApplyWaveShake(Sequence: Sequence, Frame: CFrame): CFrame
 end
 
 local function ClearVisuals(Sequence: Sequence)
+	if Sequence.Grounding then
+		local Grounding = Sequence.Grounding
+		for _, Connection in Grounding.Connections do
+			Connection:Disconnect()
+		end
+		Grounding.Restore()
+		Sequence.Grounding = nil
+	end
+
 	for _, Track in Sequence.Animations do
 		Track:Stop(0.1)
 		Track:Destroy()
@@ -214,6 +235,8 @@ function TsunamiCutsceneController:PlayHeavyParry(Token: string, Character: Mode
 	CancelParry()
 	local State: ParryState = { Token = Token, Character = Character, Boss = Boss, Tracks = {} }
 	Parry = State
+	CutsceneUIController:Prepare(false)
+	CutsceneController:Begin(Character)
 
 	for _, Actor in { Character, Boss } do
 		StopAttacks(Actor)
@@ -302,6 +325,156 @@ function TsunamiCutsceneController:Reveal(Token: string, Character: Model, Boss:
 	IntroCutsceneService.TsunamiFinished:Fire(Token)
 end
 
+local function GetGameplayView(Character: Model): (CFrame, Vector3)
+	local Root = assert(Character.PrimaryPart, "Intro wake-up requires a PrimaryPart")
+	local Target = Root.Position + Vector3.yAxis * WakeUpConfig.GameplayFocusHeight
+	local Position = CameraController:GetCollisionSafePosition(Target, Root.CFrame:PointToWorldSpace(WakeUpConfig.GameplayOffset))
+	return CFrame.lookAt(Position, Target), Target
+end
+
+local function ReleaseWakeUp(Sequence: Sequence)
+	if not IsActive(Sequence) then
+		return
+	end
+
+	ClearVisuals(Sequence)
+	if Sequence.Sound then
+		Sequence.Sound:Destroy()
+	end
+	Active = nil
+	CutsceneController:Finish()
+	CameraController:BlendFromCurrentCamera()
+	CutsceneUIController:Finish()
+	CombatMusicController:Restore()
+	IntroCutsceneService.WakeUpFinished:Fire(Sequence.Token)
+end
+
+local function GroundWakeUpPose(Sequence: Sequence, Track: AnimationTrack)
+	local Root = Sequence.Character.PrimaryPart
+	local Joint = Root and Root:FindFirstChild("RootJoint") :: Motor6D?
+	local Torso = Joint and Joint.Part1
+	if not Root or not Joint or not Torso then
+		return
+	end
+
+	local Params = RaycastParams.new()
+	Params.FilterType = Enum.RaycastFilterType.Exclude
+	Params.FilterDescendantsInstances = { Sequence.Character, workspace.Entity }
+	Params.IgnoreWater = true
+	Params.RespectCanCollide = true
+	local Ground = workspace:Raycast(Torso.Position + Vector3.yAxis * 12, -Vector3.yAxis * 128, Params)
+	if not Ground then
+		return
+	end
+
+	local Frame, Size = Torso.CFrame, Torso.Size
+	local HalfHeight = (math.abs(Frame.RightVector.Y) * Size.X
+		+ math.abs(Frame.UpVector.Y) * Size.Y + math.abs(Frame.LookVector.Y) * Size.Z) * 0.5
+	local Offset = Ground.Position.Y - (Frame.Position.Y - HalfHeight)
+	local OriginalTransform = Joint.Transform
+	local function RestoreGrounding()
+		if Joint.Parent then
+			Joint.Transform = OriginalTransform
+		end
+	end
+
+	local function ApplyGrounding()
+		-- Keep the lying pose on the sand, then blend back as the character stands.
+		local Progress = if Track.Length > 0 then Track.TimePosition / Track.Length else 0
+		local Weight = 1 - math.clamp((Progress - 0.6) / 0.4, 0, 1)
+		local Basis = Root.CFrame * Joint.C0
+		local LocalOffset = Basis:VectorToObjectSpace(Vector3.yAxis * (Offset * Weight))
+		OriginalTransform = Joint.Transform
+		Joint.Transform = CFrame.new(LocalOffset) * OriginalTransform
+	end
+
+	Sequence.Grounding = {
+		Restore = RestoreGrounding,
+		Connections = {
+			RunService.PreAnimation:Connect(RestoreGrounding),
+			RunService.PreSimulation:Connect(ApplyGrounding),
+		},
+	}
+	ApplyGrounding()
+end
+
+local function WaitForWakeUp(Sequence: Sequence, Track: AnimationTrack): boolean
+	local Finished = false
+	local Gate = Instance.new("BindableEvent")
+	Track.Ended:Once(function()
+		if not Finished then
+			Finished = true
+			Gate:Fire()
+		end
+	end)
+	task.delay(WakeUpConfig.AnimationTimeout, function()
+		if not Finished then
+			Finished = true
+			warn("Intro wake-up animation timed out")
+			Track:Stop(0)
+			Gate:Fire()
+		end
+	end)
+	Track:AdjustSpeed(1)
+	Gate.Event:Wait()
+	Gate:Destroy()
+	return IsActive(Sequence)
+end
+
+function TsunamiCutsceneController:WakeUp(Token: string, Character: Model, SpawnFrame: CFrame)
+	local Sequence = Active
+	if not Sequence or Sequence.Token ~= Token or Sequence.WakingUp or Player.Character ~= Character
+		or Sequence.Character ~= Character or not Character.Parent then
+		return
+	end
+
+	Sequence.WakingUp = true
+	ClearVisuals(Sequence)
+	if Sequence.Sound then
+		Sequence.Sound:Destroy()
+		Sequence.Sound = nil
+	end
+	assert(Character.PrimaryPart, "Intro wake-up requires a PrimaryPart")
+	local Humanoid = assert(Character:FindFirstChildWhichIsA("Humanoid"), "Intro wake-up requires a Humanoid")
+	local Animator = assert(Humanoid:FindFirstChildWhichIsA("Animator"), "Intro wake-up requires an Animator")
+	StopAttacks(Character)
+	CutsceneController:Begin(Character)
+	CutsceneUIController:Prepare()
+	local Target = SpawnFrame.Position
+	CutsceneController:SetView(CFrame.lookAt(Target + Vector3.yAxis * WakeUpConfig.CameraHeight, Target, SpawnFrame.LookVector),
+		Target, WakeUpConfig.CameraFov)
+
+	local Track = Animator:LoadAnimation(WakeUpAnimation)
+	Track.Priority = Enum.AnimationPriority.Action4
+	Track.Looped = false
+	table.insert(Sequence.Animations, Track)
+	-- Reveal the first pose before allowing the character to stand up.
+	ContentProvider:PreloadAsync({ WakeUpAnimation })
+	if not IsActive(Sequence) then
+		return
+	end
+	Character:PivotTo(SpawnFrame)
+	Track:Play(0, 1, 0)
+	RunService.PostSimulation:Wait()
+	if not IsActive(Sequence) then
+		return
+	end
+	GroundWakeUpPose(Sequence, Track)
+	RunService.PostSimulation:Wait()
+	if not CutsceneUIController:FadeIn(WakeUpConfig.FadeTime) or not IsActive(Sequence) then
+		return
+	end
+	if not WaitForWakeUp(Sequence, Track) then
+		return
+	end
+
+	local Frame, Focus = GetGameplayView(Character)
+	CameraController:SetZoomDistance((Frame.Position - Focus).Magnitude)
+	if CutsceneController:MoveTo(Frame, Focus, Constants.DEFAULT_FIELD_OF_VIEW, WakeUpConfig.TransitionTime) then
+		ReleaseWakeUp(Sequence)
+	end
+end
+
 function TsunamiCutsceneController.KnitInit()
 	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
 	IntroCutsceneController = Knit.GetController("IntroCutsceneController")
@@ -311,6 +484,7 @@ function TsunamiCutsceneController.KnitInit()
 	CombatMusicController = Knit.GetController("CombatMusicController")
 	AnimationController = Knit.GetController("AnimationController")
 	RenderController = Knit.GetController("RenderController")
+	CameraController = Knit.GetController("CameraController")
 end
 
 function TsunamiCutsceneController.KnitStart()
@@ -318,7 +492,7 @@ function TsunamiCutsceneController.KnitStart()
 		local Sound = Instance.new("Sound")
 		Sound.SoundId = Config.SoundId
 		local Success, Error = pcall(function()
-			ContentProvider:PreloadAsync({ Sound })
+			ContentProvider:PreloadAsync({ Sound, WakeUpAnimation })
 		end)
 		Sound:Destroy()
 		if not Success then
@@ -338,6 +512,20 @@ function TsunamiCutsceneController.KnitStart()
 		end, debug.traceback)
 		if not Success then
 			warn("Intro tsunami failed:", Error)
+		end
+	end)
+	IntroCutsceneService.WakeUpStarted:Connect(function(Token: string, Character: Model, SpawnFrame: CFrame)
+		local Success, Error = xpcall(function()
+			TsunamiCutsceneController:WakeUp(Token, Character, SpawnFrame)
+		end, debug.traceback)
+		if not Success then
+			warn("Intro wake-up failed:", Error)
+			local Sequence = Active
+			if Sequence and Sequence.Token == Token and IsActive(Sequence) then
+				local Frame, Focus = GetGameplayView(Character)
+				CutsceneController:SetView(Frame, Focus, Constants.DEFAULT_FIELD_OF_VIEW)
+				ReleaseWakeUp(Sequence)
+			end
 		end
 	end)
 	Player.CharacterRemoving:Connect(function(Character: Model)

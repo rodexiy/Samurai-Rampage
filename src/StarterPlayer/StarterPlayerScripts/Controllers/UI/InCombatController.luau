@@ -1,24 +1,31 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local InCombatController = Knit.CreateController({
 	Name = "InCombatController",
 })
 
-local Player = game.Players.LocalPlayer
-local PlayerGui
-local Hud
-local InCombat
+local Player = Players.LocalPlayer
+local InCombat: ScreenGui
+local CutsceneUIController
 
-function InCombatController.KnitInit() end
+local function UpdateVisibility()
+	CutsceneUIController:SetGuiEnabled(InCombat, Player:GetAttribute("InCombat") == true)
+end
+
+function InCombatController.KnitInit()
+	CutsceneUIController = Knit.GetController("CutsceneUIController")
+end
 
 function InCombatController.KnitStart()
-	PlayerGui = Player:WaitForChild("PlayerGui")
-	Hud = PlayerGui:WaitForChild("Hud")
-	InCombat = Hud:WaitForChild("InCombat")
+	local PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
+	local Hud = PlayerGui:WaitForChild("Hud")
+	InCombat = Hud:WaitForChild("InCombat") :: ScreenGui
 
-	Player:GetAttributeChangedSignal("InCombat"):Connect(function()
-		InCombat.Enabled = Player:GetAttribute("InCombat") or false
-	end)
+	Player:GetAttributeChangedSignal("InCombat"):Connect(UpdateVisibility)
+	UpdateVisibility()
 end
 
 return InCombatController

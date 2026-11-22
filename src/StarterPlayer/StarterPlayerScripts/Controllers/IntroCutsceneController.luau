@@ -189,7 +189,7 @@ function IntroCutsceneController:ApplyCameraSway(Frame: CFrame, DeltaTime: numbe
 	local Active = false
 	local Character = Player.Character
 	local Root = Character and Character.PrimaryPart
-	if IntroCutsceneConfig.CameraSway.Enabled and Player:GetAttribute("InIntroCutscene") and Root then
+	if IntroCutsceneConfig.CameraSway.Enabled and Player:GetAttribute("InIntroStorm") and Root then
 		local Ship = GetIntroShip()
 		if Ship then
 			local ShipFrame = Ship:GetPivot()
@@ -209,9 +209,8 @@ function IntroCutsceneController:ApplyCameraSway(Frame: CFrame, DeltaTime: numbe
 	return IntroCutsceneController.GetSwayFrame(Frame, ShipRotation, (SwayPausedAt or workspace:GetServerTimeNow()) - SwayTimeOffset, SwayWeight)
 end
 
-local function UpdateIntroEffects()
-	if Player:GetAttribute("InIntroCutscene") then
-		CutsceneUIController:Prepare()
+local function UpdateIntroEnvironment()
+	if Player:GetAttribute("InIntroStorm") then
 		UpdateCloudColor(true)
 
 		if not RainSound.IsPlaying then
@@ -219,13 +218,20 @@ local function UpdateIntroEffects()
 		end
 		LightningController:StartStorm("IntroCutscene", GetLightningCenter, IntroCutsceneConfig.Lightning)
 	else
+		RainSound:Stop()
+		LightningController:StopStorm("IntroCutscene")
+		UpdateCloudColor(false)
+	end
+end
+
+local function UpdateIntroEffects()
+	if Player:GetAttribute("InIntroCutscene") then
+		CutsceneUIController:Prepare()
+	else
 		ActiveToken = nil
 		ShipAmbienceController:Stop()
 		CutsceneController:Finish(true)
 		CutsceneUIController:Finish()
-		RainSound:Stop()
-		LightningController:StopStorm("IntroCutscene")
-		UpdateCloudColor(false)
 	end
 end
 
@@ -282,7 +288,9 @@ function IntroCutsceneController.KnitStart()
 	RainSound.Looped = true
 
 	Player:GetAttributeChangedSignal("InIntroCutscene"):Connect(UpdateIntroEffects)
+	Player:GetAttributeChangedSignal("InIntroStorm"):Connect(UpdateIntroEnvironment)
 	UpdateIntroEffects()
+	UpdateIntroEnvironment()
 	if Player.Character then
 		WatchCharacter(Player.Character)
 	end

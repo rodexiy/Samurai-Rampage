@@ -12,6 +12,9 @@ return function(Sources: { [string]: string }): string
 	Vector.__sub = function(A: any, B: any): any
 		return V(A.X - B.X, A.Y - B.Y, A.Z - B.Z)
 	end
+	Vector.__add = function(A: any, B: any): any
+		return V(A.X + B.X, A.Y + B.Y, A.Z + B.Z)
+	end
 	Vector.__unm = function(A: any): any
 		return V(-A.X, -A.Y, -A.Z)
 	end
@@ -69,12 +72,22 @@ return function(Sources: { [string]: string }): string
 		function Result:Destroy()
 			self.Parent = nil
 		end
+		function Result:IsA(Class: string): boolean
+			return self.ClassName == Class
+		end
 		return Result
 	end
 
 	local function Fixture(): any
 		local Now, Jobs, Created, Services = 0, {}, {}, {}
 		local Space = { NPCs = {}, Entity = {} }
+		function Space:FindFirstChild(Name: string): any
+			return self[Name]
+		end
+		Space.Important = Object()
+		Space.Important.BeachSpawn = Object()
+		Space.Important.BeachSpawn.ClassName = "BasePart"
+		Space.Important.BeachSpawn.CFrame = 100
 		local function Delay(Duration: number, Callback: () -> ())
 			table.insert(Jobs, { At = Now + Duration, Callback = Callback })
 		end
@@ -89,9 +102,13 @@ return function(Sources: { [string]: string }): string
 			function Model:GetPivot(): any
 				return { Position = self.PrimaryPart.Position }
 			end
+			function Model:PivotTo(Frame: any)
+				self.Pivot = Frame
+			end
 			return Model
 		end
 		local Character, Boss = Actor(0, 100, 40), Actor(10, 700, 500)
+		Character:SetAttribute("MaxStamina", 100)
 		Boss:SetAttribute("IntroOwnerUserId", 7)
 		Boss:SetAttribute("IsAI", true)
 		Boss.Runner = Object({ Enabled = true })
@@ -99,6 +116,8 @@ return function(Sources: { [string]: string }): string
 		local Player = Object()
 		Player.UserId, Player.Character = 7, Character
 		local Players = {}
+		Players.PlayerRemoving = Signal()
+		Player.Parent = Players
 		function Players:GetPlayerFromCharacter(Model: any): any
 			return if Model == Character then Player else nil
 		end
@@ -121,7 +140,33 @@ return function(Sources: { [string]: string }): string
 			Services[Name] = Services[Name] or {}
 			return Services[Name]
 		end
-		local Effects = { Blood = 0, Damage = 0, Buffs = 0, Animations = 0 }
+		local Effects = { Blood = 0, Damage = 0, Buffs = 0, Animations = 0, Teleports = 0, Checkpoints = 0, Loads = 0 }
+		local PlayerData = { IntroCutsceneCompleted = false }
+		Services.DataService = {
+			GetData = function(): any return PlayerData end,
+			IsDataLoaded = function(): boolean return true end,
+			Checkpoint = function(): boolean
+				Effects.Checkpoints += 1
+				return true
+			end,
+		}
+		Services.PlaceService = {
+			IsTrading = function(): boolean return false end,
+			IsHub = function(): boolean return false end,
+			IsArena = function(): boolean return false end,
+		}
+		Services.CharacterService = {
+			GetGroundedCFrame = function(_: any, _: any, Frame: any): any
+				return Frame
+			end,
+			EnableForceField = function(_: any, Model: any, Enabled: boolean)
+				Model:SetAttribute("ForceField", Enabled)
+			end,
+			LoadCharacter = function()
+				Effects.Loads += 1
+			end,
+		}
+		Services.IntroCombatTutorialService = { Cancel = function() end }
 		Services.SkillService = { ClearSkillData = function() end, TryCancelSkillData = function() end }
 		Services.BuffService = {
 			RemoveBuffsByType = function(_: any, Model: any)
@@ -147,7 +192,15 @@ return function(Sources: { [string]: string }): string
 				Effects.Damage += 1
 			end,
 		}
-		Services.InCombatService = { SetInCombat = function() end }
+		Services.InCombatService = { SetInCombat = function(_: any, Model: any, Enabled: boolean)
+			Model:SetAttribute("InCombat", Enabled)
+			if Model == Character then
+				Player:SetAttribute("InCombat", Enabled)
+			end
+		end }
+		Services.WeaponService = { SetEquippedState = function(_: any, Model: any, Equipped: boolean)
+			Model:SetAttribute("WeaponEquipped", Equipped)
+		end }
 		Services.AnimationService = {
 			StopAnimationFind = function() end,
 			StopAttackAnimations = function() end,
@@ -169,7 +222,14 @@ return function(Sources: { [string]: string }): string
 			end,
 		}
 		local Config = {
+			Enabled = true,
+			WakeUp = {
+				SpawnPath = { "Important", "BeachSpawn" }, SpawnOffset = 1,
+				BlackoutTime = 5, FadeTime = 1.25, AnimationDuration = 5, TransitionTime = 2,
+				AnimationId = "wake-up",
+			},
 			Tsunami = {
+				ApproachTime = 5,
 				HeavyParryTime = 0.85,
 				WarningTime = 3,
 				CameraShake = {
@@ -205,7 +265,7 @@ return function(Sources: { [string]: string }): string
 		local RobloxServices = {
 			Players = Players,
 			ReplicatedStorage = Replicated,
-			RunService = {},
+			RunService = { Heartbeat = Signal() },
 			HttpService = {},
 			Debris = {
 				AddItem = function(_: any, Item: any, Duration: number)
@@ -232,8 +292,12 @@ return function(Sources: { [string]: string }): string
 				Angles = function(): any
 					return {}
 				end,
+				lookAt = function(): any
+					return {}
+				end,
 			},
 			math = setmetatable({ noise = function() return 0.25 end }, { __index = math }),
+			os = setmetatable({ clock = function(): number return Now end }, { __index = os }),
 			task = {
 				delay = Delay,
 				defer = function(Callback: () -> ())
@@ -245,6 +309,11 @@ return function(Sources: { [string]: string }): string
 					return Knit
 				elseif Module == "Config" then
 					return Config
+				elseif Module == "Teleport" then
+					return function(Model: any, Frame: any)
+						Effects.Teleports += 1
+						Model.Pivot = Frame
+					end
 				end
 				return {}
 			end,
@@ -266,8 +335,13 @@ return function(Sources: { [string]: string }): string
 		Intro.KnitInit()
 		Hit.KnitInit()
 		Damage.KnitInit()
+		local Ship = Object()
+		Ship.Name = "Ship"
+		function Ship:GetPivot(): any
+			return { RightVector = V(1, 0, 0) }
+		end
 		local Session =
-			{ Character = Character, Boss = Boss, Phase = "Combat", Token = "token", Ship = { Name = "Ship" } }
+			{ Character = Character, Boss = Boss, Phase = "Combat", Token = "token", Ship = Ship, Slot = 1 }
 		Intro.TestSessions[Player] = Session
 		local F = {
 			Intro = Intro,
@@ -279,6 +353,7 @@ return function(Sources: { [string]: string }): string
 			Session = Session,
 			Effects = Effects,
 			Created = Created,
+			PlayerData = PlayerData,
 		}
 		function F:LoadClient(): any
 			Players.LocalPlayer = Player
@@ -341,6 +416,9 @@ return function(Sources: { [string]: string }): string
 				local Job = table.remove(Jobs, 1)
 				Now = Job.At
 				Job.Callback()
+				table.sort(Jobs, function(A: any, B: any): boolean
+					return A.At < B.At
+				end)
 			end
 			Now = Finish
 		end
@@ -404,6 +482,67 @@ return function(Sources: { [string]: string }): string
 			Check(#F.Intro.Client.TsunamiRevealed.Calls == 1, "Duplicate staging cannot repeat the reveal")
 		end
 	end
+
+	local WakeUp = Fixture()
+	WakeUp.Intro.KnitStart()
+	WakeUp.Player:SetAttribute("InIntroStorm", true)
+	WakeUp.Character:SetAttribute("Loaded", true)
+	WakeUp.Character:SetAttribute("Health", 20)
+	WakeUp.Character:SetAttribute("Stamina", 15)
+	WakeUp.Character:SetAttribute("Posture", 70)
+	WakeUp.Character:SetAttribute("WeaponEquipped", true)
+	WakeUp.Character:SetAttribute("InCombat", true)
+	WakeUp.Player:SetAttribute("InCombat", true)
+	WakeUp.Intro:StartTsunami(WakeUp.Player, "test")
+	WakeUp:Advance(3.85)
+	WakeUp.Intro.Client.TsunamiFinished:Fire(WakeUp.Player, "token")
+	Check(WakeUp.Session.Phase == "TsunamiReveal", "The client cannot skip the tsunami approach")
+	WakeUp:Advance(5)
+	WakeUp.Intro.Client.TsunamiFinished:Fire(WakeUp.Player, "wrong-token")
+	Check(WakeUp.Session.Phase == "TsunamiReveal", "A stale token cannot start the blackout")
+	WakeUp.Intro.Client.TsunamiFinished:Fire(WakeUp.Player, "token")
+	Check(WakeUp.Session.Phase == "Blackout", "Tsunami impact starts the blackout")
+	Check(WakeUp.Character:GetAttribute("Health") == 120 and WakeUp.Character:GetAttribute("Stamina") == 100
+		and WakeUp.Character:GetAttribute("Posture") == 0, "The blackout restores health, stamina and posture")
+	Check(not WakeUp.Character:GetAttribute("InCombat") and not WakeUp.Player:GetAttribute("InCombat"),
+		"The blackout clears the player's combat state")
+	Check(WakeUp.Character:GetAttribute("WeaponEquipped") == false, "The sword is sheathed before waking up")
+	Check(WakeUp.Character:GetAttribute("IntroWakeUp") and WakeUp.Character:GetAttribute("ForceField")
+		and WakeUp.Character.PrimaryPart.Anchored and WakeUp.Player:GetAttribute("CantAttack"),
+		"The player remains protected, anchored and unable to attack throughout the blackout")
+	WakeUp.Damage:DealDamage(WakeUp.Character, 10000, WakeUp.Boss)
+	Check(WakeUp.Character:GetAttribute("Health") == 120, "Damage cannot hurt the player during wake-up")
+	Check(WakeUp.Player:GetAttribute("InIntroStorm") == false,
+		"The intro storm ends behind the black screen before the beach is revealed")
+	WakeUp:Advance(4.99)
+	Check(WakeUp.Effects.Teleports == 0, "The player stays behind the black screen for five seconds")
+	WakeUp:Advance(0.02)
+	Check(WakeUp.Effects.Teleports == 1 and WakeUp.Character.Pivot == 100, "The server moves the player to BeachSpawn")
+	Check(WakeUp.Character.PrimaryPart.Anchored and WakeUp.Character:GetAttribute("SkillLockMovement"),
+		"Movement stays locked during the wake-up")
+	Check(#WakeUp.Intro.Client.WakeUpStarted.Calls == 1 and WakeUp.Session.Boss == nil,
+		"Wake-up starts once and removes the ship's boss")
+	Check(not WakeUp.PlayerData.IntroCutsceneCompleted and WakeUp.Effects.Checkpoints == 0,
+		"Reaching the beach alone does not complete the intro")
+	WakeUp.Intro.Client.WakeUpFinished:Fire(WakeUp.Player, "wrong-token")
+	Check(WakeUp.Session.Phase == "WakingUp", "A stale token cannot finish waking up")
+	WakeUp.Intro.Client.WakeUpFinished:Fire(WakeUp.Player, "token")
+	WakeUp:Advance(8.23)
+	Check(not WakeUp.PlayerData.IntroCutsceneCompleted, "Completion waits for the fade, animation and camera transition")
+	WakeUp:Advance(0.02)
+	Check(WakeUp.PlayerData.IntroCutsceneCompleted and WakeUp.Effects.Checkpoints == 1,
+		"Finishing saves the intro checkpoint once")
+	Check(not WakeUp.Character.PrimaryPart.Anchored and not WakeUp.Player:GetAttribute("InIntroCutscene"),
+		"Gameplay controls return after the camera transition")
+	Check(not WakeUp.Character:GetAttribute("IntroWakeUp") and not WakeUp.Character:GetAttribute("ForceField"),
+		"Wake-up protection is released when the cutscene completes")
+	Check(not WakeUp.Intro:ShouldPlay(WakeUp.Player), "Completed profiles skip the initial cutscene")
+	Check(WakeUp.Intro:Replay(WakeUp.Player) and WakeUp.Effects.Loads == 1,
+		"The test command can start a fresh intro character")
+	Check(WakeUp.Intro:ShouldPlay(WakeUp.Player) and WakeUp.PlayerData.IntroCutsceneCompleted,
+		"Testing forces the intro without clearing saved completion")
+	WakeUp.Intro:Cleanup(WakeUp.Player)
+	Check(not WakeUp.Intro:ShouldPlay(WakeUp.Player), "Replay overrides are cleared with the session")
 
 	local Ordinary = Fixture()
 	Check(Ordinary.Hit:NormalHit(Ordinary.Character, Ordinary.Boss, 10, {}) == "Hit", "Ordinary hit is preserved")

@@ -258,13 +258,18 @@ function IntroCombatTutorialService:CaptureSwordAttack(
 		end
 	end
 	Session.Attempt += 1
+	local Speed = math.max(Track.Speed, 0.01)
+	local AnimationHitDelay = Animation:GetAttribute("HitboxDelay")
+	-- The live hitbox may use a generic delay; the lesson follows the animated strike.
+	if typeof(AnimationHitDelay) == "number" and AnimationHitDelay > 0 and AnimationHitDelay < math.huge then
+		HitDelay = AnimationHitDelay / Speed
+	end
 	Session.HitDelay = HitDelay
 	Session.Track, Session.Animation, Session.FreezeTime, Session.HitTime = Track, Animation, nil, nil
 	Session.Player:SetAttribute("CantAttack", true)
 	SetLock(Boss, true)
 	Publish(Session, "Incoming")
 	local Attempt = Session.Attempt
-	local Speed = math.max(Track.Speed, 0.01)
 	Session.SwingSpeed = Speed
 	local Delay = math.max(0, HitDelay - Config.PauseBeforeHit)
 	task.delay(Delay, function()

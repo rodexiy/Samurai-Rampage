@@ -20,6 +20,8 @@ local IntroCutsceneService = Knit.CreateService({
 		TsunamiStarted = Knit.CreateSignal(),
 		TsunamiRevealed = Knit.CreateSignal(),
 		TsunamiFinished = Knit.CreateSignal(),
+		WakeUpStarted = Knit.CreateSignal(),
+		WakeUpFinished = Knit.CreateSignal(),
 	},
 })
 
@@ -34,6 +36,7 @@ type Session = {
 	Phase: string?,
 	EarliestFinish: number?,
 	PreviousCantAttack: any,
+	PreviousWakeUpForceField: boolean?,
 	HealthConnections: { RBXScriptConnection }?,
 }
 
@@ -52,6 +55,7 @@ local DebounceService
 local BuffService
 local IntroCombatTutorialService
 local Sessions: { [Player]: Session } = {}
+local ForcedReplays: { [Player]: boolean } = {}
 local OccupiedSlots: { [number]: boolean } = {}
 local ShipsFolder: Folder
 local OceanOrigin: Vector3?
@@ -176,15 +180,17 @@ local function GetShipCFrame(Slot: number, Radius: number): CFrame
 end
 
 function IntroCutsceneService:ShouldPlay(Player: Player): boolean
-	if not IntroCutsceneConfig.Enabled or PlaceService:IsTrading() or PlaceService:IsHub() or PlaceService:IsArena() then
+	if (not IntroCutsceneConfig.Enabled and not ForcedReplays[Player])
+		or PlaceService:IsTrading() or PlaceService:IsHub() or PlaceService:IsArena() then
 		return false
 	end
 
 	local PlayerData = DataService:GetData(Player)
-	return PlayerData ~= nil and PlayerData.IntroCutsceneCompleted ~= true
+	return PlayerData ~= nil and (ForcedReplays[Player] == true or PlayerData.IntroCutsceneCompleted ~= true)
 end
 
 function IntroCutsceneService:Cleanup(Player: Player)
+	ForcedReplays[Player] = nil
 	IntroCombatTutorialService:Cancel(Player)
 	local Session = Sessions[Player]
 	if Session then
@@ -193,7 +199,11 @@ function IntroCutsceneService:Cleanup(Player: Player)
 		StopCombatTriggers(Session)
 		ClearBoss(Session)
 		if Session.Character and Session.Character.Parent then
+			Session.Character:SetAttribute("IntroWakeUp", false)
 			SetOpeningLock(Session.Character, false)
+			if Session.PreviousWakeUpForceField ~= nil then
+				CharacterService:EnableForceField(Session.Character, Session.PreviousWakeUpForceField)
+			end
 		end
 		if Session.Character then
 			Player:SetAttribute("CantAttack", Session.PreviousCantAttack)
@@ -202,6 +212,7 @@ function IntroCutsceneService:Cleanup(Player: Player)
 	end
 
 	Player:SetAttribute("InIntroCutscene", false)
+	Player:SetAttribute("InIntroStorm", false)
 end
 
 function IntroCutsceneService:PrepareCharacter(Player: Player, Character: Model)
@@ -278,6 +289,7 @@ function IntroCutsceneService:StartTsunami(Player: Player, Reason: string): bool
 	end
 
 	Session.Phase = "TsunamiParry"
+	Character:SetAttribute("CameraCutscene", true)
 	BuffService:RemoveBuffsByType(Character, "Burn")
 	Player:SetAttribute("CantAttack", true)
 	Boss:SetAttribute("WanderingNpc", true)
@@ -384,6 +396,7 @@ function IntroCutsceneService:StageTsunami(Player: Player, Token: string)
 		end
 		SetOpeningLock(Actor, true)
 	end
+	Session.EarliestFinish = os.clock() + IntroCutsceneConfig.Tsunami.ApproachTime
 	self.Client.TsunamiRevealed:Fire(Player, Token, Character, Boss, Session.Ship.Name)
 end
 
@@ -552,36 +565,119 @@ function IntroCutsceneService:GetSpawnCFrame(Player: Player): CFrame?
 		OccupiedSlots[Slot] = true
 	end
 
+	Player:SetAttribute("InIntroStorm", true)
 	Player:SetAttribute("InIntroCutscene", true)
 	return Session.Spawn.CFrame * IntroCutsceneConfig.PlayerSpawnOffset
 end
 
--- Server-only: call after the shipwreck sequence. Never accept completion from a client.
-function IntroCutsceneService:Complete(Player: Player, BeachSpawn: CFrame?): boolean
+function IntroCutsceneService:PrepareWakeUp(Player: Player, Session: Session)
+	local Character = assert(Session.Character, "Intro wake-up requires a character")
+	IntroCombatTutorialService:Cancel(Player)
+	StopCombatTriggers(Session)
+	SkillService:ClearSkillData(Character)
+	DebounceService:RemoveCharacterDebounces(Character)
+	BuffService:RemoveBuffsByType(Character, "Burn")
+
+	Session.PreviousWakeUpForceField = Character:GetAttribute("ForceField") == true
+	Character:SetAttribute("IntroWakeUp", true)
+	Player:SetAttribute("CantAttack", true)
+	SetOpeningLock(Character, true)
+	CharacterService:EnableForceField(Character, true)
+	InCombatService:SetInCombat(Character, false)
+	WeaponService:SetEquippedState(Character, false)
+	ClearBoss(Session)
+
+	Character:SetAttribute("Health", Character:GetAttribute("MaxHealth"))
+	Character:SetAttribute("Stamina", Character:GetAttribute("MaxStamina"))
+	Character:SetAttribute("Posture", 0)
+end
+
+function IntroCutsceneService:StartWakeUp(Player: Player, Token: string)
+	local Session = Sessions[Player]
+	local Character = Player.Character
+	if not Session or Session.Token ~= Token or Session.Phase ~= "Blackout"
+		or not Character or Session.Character ~= Character or not Character.PrimaryPart then
+		return
+	end
+
+	local Config = IntroCutsceneConfig.WakeUp
+	local Marker = FindPath(workspace, Config.SpawnPath) :: BasePart?
+	if not Marker or not Marker:IsA("BasePart") then
+		warn("Intro wake-up requires workspace.Important.BeachSpawn")
+		self:Cleanup(Player)
+		return
+	end
+
+	Session.Phase = "Teleporting"
+	SetOpeningLock(Character, true)
+	local SpawnFrame = CharacterService:GetGroundedCFrame(Character, Marker.CFrame, { Marker })
+	TeleportCharacter(Character, SpawnFrame)
+	if Sessions[Player] ~= Session or Player.Character ~= Character or not Character.Parent then
+		return
+	end
+
+	Session.Phase = "WakingUp"
+	Session.EarliestFinish = os.clock() + Config.FadeTime + Config.AnimationDuration + Config.TransitionTime
+	self.Client.WakeUpStarted:Fire(Player, Token, Character, Character:GetPivot())
+end
+
+-- Completion stays gated by the server's phase, character and cinematic deadline.
+function IntroCutsceneService:Complete(Player: Player): boolean
 	local Session = Sessions[Player]
 	local PlayerData = DataService:GetData(Player)
 	local Character = Player.Character
-	if not Session or not PlayerData or not Character or not Character.PrimaryPart or not Character:GetAttribute("Loaded") then
-		return false
-	end
-
-	if not BeachSpawn then
-		local Marker = FindPath(workspace, IntroCutsceneConfig.BeachSpawnPath)
-		if not Marker or not Marker:IsA("BasePart") then
-			warn("Configure IntroCutsceneConfig.BeachSpawnPath before completing the intro")
-			return false
-		end
-
-		BeachSpawn = Marker.CFrame * IntroCutsceneConfig.BeachSpawnOffset
-	end
-
-	TeleportCharacter(Character, BeachSpawn)
-	if Player.Parent ~= Players or Player.Character ~= Character or Sessions[Player] ~= Session then
+	if not Session or Session.Phase ~= "WakingUp" or not Session.EarliestFinish
+		or os.clock() < Session.EarliestFinish or not PlayerData or not Character
+		or Session.Character ~= Character or not Character.PrimaryPart or not Character:GetAttribute("Loaded") then
 		return false
 	end
 
 	PlayerData.IntroCutsceneCompleted = true
+	DataService:Checkpoint(Player)
 	self:Cleanup(Player)
+	return true
+end
+
+function IntroCutsceneService:FinishWakeUp(Player: Player, Token: string)
+	local Session = Sessions[Player]
+	if not Session or Session.Token ~= Token or Session.Phase ~= "WakingUp" or not Session.EarliestFinish then
+		return
+	end
+
+	local Remaining = Session.EarliestFinish - os.clock()
+	if Remaining > 0 then
+		Session.Phase = "WakeUpFinishPending"
+		task.delay(Remaining, function()
+			if Sessions[Player] == Session and Session.Token == Token and Session.Phase == "WakeUpFinishPending" then
+				Session.Phase = "WakingUp"
+				self:Complete(Player)
+			end
+		end)
+		return
+	end
+
+	self:Complete(Player)
+end
+
+function IntroCutsceneService:Replay(Player: Player): (boolean, string?)
+	if not DataService:IsDataLoaded(Player) or Player.Parent ~= Players then
+		return false, "Player data is not loaded."
+	end
+	if PlaceService:IsTrading() or PlaceService:IsHub() or PlaceService:IsArena() then
+		return false, "The intro can only run in the main world."
+	end
+
+	self:Cleanup(Player)
+	ForcedReplays[Player] = true
+	local Success, Error = pcall(function()
+		CharacterService:LoadCharacter(Player)
+	end)
+	if not Success then
+		self:Cleanup(Player)
+		warn("Unable to replay intro:", Error)
+		return false, "Unable to prepare the intro character."
+	end
+
 	return true
 end
 
@@ -626,8 +722,10 @@ end
 function IntroCutsceneService.KnitStart()
 	IntroCutsceneService.Client.TsunamiFinished:Connect(function(Player: Player, Token: string)
 		local Session = Sessions[Player]
-		if Session and Session.Token == Token and Session.Phase == "TsunamiReveal" then
+		if Session and Session.Token == Token and Session.Phase == "TsunamiReveal"
+			and Session.EarliestFinish and os.clock() >= Session.EarliestFinish then
 			Session.Phase = "Blackout"
+			Player:SetAttribute("InIntroStorm", false)
 			local Direction = Session.Ship:GetPivot().RightVector * Vector3.new(1, 0, 1)
 			for _, Actor in { Session.Character, Session.Boss } do
 				if Actor and Actor.Parent then
@@ -635,6 +733,16 @@ function IntroCutsceneService.KnitStart()
 					Actor:PivotTo(CFrame.lookAt(Position, Position + Direction))
 				end
 			end
+
+			IntroCutsceneService:PrepareWakeUp(Player, Session)
+			task.delay(IntroCutsceneConfig.WakeUp.BlackoutTime, function()
+				IntroCutsceneService:StartWakeUp(Player, Token)
+			end)
+		end
+	end)
+	IntroCutsceneService.Client.WakeUpFinished:Connect(function(Player: Player, Token: string)
+		if typeof(Token) == "string" then
+			IntroCutsceneService:FinishWakeUp(Player, Token)
 		end
 	end)
 

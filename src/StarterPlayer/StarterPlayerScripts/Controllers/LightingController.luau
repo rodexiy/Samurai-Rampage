@@ -33,7 +33,7 @@ end
 function LightingController:LoadLighting()
 	local LightingToApply
 
-	if Player:GetAttribute("InIntroCutscene") then
+	if Player:GetAttribute("InIntroStorm") then
 		LightingToApply = Lighting:FindFirstChild(IntroCutsceneConfig.StormLightingName) or Lighting.Normal
 	elseif Player:GetAttribute("InWisdomWorld") then
 		LightingToApply = GetWisdomWorldLighting()
@@ -59,7 +59,7 @@ function LightingController.KnitStart()
 		LightingController:LoadLighting()
 	end)
 
-	Player:GetAttributeChangedSignal("InIntroCutscene"):Connect(function()
+	Player:GetAttributeChangedSignal("InIntroStorm"):Connect(function()
 		LightingController:LoadLighting()
 	end)
 

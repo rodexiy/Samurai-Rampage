@@ -410,6 +410,38 @@ function CharacterService:RestoreCollision(Character: Model, debug: boolean?)
 	end
 end
 
+function CharacterService:GetGroundedCFrame(Character: Model, Frame: CFrame, ExcludedInstances: { Instance }?): CFrame
+	local Root = assert(Character.PrimaryPart, "Ground placement requires a PrimaryPart")
+	local Humanoid = assert(Character:FindFirstChildWhichIsA("Humanoid"), "Ground placement requires a Humanoid")
+	local Excluded = table.clone(ExcludedInstances or {})
+	table.insert(Excluded, Character)
+	local Entities = workspace:FindFirstChild("Entity")
+	if Entities then
+		table.insert(Excluded, Entities)
+	end
+
+	local Params = RaycastParams.new()
+	Params.FilterType = Enum.RaycastFilterType.Exclude
+	Params.FilterDescendantsInstances = Excluded
+	Params.RespectCanCollide = true
+	Params.IgnoreWater = true
+	local Ground = workspace:Raycast(Frame.Position + Vector3.yAxis * 12, -Vector3.yAxis * 128, Params)
+	if not Ground then
+		return Frame
+	end
+
+	local Height = Humanoid.HipHeight + Root.Size.Y * 0.5
+	if Humanoid.RigType == Enum.HumanoidRigType.R6 then
+		local Leg = Character:FindFirstChild("Left Leg") :: BasePart?
+		Height += if Leg then Leg.Size.Y else Root.Size.Y
+	end
+
+	local Position = Ground.Position + Vector3.yAxis * Height
+	local Forward = Frame.LookVector * Vector3.new(1, 0, 1)
+	Forward = if Forward.Magnitude > 0.001 then Forward.Unit else -Vector3.zAxis
+	return CFrame.lookAt(Position, Position + Forward) * Root.CFrame:ToObjectSpace(Character:GetPivot())
+end
+
 function CharacterService:LoadCharacter(Player: Player)
 	if Player.Parent ~= Players then
 		return

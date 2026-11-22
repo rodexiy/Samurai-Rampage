@@ -19,6 +19,7 @@ local Progression = require(ReplicatedStorage.Shared.StatProgression)
 function DamageService:CanDamage(Character: Model, _Attacker: Model?): boolean
 	return not Character:GetAttribute("Died") and not Character:GetAttribute("ForceField")
 		and not Character:GetAttribute("IntroOpening")
+		and not Character:GetAttribute("IntroWakeUp")
 		and not Character:GetAttribute("IntroTutorialProtected")
 end
 

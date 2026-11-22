@@ -46,6 +46,15 @@ local function GetGui(): ScreenGui
 	return Gui
 end
 
+function CutsceneUIController:SetGuiEnabled(Screen: ScreenGui, Enabled: boolean)
+	if HiddenGuis[Screen] ~= nil then
+		HiddenGuis[Screen] = Enabled
+		Screen.Enabled = false
+	else
+		Screen.Enabled = Enabled
+	end
+end
+
 function CutsceneUIController:Prepare(Blackout: boolean?)
 	local CutsceneGui = GetGui()
 	local PlayerGui = Player:FindFirstChildWhichIsA("PlayerGui")
@@ -72,6 +81,16 @@ function CutsceneUIController:Prepare(Blackout: boolean?)
 		FadeTween:Cancel()
 	end
 	CutsceneGui.Enabled = true
+	for _, Name in { "Top", "Bottom" } do
+		local Bar = CutsceneGui:FindFirstChild(Name) :: GuiObject?
+		if Bar then
+			if SavedBars[Bar] == nil then
+				SavedBars[Bar] = Bar.Visible
+			end
+			Bar.Visible = true
+		end
+	end
+
 	assert(Fade, "Cutscene fade overlay is missing").BackgroundTransparency = if Blackout == false then 1 else 0
 	self:ClearDialogue()
 end

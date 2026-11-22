@@ -195,7 +195,7 @@ function PostureService:PostureBreak(Character: Model, Attacker: Model)
 end
 
 function PostureService:DealPostureDamage(Character: Model, Damage: number, ByDeflect: boolean, Attacker: Model)
-	if Character:GetAttribute("Downed") then
+	if Character:GetAttribute("Downed") or Character:GetAttribute("IntroWakeUp") then
 		return
 	end
 	Character:SetAttribute(

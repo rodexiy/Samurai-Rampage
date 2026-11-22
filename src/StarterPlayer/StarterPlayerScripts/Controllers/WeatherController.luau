@@ -274,7 +274,7 @@ function WeatherController:UpdateWeather()
 		CoverTween = nil
 	end
 
-	if Players.LocalPlayer:GetAttribute("InIntroCutscene") then
+	if Players.LocalPlayer:GetAttribute("InIntroStorm") then
 		Cloud.Cover = IntroCutsceneConfig.Environment.CloudCover
 	else
 		CoverTween = TweenService:Create(Cloud, CoverTweenInfo, { Cover = currentHumidity })
@@ -289,7 +289,7 @@ function WeatherController.KnitInit()
 end
 
 function WeatherController.KnitStart()
-	Players.LocalPlayer:GetAttributeChangedSignal("InIntroCutscene"):Connect(function()
+	Players.LocalPlayer:GetAttributeChangedSignal("InIntroStorm"):Connect(function()
 		WeatherController:UpdateWeather()
 	end)
 

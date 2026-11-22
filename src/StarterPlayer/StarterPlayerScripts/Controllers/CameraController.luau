@@ -367,9 +367,13 @@ function CameraController:GetCombatZoomDistance(): number
 	return math.clamp(Distance, Minimum, Maximum)
 end
 
+function CameraController:SetZoomDistance(Distance: number)
+	PendingZoomDistance = Distance
+end
+
 function CameraController:SetCombatZoomDistance(Distance: number)
 	local Minimum, Maximum = self:GetCombatZoomLimits()
-	PendingZoomDistance = math.clamp(Distance, Minimum, Maximum)
+	self:SetZoomDistance(math.clamp(Distance, Minimum, Maximum))
 end
 
 local function UpdateCombatZoom()
@@ -394,7 +398,7 @@ local function UpdateCombatZoom()
 		SavedZoomBounds = nil
 	end
 
-	if PendingZoomDistance then
+	if PendingZoomDistance and IsGameplayCamera() then
 		local Distance = math.clamp(PendingZoomDistance, Bounds.X, Bounds.Y)
 		ZoomRestoreBounds = Bounds
 		PendingZoomDistance = nil

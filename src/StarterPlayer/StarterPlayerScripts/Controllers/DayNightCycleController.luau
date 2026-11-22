@@ -97,7 +97,7 @@ local function ToggleLights(IsLightsOn: boolean)
 end
 
 local function UpdateClock()
-	if Player:GetAttribute("InIntroCutscene") then
+	if Player:GetAttribute("InIntroStorm") then
 		Lighting.ClockTime = IntroCutsceneConfig.Environment.ClockTime
 	elseif Player:GetAttribute("InWisdomWorld") then
 		Lighting.ClockTime = WISDOM_WORLD_CLOCK_TIME
@@ -117,7 +117,7 @@ function DayNightCycleController.KnitStart()
 	end)
 
 	Player:GetAttributeChangedSignal("InWisdomWorld"):Connect(UpdateClock)
-	Player:GetAttributeChangedSignal("InIntroCutscene"):Connect(UpdateClock)
+	Player:GetAttributeChangedSignal("InIntroStorm"):Connect(UpdateClock)
 
 	task.spawn(function()
 		while true do

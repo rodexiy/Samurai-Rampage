@@ -247,5 +247,15 @@ return function(ProductionSource: string): string
 	Check(not F.Service:IsInCombatWithPlayer(F.Victim), "Expired opponents must not count as PvP")
 	Check(not F.Service:IsInCombatWithPlayer(OtherAttacker), "Reverse PvP lookup must expire")
 
+	F = Fixture()
+	F.Service:SetInCombat(F.Victim, true, F.Attacker)
+	F.Victim:SetAttribute("IntroWakeUp", true)
+	F.Service:SetInCombat(F.Victim, false)
+	F.Service:SetInCombat(F.Victim, true, F.Attacker)
+	CheckCleared(F)
+	F.Victim:SetAttribute("IntroWakeUp", false)
+	F.Service:SetInCombat(F.Victim, true, F.Attacker)
+	Check(F.Player:GetAttribute("InCombat") == true, "Combat resumes normally after wake-up protection ends")
+
 	return `InCombatService: {Checks} checks passed`
 end

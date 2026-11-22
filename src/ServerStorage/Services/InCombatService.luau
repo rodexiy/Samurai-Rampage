@@ -137,7 +137,7 @@ function InCombatService:SetInCombat(Character: Model, SetInCombat: boolean, Att
 		return
 	end
 
-	if Character:GetAttribute("Died") or not Character:IsDescendantOf(workspace) then
+	if Character:GetAttribute("Died") or Character:GetAttribute("IntroWakeUp") or not Character:IsDescendantOf(workspace) then
 		return
 	end
 

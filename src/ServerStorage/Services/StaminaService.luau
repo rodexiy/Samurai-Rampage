@@ -1,4 +1,6 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local StaminaService = Knit.CreateService({
 	Name = "StaminaService",
@@ -6,7 +8,7 @@ local StaminaService = Knit.CreateService({
 })
 
 function StaminaService:RemoveStamina(Character: Model, Amount: number)
-	if not Character:GetAttribute("Stamina") then
+	if not Character:GetAttribute("Stamina") or Character:GetAttribute("IntroWakeUp") then
 		return
 	end
 	Character:SetAttribute(

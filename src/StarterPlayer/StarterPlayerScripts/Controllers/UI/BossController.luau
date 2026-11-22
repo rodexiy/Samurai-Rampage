@@ -1,38 +1,44 @@
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local BossController = Knit.CreateController({
 	Name = "BossController",
 })
 
-local Player = game.Players.LocalPlayer
-local PlayerGui
-local Hud
-local BossUI
+local Player = Players.LocalPlayer
+local BossUI: ScreenGui
+local CutsceneUIController
 
-local HealthBar
-local PostureBar
+local HealthBar: ImageLabel
+local PostureBar: ImageLabel
 
-local Detail
-local LifeTemplate
-local LifesContent
+local Detail: ImageLabel
+local LifeTemplate: ImageLabel
+local LifesContent: Frame
 
-local CurrentBoss: Model = nil
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
+local CurrentBoss: Model?
+local Collector = require(ReplicatedStorage.Shared.Collector)
 
 local Connections = Collector.new()
 
-local function GetBossInRange()
+local function GetBossInRange(): (Model?, number)
 	local Bosses = CollectionService:GetTagged("Boss")
 	local Distance = math.huge
 	local ClosestBoss = nil
-	for _, Boss in Bosses do
+	for _, Instance in Bosses do
+		if not Instance:IsA("Model") then
+			continue
+		end
+		local Boss = Instance :: Model
 		if Boss.Parent ~= workspace.Entity then
 			continue
 		end
-		if Boss:FindFirstChild("HumanoidRootPart") then
-			local DistanceToBoss = (Boss.HumanoidRootPart.Position - Player.Character:GetPivot().Position).Magnitude
+		if Boss.PrimaryPart and Player.Character then
+			local DistanceToBoss = (Boss.PrimaryPart.Position - Player.Character:GetPivot().Position).Magnitude
 			if DistanceToBoss > 100 then
 				continue
 			end
@@ -47,14 +53,9 @@ local function GetBossInRange()
 	return ClosestBoss, Distance
 end
 
-local oldHealth
 function BossController:UpdateHealth()
 	if not CurrentBoss then
 		return
-	end
-
-	if not oldHealth then
-		oldHealth = CurrentBoss:GetAttribute("Health")
 	end
 
 	local health = math.clamp(CurrentBoss:GetAttribute("Health") / CurrentBoss:GetAttribute("MaxHealth"), 0, 1)
@@ -101,7 +102,13 @@ function BossController:UpdateLifes()
 	end
 end
 
-function BossController:Bind(BossToBind)
+function BossController:Hide()
+	Connections:DisconnectAll()
+	CurrentBoss = nil
+	CutsceneUIController:SetGuiEnabled(BossUI, false)
+end
+
+function BossController:Bind(BossToBind: Model)
 	if BossToBind == CurrentBoss then
 		return
 	end
@@ -125,48 +132,68 @@ function BossController:Bind(BossToBind)
 	BossController:UpdateHealth()
 	BossController:UpdatePosture()
 	BossController:UpdateLifes()
-	BossUI.Enabled = true
+	CutsceneUIController:SetGuiEnabled(BossUI, true)
 end
 
 function BossController:CheckForBoss()
-	while true do
-		task.wait(1)
+	local Character = Player.Character
+	if not Character or Character:GetAttribute("IntroWakeUp") then
+		self:Hide()
+		return
+	end
 
-		if not Player.Character then
-			continue
-		end
-
-		local BossToBind = GetBossInRange()
-
-		if not BossToBind then
-			oldHealth = nil
-			Connections:DisconnectAll()
-			BossUI.Enabled = false
-			CurrentBoss = nil
-			continue
-		end
-
-		if not BossToBind then
-			continue
-		end
-
-		BossController:Bind(BossToBind)
+	local BossToBind = GetBossInRange()
+	if BossToBind then
+		self:Bind(BossToBind)
+	else
+		self:Hide()
 	end
 end
 
-function BossController.KnitStart()
-	PlayerGui = Player:WaitForChild("PlayerGui")
-	Hud = PlayerGui:WaitForChild("Hud")
-	BossUI = Hud:WaitForChild("Boss")
-
-	HealthBar = BossUI:WaitForChild("HealthBar")
-	PostureBar = BossUI:WaitForChild("PostureBar")
-
-	Detail = HealthBar:WaitForChild("Detail")
-	LifeTemplate = Detail:WaitForChild("LifeTemplate")
-	LifesContent = Detail:WaitForChild("Lifes")
-
+local function WatchCharacter(Character: Model)
+	Character:GetAttributeChangedSignal("IntroWakeUp"):Connect(function()
+		BossController:CheckForBoss()
+	end)
 	BossController:CheckForBoss()
+end
+
+function BossController.KnitInit()
+	CutsceneUIController = Knit.GetController("CutsceneUIController")
+end
+
+function BossController.KnitStart()
+	local PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
+	local Hud = PlayerGui:WaitForChild("Hud")
+	BossUI = Hud:WaitForChild("Boss") :: ScreenGui
+
+	HealthBar = BossUI:WaitForChild("HealthBar") :: ImageLabel
+	PostureBar = BossUI:WaitForChild("PostureBar") :: ImageLabel
+
+	Detail = HealthBar:WaitForChild("Detail") :: ImageLabel
+	LifeTemplate = Detail:WaitForChild("LifeTemplate") :: ImageLabel
+	LifesContent = Detail:WaitForChild("Lifes") :: Frame
+
+	Player.CharacterAdded:Connect(WatchCharacter)
+	Player.CharacterRemoving:Connect(function()
+		BossController:Hide()
+	end)
+	CollectionService:GetInstanceRemovedSignal("Boss"):Connect(function(Boss: Instance)
+		if Boss == CurrentBoss then
+			BossController:Hide()
+		end
+	end)
+	if Player.Character then
+		WatchCharacter(Player.Character)
+	end
+
+	local Elapsed = 0
+	RunService.Heartbeat:Connect(function(DeltaTime: number)
+		Elapsed += DeltaTime
+		if Elapsed >= 1 then
+			Elapsed = 0
+			BossController:CheckForBoss()
+		end
+	end)
 end
 
 return BossController

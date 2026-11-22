@@ -8,11 +8,11 @@ local IntroCutsceneConfig = {
     EnemySpawnOffset = CFrame.new(0, 1, 0),
     BossName = "Yamarashi",
     BossRunner = "Yamarashi",
-    BossConfig = "Yamarashi",
+    BossConfig = "YamarashiTutorial",
     StarterWeapon = "BasicKatana",
     CombatTutorial = {
         Enabled = true,
-        PauseBeforeHit = 0.12,
+        PauseBeforeHit = -0.1,
         ParryRecoveryTime = 0.5,
         EnemyParryRecovery = 0.85,
         CounterattackTimeout = 10,
@@ -125,9 +125,19 @@ local IntroCutsceneConfig = {
         BlendResponse = 3
     },
 
-    -- Add this marker when the beach sequence is ready, or pass a CFrame to Complete.
-    BeachSpawnPath = {"Important", "BeachSpawn"},
-    BeachSpawnOffset = CFrame.new(0, 3, 0)
+    WakeUp = {
+        SpawnPath = {"Important", "BeachSpawn"},
+        BlackoutTime = 5,
+        FadeTime = 1.25,
+        AnimationId = "rbxassetid://118381390979531",
+        AnimationDuration = 5,
+        AnimationTimeout = 30,
+        CameraHeight = 18,
+        CameraFov = 55,
+        GameplayOffset = Vector3.new(0, 4, 15),
+        GameplayFocusHeight = 1.5,
+        TransitionTime = 2
+    }
 }
 
 return IntroCutsceneConfig

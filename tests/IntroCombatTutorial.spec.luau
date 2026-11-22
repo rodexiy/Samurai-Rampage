@@ -72,7 +72,7 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 		local Now, Jobs = 0, {}
 		local Config = {
 			Enabled = true,
-			PauseBeforeHit = 0.12,
+			PauseBeforeHit = 0.06,
 			ParryRecoveryTime = 0.5,
 			EnemyParryRecovery = 0.85,
 			CounterattackTimeout = 10,
@@ -232,8 +232,9 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 				Feedback.Completed += 1
 			end)
 		end
-		function F:Capture(HitDelay: number?): any
+		function F:Capture(HitDelay: number?, Speed: number?): any
 			local Track, Animation = Swing()
+			Track.Speed = Speed or 1
 			Check(
 				Service:CaptureSwordAttack(Boss, Track, Animation, HitDelay or 0.5),
 				"Armed boss sword swing is intercepted"
@@ -245,7 +246,7 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 		end
 		function F:Explain()
 			if self:State()[5] == "Incoming" then
-				self:Advance(0.39)
+				self:Advance(0.5 - self.Config.PauseBeforeHit + 0.01)
 			end
 		end
 
@@ -267,7 +268,7 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 	)
 	local Track = F:Capture()
 	Check(F:State()[5] == "Incoming" and Track.Speed == 1, "Sword starts normally before the pause")
-	F:Advance(0.37)
+	F:Advance(0.5 - F.Config.PauseBeforeHit - 0.01)
 	Check(F:State()[5] == "Incoming", "Sword does not freeze at its start")
 	F:Advance(0.02)
 	Check(F:State()[5] == "Explain" and Track.Speed == 0, "Attack pauses before contact")
@@ -328,7 +329,7 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 		"A missed dodge still lets the enemy finish the attack"
 	)
 	Check(not F.Character.PrimaryPart.Anchored, "The dodge is not cut short by anchoring the player")
-	F:Advance(F.Config.RecoveryTime + 0.39)
+	F:Advance(F.Config.RecoveryTime + 0.5 - F.Config.PauseBeforeHit + 0.01)
 	F.Character:SetAttribute("RollIFrame", false)
 	F.Character:SetAttribute("RollDirection", "Right")
 	F.Feedback.LastSwing.Length = 3
@@ -355,6 +356,26 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 	)
 	F:Advance(100)
 	Check(F.Feedback.Completed == 1, "Stale timers cannot complete twice")
+
+	local EarlyHitbox = Fixture()
+	EarlyHitbox:Start()
+	local EarlyTrack = EarlyHitbox:Capture(0.2)
+	EarlyHitbox:Advance(0.3)
+	Check(EarlyHitbox:State()[5] == "Incoming" and EarlyTrack.Speed == 1,
+		"A generic early hitbox delay does not show the parry prompt at the start of the animation")
+	EarlyHitbox:Advance(0.15)
+	Check(EarlyHitbox:State()[5] == "Explain" and EarlyTrack.Speed == 0,
+		"The prompt waits until shortly before the animation's marked impact")
+	EarlyHitbox.Service:Cancel(EarlyHitbox.Player)
+
+	local FastSwing = Fixture()
+	FastSwing:Start()
+	FastSwing:Capture(0.2, 2)
+	FastSwing:Advance(0.18)
+	Check(FastSwing:State()[5] == "Incoming", "Prompt timing accounts for the animation's playback speed")
+	FastSwing:Advance(0.02)
+	Check(FastSwing:State()[5] == "Explain", "A faster swing still pauses before its animated impact")
+	FastSwing.Service:Cancel(FastSwing.Player)
 
 	local Timeout = Fixture()
 	Timeout:Start()

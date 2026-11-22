@@ -129,6 +129,16 @@ function DataService.ClearGift(PlayerID: number)
 	Gifts[PlayerID] = nil
 end
 
+function DataService:Checkpoint(Player: Player): boolean
+	local Profile = Profiles[Player]
+	if not Profile or not Profile:IsActive() then
+		return false
+	end
+
+	Profile:Save()
+	return true
+end
+
 function DataService:SaveData(Player: Player)
 	local profile = Profiles[Player]
 	if profile ~= nil then

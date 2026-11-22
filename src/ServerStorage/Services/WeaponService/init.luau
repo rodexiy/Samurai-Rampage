@@ -326,6 +326,25 @@ local function LoadWeaponModel(Character: Model, WeaponFolder: Instance, WeaponN
 	return Weapon
 end
 
+function WeaponService:SetEquippedState(Character: Model, State: boolean)
+	Character:SetAttribute("WeaponEquipped", State)
+	if not State then
+		Character:SetAttribute("Blocking", false)
+	end
+
+	for _, Weapon in GetWeaponModels(Character) do
+		SetWeaponEquipState(Weapon, State)
+	end
+
+	if State then
+		Character:SetAttribute("AnimationPreset", Character:GetAttribute("Stance"))
+	else
+		Character:SetAttribute("SwordOnFire", false)
+		Character:SetAttribute("ConfettiOnSword", false)
+		Character:SetAttribute("AnimationPreset", "Default")
+	end
+end
+
 function WeaponService:Equip(Character: Model, State: boolean, _UnequipDelay: number)
 	if State and not Validate:CanEquipWeapon(Character) then
 		return
@@ -398,17 +417,7 @@ function WeaponService:Equip(Character: Model, State: boolean, _UnequipDelay: nu
 		task.wait(UnequipDelay)
 	end
 
-	for _, Weapon in GetWeaponModels(Character) do
-		SetWeaponEquipState(Weapon, State)
-	end
-
-	if State then
-		Character:SetAttribute("AnimationPreset", Character:GetAttribute("Stance"))
-	else
-		Character:SetAttribute("SwordOnFire", false)
-		Character:SetAttribute("ConfettiOnSword", false)
-		Character:SetAttribute("AnimationPreset", "Default")
-	end
+	self:SetEquippedState(Character, State)
 end
 function WeaponService.Client:Equip(Player: Player, State: boolean)
 	self.Server:Equip(Player.Character, State)
