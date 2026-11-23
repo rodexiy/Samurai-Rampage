@@ -101,6 +101,9 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 	end
 
 	DamageService:DealDamage(Character, Damage, Attacker)
+	if Data.TalentPosture and Data.TalentPosture > 0 then
+		PostureService:DealPostureDamage(Character, Data.TalentPosture, false, Attacker)
+	end
 
 	return "Hit"
 end

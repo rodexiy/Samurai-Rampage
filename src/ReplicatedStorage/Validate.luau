@@ -1,4 +1,5 @@
 local GeneralCantAttributes = {
+	"Bandaging",
 	"IntroOpening",
 	"Mounted",
 	"Died",
@@ -94,7 +95,8 @@ function Validate:CanRoll(Character: Model)
 			"WallRunning",
 		})
 		and (Character:GetAttribute("Race") == "Raijin" or not Character:GetAttribute("Blocking"))
-		and Character:GetAttribute("Stamina") >= 5
+		and Character:GetAttribute("Stamina") >= (if Character:GetAttribute("TalentMobileResponse")
+			and (Character:GetAttribute("TalentResponseRollUntil") or 0) > workspace:GetServerTimeNow() then 3 else 5)
 		and IsSkillStateValid(Character)
 end
 

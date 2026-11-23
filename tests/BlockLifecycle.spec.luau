@@ -134,6 +134,7 @@ return function(Sources: { [string]: string }): string
 			local ReplicatedStorage = { Packages = { Knit = Knit }, Shared = {
 				Validate = F.Validate, CharacterShared = F.Movement or Noop, Constants = { DEFAULT_FIELD_OF_VIEW = 70 },
 				BowConfig = { DrawWalkSpeed = 6 }, CrouchConfig = { WalkSpeed = 6 },
+				SkillTreeConfig = { Effects = { GuardWalkSpeed = 10, BlockRecovery = 0.4, ParryRecovery = 0.15 } },
 				Utils = { GetModelMass = Noop, TeleportCharacter = Noop },
 			} }
 			local Camera = { FieldOfView = 70 }

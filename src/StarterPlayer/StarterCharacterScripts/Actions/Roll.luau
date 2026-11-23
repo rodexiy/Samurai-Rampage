@@ -10,6 +10,7 @@ local TeleportCharacter = require(ReplicatedStorage.Shared.Utils.TeleportCharact
 local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
 local RollDirection = require(ReplicatedStorage.Shared.Utils.RollDirection)
 local SetAutoRotate = require(ReplicatedStorage.Shared.Utils.SetAutoRotate)
+local TalentConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
 
 local MovementService, CameraController, DeviceController, SkillTreeController
 local Player = Players.LocalPlayer
@@ -89,7 +90,10 @@ local Roll = {
 		end
 		Character:SetAttribute("RollClientDebounce", true)
 		Character:SetAttribute("Rolling", true)
-		task.delay(0.5, function()
+		local RollDuration, DistanceMultiplier = TalentConfig.GetRollProfile(
+			SkillTreeController:IsSkillUnlocked("Long Roll"), SkillTreeController:IsSkillUnlocked("Short Roll")
+		)
+		task.delay(RollDuration, function()
 			Character:SetAttribute("RollClientDebounce", false)
 		end)
 		local StartFrame = Character:GetPivot()
@@ -115,6 +119,7 @@ local Roll = {
 		local Animation = RollDirectionsAnimations[Direction] :: AnimationTrack
 		Animation.Priority = Enum.AnimationPriority.Action
 		Animation:Play()
+		Animation:AdjustSpeed(0.5 / RollDuration)
 		AnimateCamera()
 
 		local WasAutoRotate = Humanoid.AutoRotate
@@ -124,7 +129,7 @@ local Roll = {
 		Velocity.ForceLimitMode = Enum.ForceLimitMode.PerAxis
 		Velocity.MaxAxesForce = Vector3.new(1, 0, 1) * 25000
 		Velocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-		Velocity.VectorVelocity = Movement * GetModelMass(Character) * 0.35
+		Velocity.VectorVelocity = Movement * GetModelMass(Character) * 0.35 * DistanceMultiplier
 		RootPart.AssemblyLinearVelocity = Vector3.new(Velocity.VectorVelocity.X,
 			RootPart.AssemblyLinearVelocity.Y, Velocity.VectorVelocity.Z)
 		Velocity.Parent = RootPart

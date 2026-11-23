@@ -4,7 +4,7 @@ return {
 	Type = "Health",
 
 	DisplayName = "Bandage",
-	Description = "A bandage that can be used to heal yourself, restore <font color='rgb(82,255,0)'>15 Health</font>.",
+	Description = "Apply for 2 seconds to restore <font color='rgb(82,255,0)'>15 Health</font>. Taking a hit interrupts application. Ten second cooldown.",
 
 	MaxStack = 5,
 	AmountPerCraft = 1,

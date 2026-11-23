@@ -1,0 +1,544 @@
+﻿SISTEMA DE PROGRESSÃO DO SAMURAI RAMPAGE
+
+Atributos  •  Skill trees  •  Estilos de luta  •  Caminhos da espada
+
+Versão 1  |  23 de novembro de 2026
+
+A progressão combina o desenvolvimento físico do personagem, o domínio de cada modalidade de combate
+e o aprendizado com treinadores. O jogador começa com uma base comum e passa a escolher
+modificadores e conjuntos de técnicas conforme avança.
+
+ESTRUTURA DO SISTEMA
+
+Camada: Atributos
+Como evolui: Treino e recompensas relacionados a cada atributo.
+O que entrega: Bônus básicos e pontos próprios para sua skill tree.
+
+Camada: Skill trees
+Como evolui: Pontos do atributo correspondente.
+O que entrega: Talentos gerais e preferências tardias de combate.
+
+Camada: Estilos de luta
+Como evolui: Proficiência obtida usando o estilo aprendido, como punhos, rifle ou arco.
+O que entrega: Técnicas, modificadores e acesso a novos ensinamentos.
+
+Camada: Caminhos da espada
+Como evolui: Proficiência própria em espada e desafios de mestres, sem ocupar FightingStyle.
+O que entrega: Conjuntos alternativos de técnicas para a espada.
+
+REGRAS ESTABELECIDAS PARA A VERSÃO NOVA
+
+- Artefatos ficam fora desta versão. Espírito fica fora do escopo deste sistema por enquanto.
+
+- O jogador começa com o Caminho Iniciante da espada, contendo Up Slash, Barrage e Floating Passage.
+
+- Outros estilos de luta são adquiridos procurando seus treinadores no mundo.
+
+- Espada não é um FightingStyle. O personagem mantém SwordStyle e FightingStyle separados.
+  SwordStyle começa em Beginner; FightingStyle começa vazio até aprender um estilo com treinador.
+
+- As árvores usam pontos separados por atributo. O começo é comum e as preferências aparecem mais
+  adiante.
+
+PARÂMETROS PROPOSTOS PARA IMPLEMENTAÇÃO
+
+O limite de 10 níveis e a concessão de 1 ponto por nível vêm da progressão atual. A separação dos
+saldos, as árvores revisadas, os cinco patamares de proficiência e as regras de equipamento
+descritas neste documento são propostas para a nova implementação. Os exemplos de novas técnicas e
+caminhos precisam de validação em combate.
+
+O núcleo não exige escolher uma classe no início. O personagem pode aprender diferentes modalidades
+e caminhos. As escolhas ativas e o conjunto equipado definem como ele luta em cada momento.
+
+==============================================================================
+
+ATRIBUTOS E OBTENÇÃO DE EXPERIÊNCIA
+
+Cada atributo começa no nível 0 e pode chegar ao nível 10. Os cinco atributos podem atingir o máximo
+no mesmo personagem. O sistema não impõe um limite combinado de níveis; as diferenças finais vêm dos
+talentos escolhidos e das técnicas equipadas.
+
+Atributo: Força
+Treino: Acertar ataques corpo a corpo e tarefas físicas.
+Bônus atual por nível: +2 de dano de arma.
+
+Atributo: Resistência
+Treino: Bloquear ataques e realizar trabalho físico.
+Bônus atual por nível: +8 de stamina, +5 de postura e +1 de resistência de arma.
+
+Atributo: Vitalidade
+Treino: Receber dano válido em combate e concluir tarefas de cura.
+Bônus atual por nível: +10 de vida.
+
+Atributo: Agilidade
+Treino: Correr, esquivar, rolar, explorar e fazer entregas.
+Bônus atual por nível: +0,02 no multiplicador de corrida e +0,3 de velocidade de caminhada.
+
+Atributo: Destreza
+Treino: Executar parries e desafios de combate.
+Bônus atual por nível: +0,02 no fator de redução de custo de stamina.
+
+Esses bônus descrevem a configuração atual. A aplicação de dano e eficiência a rifle e arco deve ser
+definida por modalidade antes de equilibrar suas armas. Nenhum dos dois recebe automaticamente todas
+as vantagens das armas corpo a corpo.
+
+CURVA ATUAL DE EXPERIÊNCIA
+
+Subida: 0 para 1
+XP: 250
+Subida: 5 para 6
+XP: 2.550
+
+Subida: 1 para 2
+XP: 450
+Subida: 6 para 7
+XP: 3.450
+
+Subida: 2 para 3
+XP: 800
+Subida: 7 para 8
+XP: 4.600
+
+Subida: 3 para 4
+XP: 1.250
+Subida: 8 para 9
+XP: 6.000
+
+Subida: 4 para 5
+XP: 1.850
+Subida: 9 para 10
+XP: 7.600
+
+São 28.800 XP por atributo. A configuração usa cerca de oito horas nas taxas de treino de referência
+como orientação, e não como duração garantida de uma sessão. Vários atributos podem evoluir durante
+o mesmo combate.
+
+PONTOS E RECOMPENSAS
+
+Cada nível conquistado concede 1 ponto exclusivo do respectivo atributo. Força 7 gera 7 pontos de
+Força; eles não podem comprar talentos de Agilidade. O orçamento máximo é de 10 pontos por árvore e
+50 pontos entre as cinco árvores.
+
+Os bônus básicos são automáticos. Os pontos compram talentos. Não existe necessidade de voltar ao
+treinador para receber o bônus numérico de um nível já conquistado.
+
+TREINO VÁLIDO
+
+O servidor valida dano efetivo, bloqueios, esquivas e recompensas. Treino de Vitalidade precisa
+excluir dano autoinduzido, ambiental repetitivo e alvos de abuso. Para armas à distância, propõe-se
+conceder Destreza por acertos válidos e desafios de precisão; os valores ainda precisam de
+balanceamento.
+
+==============================================================================
+
+SKILL TREES DE ATRIBUTOS
+
+As árvores oferecem talentos gerais de movimento, combate e sobrevivência. Nenhum talento depende
+de consumíveis, itens do inventário ou equipamentos específicos. Técnicas como Up Slash continuam
+nos caminhos da espada; os estilos de luta mantêm seu próprio aprendizado.
+
+REGRAS COMUNS
+
+Cada compra custa 2 pontos do atributo, sem requisito adicional de nível. O servidor exige os nós
+anteriores e valida as escolhas exclusivas. Uma progressão completa compra cinco talentos por
+10 pontos. O primeiro talento é comum a todos os jogadores daquele atributo; as ramificações
+seguintes permitem escolher prioridades. Isso não exige escolher uma classe.
+
+As conexões mostram os requisitos reais, incluindo ramos que se reencontram. Força, Destreza,
+Agilidade e Resistência têm uma preferência exclusiva. Vitalidade não força uma escolha exclusiva:
+seus três ramos podem ser comprados em qualquer ordem antes do talento final.
+
+Os atributos já concedem dano, vida, stamina máxima e velocidade básica. As árvores modificam ações
+e condições de combate. Nenhum nó existe apenas para liberar outro sem oferecer efeito próprio.
+
+FORÇA — GANCHO COM BIFURCAÇÃO
+
+O caminho começa na horizontal, sobe e se divide em impacto ou pressão; ambos levam à abertura.
+
+Força -> Committed Attack -> Continuity -> Make Room
+                                            |-- Heavy Impact --|
+                                            |-- Close Pressure-|-> Exploit Opening
+
+- Committed Attack: ataques pesados causam 20% mais dano de postura contra a guarda.
+- Continuity: acertar um pesado permite iniciar o próximo básico 12% mais rápido em até 2 segundos.
+- Make Room: ataques pesados podem atingir até três alvos próximos em vez de um.
+- Heavy Impact OU Close Pressure: o pesado empurra 30% mais ou 35% menos, respectivamente.
+- Exploit Opening: quebrar a guarda libera um avanço de até dois studs no próximo básico em até
+  2 segundos, respeitando paredes. Requer uma das duas preferências.
+
+DESTREZA — BIFURCAÇÃO EM Y
+
+Depois do fundamento comum, o jogador decide se prioriza finta ou resposta ao parry. Não são classes
+exclusivas: é possível desenvolver os dois ramos. Somente Firm Response e Mobile Response se excluem.
+
+Destreza -> Deflect Stamina Recovery
+                     |-- Feint -> Moving Feint
+                     |-- Retake Initiative -> Firm Response OU Mobile Response
+
+- Deflect Stamina Recovery: melhora a recuperação de stamina após um parry bem-sucedido.
+- Feint: X cancela a preparação de um ataque básico corpo a corpo antes da hitbox, por 5 de stamina.
+  Intervalo de 3 segundos; não cancela um pesado nem permite escapar de um stun.
+- Moving Feint: a finta também avança até 1,5 stud, respeitando paredes.
+- Retake Initiative: permite voltar a atacar mais cedo após um parry.
+- Firm Response OU Mobile Response: em até 1,5 segundo do parry, o próximo básico causa 10 de postura
+  extra ou a próxima esquiva custa 3 de stamina. O benefício é consumido uma única vez.
+
+AGILIDADE — ESCADA
+
+A progressão alterna trechos horizontais e verticais. Aterrissagem controlada precede a escolha
+final de esquiva, em vez de repetir a bifurcação e o encerramento de Força.
+
+Agilidade -> Climb
+                |-> Climb Speed -> Travel Breath
+                                         |-> Controlled Landing
+                                                  |-- Long Roll
+                                                  |-- Short Roll
+
+- Climb: libera escalada com G.
+- Climb Speed: aumenta a velocidade de escalada.
+- Travel Breath: correr e escalar deixam de consumir stamina fora de combate.
+- Controlled Landing: reduz em 40% o dano de quedas moderadas. Quedas extremas continuam perigosas.
+- Long Roll OU Short Roll: esquiva mais longa com retomada ofensiva mais lenta, ou mais curta com
+  retomada mais rápida. A invulnerabilidade permanece a mesma.
+
+RESISTÊNCIA — ESCUDO COM CONVERGÊNCIA
+
+Depois de Recompor a guarda, dois ramos desenvolvem resistência ao empurrão e recuperação de postura.
+O jogador pode priorizar qualquer um deles. O talento final exige os dois fundamentos laterais e
+uma preferência de guarda.
+
+Resistência -> Recompose Guard
+                   |-- Firm Footing -> Economical Guard --|
+                   |-- Rise Again ----> Mobile Guard ------|-> Defensive Retreat
+
+Economical Guard e Mobile Guard são exclusivos. Defensive Retreat exige Firm Footing, Rise Again
+e uma das duas guardas, mesmo quando o jogador tiver comprado a preferência de um lado primeiro.
+
+- Recompose Guard: acelera a recuperação de postura ao baixar a guarda sem atacar nem receber hits.
+- Firm Footing: reduz em 30% o empurrão ao defender, sem impedir quebra de guarda.
+- Rise Again: recupera de uma quebra de postura em 1,5 segundo em vez de 2; intervalo de 20 segundos.
+- Economical Guard OU Mobile Guard: três bloqueios em até 2 segundos restauram 8 de stamina, com
+  intervalo de 5 segundos; ou permite andar mais rápido enquanto bloqueia.
+- Defensive Retreat: permite voltar ao movimento mais cedo depois de bloquear, sem invulnerabilidade.
+
+VITALIDADE — LEQUE DE TRÊS RAMOS
+
+O nível de Vitalidade já concede vida máxima. Os talentos tratam da recuperação do próprio corpo e
+da sobrevivência. Nenhum deles melhora bandagens, poções, próteses ou qualquer outro item.
+
+Vitalidade -> Rest Recovery
+                   |-- Burn Resistance --|
+                   |-- Health Recovery --|-> Recovery Reserve
+                   |-- Second Wind ------|
+
+Os três talentos intermediários podem ser adquiridos em qualquer ordem. Recovery Reserve exige
+os três, sem preferência exclusiva.
+
+- Rest Recovery: regenera mais 1% da vida máxima por segundo fora de combate, sem estar caído.
+- Burn Resistance: queimaduras duram 40% menos. Não oferece imunidade.
+- Health Recovery: executar um inimigo válido restaura 15% da vida máxima. Não acumula com a cura Oni.
+- Second Wind: após um golpe de combate deixar o personagem com até 25% de vida, ficar 4 segundos
+  sem sofrer dano restaura 10% da vida máxima. Intervalo de 60 segundos após a cura bem-sucedida.
+- Recovery Reserve: ficar 5 segundos sem sofrer dano restaura 20% do dano do último golpe válido,
+  limitado a 10% da vida máxima. Não acumula o dano de vários golpes.
+
+Second Wind e Recovery Reserve juntos restauram no máximo 15% da vida máxima por golpe. Outro dano
+cancela os temporizadores anteriores. Dano próprio e ambiental não iniciam recuperação. Os efeitos
+não revivem, não levantam um personagem caído e deixam de funcionar se o talento for removido.
+
+Bandagens mantêm seu comportamento independente: aplicação de 2 segundos, cura de 15 de vida e
+intervalo de 10 segundos. Ser interrompido não preserva cura por causa de um talento.
+
+ATUALIZAÇÃO DOS SAVES
+
+Efficient Dressing, Preserved Dressing e Last Breath foram retirados. As compras antigas desses
+talentos ficam arquivadas em RetiredSkillNodes e seus pontos voltam ao saldo de Vitalidade.
+Talentos que continuam válidos são preservados. A reconciliação verifica todas as dependências,
+independentemente da ordem em que os desbloqueios estiverem salvos.
+
+REORGANIZAÇÃO DO CONTEÚDO EXISTENTE
+
+Conteúdo atual: Kendo Proficiency I até V
+Destino na versão nova: Remover. Força já concede o bônus básico de dano.
+
+Conteúdo atual: Max Stamina I até V e Resistance I até V
+Destino na versão nova: Remover. Os atributos já concedem stamina, postura e vida.
+
+Conteúdo atual: Up Slash, Barrage e Floating Passage
+Destino na versão nova: Conjunto inicial gratuito do Caminho Iniciante.
+
+Conteúdo atual: Up Slash Block Break, Longer Barrage e Heavy Deflect
+Destino na versão nova: Modificadores do Caminho Iniciante, aprendidos por proficiência e treinador.
+
+Conteúdo atual: Energy Conservation
+Destino na versão nova: Remover a redução permanente da árvore geral; reavaliar como modificador de
+  um caminho.
+
+Conteúdo atual: Regeneration, Health Recovery e Debuff Resistance
+Destino na versão nova: Reformular e organizar em Vitalidade.
+
+Conteúdo atual: Mikiri
+Destino na versão nova: Conteúdo futuro. O módulo atual ainda precisa de implementação funcional.
+
+RELAÇÃO COM A DOENÇA DE RESSURREIÇÃO
+
+A doença e a perda do braço são uma proposta de sistema separado. Caso avancem, purificação,
+próteses e suas despesas não devem apagar atributos, proficiências ou caminhos aprendidos.
+Vitalidade não concede imunidade à doença. Número de mortes, estágios e custos continuam sem
+definição neste documento.
+
+==============================================================================
+
+ESTILOS DE LUTA E PROFICIÊNCIA
+
+FightingStyle representa um estilo aprendido com treinador, como punhos, rifle ou arco. Espada usa
+SwordStyle e proficiência próprios. O jogador começa com o caminho Iniciante da espada e nenhum
+FightingStyle aprendido. Para adquirir um estilo de luta, procura seu treinador, cumpre uma
+introdução prática e paga o aprendizado em Tetsu, quando houver. O conjunto básico precisa permitir
+jogar imediatamente. SwordStyle e FightingStyle podem estar selecionados ao mesmo tempo.
+
+Proficiência independente de FightingStyle: Espada
+Identidade proposta: Combate corpo a corpo com caminhos de técnicas.
+Treino de proficiência: Acertos válidos, defesas compatíveis e confrontos com espada.
+
+Modalidade: Punhos
+Identidade proposta: Proximidade, pressão e reposicionamento curto.
+Treino de proficiência: Acertos desarmados, defesas compatíveis e confrontos com punhos.
+
+Modalidade: Rifle
+Identidade proposta: Precisão, distância e administração da recarga.
+Treino de proficiência: Acertos reais, desafios de tiro e confrontos com rifle.
+
+Modalidade: Arco
+Identidade proposta: Preparação do disparo, mobilidade e escolha de posição.
+Treino de proficiência: Acertos reais, desafios de arco e confrontos com arco.
+
+CINCO PATAMARES POR PROFICIÊNCIA
+
+O modelo de patamares atende à proficiência de espada e, separadamente, à de cada estilo de luta.
+Compartilhar o modelo de progressão não transforma espada em FightingStyle.
+
+Patamar: 1
+Aprendizado proposto: Recebe o conjunto básico funcional do treinador. Espada já começa neste
+  patamar.
+
+Patamar: 2
+Aprendizado proposto: Pode aprender uma técnica alternativa. Espada também passa a acessar caminhos
+  intermediários.
+
+Patamar: 3
+Aprendizado proposto: Escolhe um modificador de técnica no treinador.
+
+Patamar: 4
+Aprendizado proposto: Cumpre um desafio para aprender uma técnica avançada ou acessar um caminho
+  avançado.
+
+Patamar: 5
+Aprendizado proposto: Escolhe um segundo modificador para o conjunto utilizado.
+
+A proficiência usa XP próprio, sem gerar pontos para gastar. Atingir um patamar habilita os
+ensinamentos correspondentes. Quando houver desafio de avanço, o excesso de XP fica preservado para
+evitar perda de progresso. A curva e a duração de treino ainda precisam de teste; não se reutiliza
+automaticamente a curva de oito horas dos atributos.
+
+CRÉDITO DE TREINO
+
+Cada ação recebe crédito para a modalidade que a executou. Trocar para rifle antes de um inimigo
+morrer não transfere toda a experiência de espada. A recompensa por conclusão de confronto considera
+a contribuição válida em cada modalidade, sem multiplicar a recompensa total pelo número de armas
+usadas.
+
+Disparar no vazio, acertar alvos invulneráveis e repetir confrontos combinados não geram treino
+equivalente a combate real. Para armas com vários impactos, a experiência é normalizada por ação e
+por confronto, evitando que a cadência decida a velocidade de progressão.
+
+APRENDIZADO PERMANENTE
+
+Trocar de modalidade preserva sua proficiência e suas técnicas aprendidas. Não há perda de nível por
+deixar de usar uma arma. Espada e punhos podem estar em patamares diferentes no mesmo personagem.
+
+==============================================================================
+
+CAMINHOS DA ESPADA E CONJUNTOS EQUIPADOS
+
+Um caminho é um conjunto de técnicas de espada. Ele usa a proficiência de Espada e não possui outra
+barra de XP nem uma moeda própria. Aprender um segundo caminho não reinicia o domínio de espada do
+personagem.
+
+CAMINHO INICIANTE
+
+É o conjunto recebido ao criar o personagem. Up Slash, Barrage e Floating Passage estão disponíveis
+desde o começo; nenhum deles é comprado com pontos de Força. O tutorial apresenta seus usos
+progressivamente, sem exigir grind para completar o conjunto inicial.
+
+Como exemplo de personalização, o patamar 3 de Espada oferece Up Slash Block Break ou Heavy Deflect
+em Floating Passage. O patamar 5 oferece Longer Barrage ou uma nova versão que permite encerrar a
+sequência antes e voltar à defesa. Cada par permite uma opção ativa, e os custos e tempos precisam
+ser revistos.
+
+AQUISIÇÃO DE OUTROS CAMINHOS
+
+- Encontrar o mestre e descobrir a identidade do caminho antes de pagar.
+
+- Ter o patamar exigido de Espada: proposta de 2 para intermediários e 4 para avançados.
+
+- Cumprir um desafio que demonstre as ações usadas pelo caminho.
+
+- Pagar o aprendizado em Tetsu e registrar o conjunto como aprendido permanentemente.
+
+Os ensinamentos dos patamares 3 e 5 são próprios de cada caminho. Ao trocar, o jogador conserva os
+modificadores aprendidos, mas só aplica os do caminho equipado. Ensinar um novo modificador pode
+exigir demonstração prática, sem criar uma segunda barra de maestria.
+
+EXEMPLOS PARA DESENVOLVIMENTO FUTURO
+
+Caminho: Iniciante
+Foco: Up Slash, Barrage e Floating Passage oferecem uma base versátil.
+Limitação necessária: Especialistas podem superar sua eficiência em situações específicas.
+
+Caminho: Pressão
+Foco: Três técnicas voltadas a aproximação, sequência curta e perseguição.
+Limitação necessária: Menor segurança ao errar e menor alcance de controle.
+
+Caminho: Contra ataque
+Foco: Três técnicas voltadas a aparar, responder e reposicionar.
+Limitação necessária: Menor iniciativa quando o inimigo não oferece uma abertura.
+
+Os dois últimos caminhos são conceitos, sem nomes e golpes definitivos. Caminho avançado deve
+oferecer uma exigência e uma especialidade diferentes; o Iniciante continua viável depois do começo.
+
+REGRAS DE EQUIPAMENTO PROPOSTAS
+
+O personagem mantém duas seleções independentes. SwordStyle define um caminho de espada com até
+três técnicas ativas. FightingStyle define um estilo aprendido, com seu próprio conjunto de até
+três técnicas. Equipar a espada não apaga nem substitui o FightingStyle selecionado. Não se mistura
+a melhor técnica de cada caminho de espada na primeira versão. Técnicas alternativas podem
+substituir espaços quando o conjunto permitir.
+
+O jogador pode alternar entre conjuntos previamente preparados de modalidades diferentes durante o
+combate, respeitando a troca de arma. Editar técnicas, trocar caminho ou mudar modificadores só
+ocorre fora de combate. Tempos de recarga continuam correndo e não são zerados pela troca.
+
+==============================================================================
+
+JORNADA DO JOGADOR E FUNÇÃO DO TETSU
+
+COMEÇO COMUM
+
+O personagem começa com ataques básicos, defesa e esquiva, proficiência inicial de Espada e o
+Caminho Iniciante completo. Os atributos evoluem com suas ações. Assim que acumula 2 pontos em um
+atributo, ele pode comprar o primeiro talento daquela árvore.
+
+PRIMEIRAS PREFERÊNCIAS
+
+Ao chegar ao patamar 2 de Espada, o jogador pode procurar um mestre de outro caminho ou continuar
+com o Iniciante. Também pode procurar o treinador de punhos, rifle ou arco. Essas descobertas
+ampliam as ferramentas disponíveis sem exigir redistribuir os atributos.
+
+No patamar 3 da modalidade, aparece a primeira escolha de modificador. Na skill tree, a preferência
+fica disponível depois de comprar os fundamentos e acumular os pontos necessários. Como as
+progressões são independentes, não existe obrigação de alcançar esses marcos na mesma ordem.
+
+EXEMPLO DE PERSONAGEM
+
+Um jogador tem Força 7, Agilidade 4 e Espada no patamar 3. Ele ganhou 7 pontos de Força, gastou 6
+nos fundamentos e guardou 1. Em Agilidade, ganhou e gastou 4. Continua usando o Caminho Iniciante,
+com um modificador já aprendido.
+
+Depois encontra o treinador de punhos. Mantém seus atributos e talentos, aprende o conjunto básico
+de punhos e começa a proficiência dessa modalidade no patamar 1. Seus golpes de espada não são
+transferidos para punhos. Ao voltar para espada, conserva tudo o que havia aprendido.
+
+DESPESAS EM TETSU
+
+Situação: Primeiro conjunto de espada
+Regra proposta: Gratuito. Faz parte do começo do personagem.
+
+Situação: Aquisição de outro estilo ou caminho
+Regra proposta: Pagamento único após os requisitos e a apresentação do conjunto.
+
+Situação: Ensinamento avançado
+Regra proposta: Pagamento ligado a uma técnica ou modificador novo; desafio quando necessário.
+
+Situação: Redistribuição de uma árvore
+Regra proposta: Pagamento por atributo. Devolve somente seus pontos, preservando o nível.
+
+Situação: Troca de conjunto já aprendido
+Regra proposta: Gratuita fora de combate. O custo não impede experimentar conteúdo adquirido.
+
+Os preços devem ser definidos a partir da renda real por missão e do tempo desejado entre
+aprendizados. Não há cap de Tetsu ou valores de treinador fixados neste documento. Treinadores
+oferecem despesas de aquisição, mas não resolvem sozinhos o acúmulo de moeda no longo prazo.
+
+REDISTRIBUIÇÃO E MORTE
+
+Redistribuir Força 7 devolve seus 7 pontos de Força e remove somente os talentos dessa árvore. Não
+apaga estilos, caminhos ou proficiências. Morrer e renascer preserva os aprendizados; qualquer
+consequência de doença ou prótese precisa ser definida e comunicada por seu próprio sistema.
+
+==============================================================================
+
+INTERFACE IMPLEMENTAÇÃO E VALIDAÇÃO
+
+O QUE O JOGADOR PRECISA ENXERGAR
+
+- Atributos: nível, progresso de XP, bônus atual e pontos disponíveis de cada árvore.
+
+- Skill tree: custo, requisito, efeito e indicação clara de escolhas exclusivas.
+
+- Estilos: modalidades aprendidas, proficiência de cada uma e próximo ensinamento disponível.
+
+- Meditate: FightingStyle mostra o estilo aprendido selecionado e SwordStyle mostra o caminho da
+  espada selecionado. Trocar a arma empunhada não reescreve essas seleções.
+
+- Espada: caminhos aprendidos, conjunto equipado, três técnicas e modificadores ativos.
+
+- Treinador: requisitos, desafio, preço e descrição do que será aprendido antes da compra.
+
+RESPONSABILIDADES DA IMPLEMENTAÇÃO
+
+O servidor mantém níveis, saldos, proficiências, aprendizados, escolhas e conjuntos equipados.
+StatService continua responsável por atributos. SkillTreeService passa a validar pontos por atributo
+e exclusividade. Serviços próprios de proficiência e aprendizado cuidam das modalidades e
+treinadores. Dados de técnicas e caminhos devem ser reutilizáveis.
+
+Controllers apresentam os dados e enviam pedidos por Knit. O servidor valida custo, requisitos,
+compatibilidade e estado de combate. Animações e efeitos permanecem no cliente. Pontos, pagamentos e
+aprendizados precisam de transações que não possam cobrar ou conceder duas vezes.
+
+MIGRAÇÃO DE PERSONAGENS EXISTENTES
+
+Recalcular os pontos separados a partir dos níveis de cada atributo, arquivar os nós antigos e
+devolver as escolhas para redistribuição. Entregar gratuitamente o Caminho Iniciante, sem cobrar
+outra vez por suas técnicas. Créditos antigos de pontos compartilhados exigem uma política explícita
+de compensação; não devem ser convertidos arbitrariamente em um atributo.
+
+VALIDAÇÕES ANTES DE LIBERAR
+
+- Cada árvore permite gastar 10 pontos numa progressão completa; preferências exclusivas não acumulam.
+
+- Pontos de um atributo nunca pagam outro; redistribuição e reconexão não criam saldo extra.
+
+- Trocar arma ou caminho não duplica efeitos, técnicas, recompensas ou reinicia recargas.
+
+- Confrontos com várias modalidades dividem o crédito sem aumentar a recompensa total.
+
+- Corrigir a divergência de nome em Deflect Stamina Recovery e a consulta de Health Recovery na
+  vítima em vez de no executor.
+
+- Executar Selene nos scripts alterados e verificar a construção com Rojo quando houver
+  implementação.
+
+PARÂMETROS QUE PRECISAM DE TESTE
+
+Curva de proficiência, duração dos desafios, preços, número de conjuntos preparados e aplicação de
+atributos a armas à distância. Também precisam de teste os intervalos, janelas e intensidades dos
+talentos novos. O critério é que a escolha mude uma preferência sem tornar sua alternativa
+irrelevante.
+
+BASE DE REFERÊNCIA DO PROJETO
+
+Configuração atual: src/ReplicatedStorage/StatProgression.luau. Pontos e desbloqueios:
+StatService.luau e SkillTreeService.luau em src/ServerStorage/Services. Conteúdo existente:
+src/ReplicatedStorage/Index/SkillTrees e módulos de Kendo em SkillService. Os trechos consultados
+servem de referência de configuração, sem substituir testes da versão nova.

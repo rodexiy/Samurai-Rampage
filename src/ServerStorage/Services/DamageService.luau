@@ -15,6 +15,9 @@ local StanceService
 local StatService
 local IntroCutsceneService
 local Progression = require(ReplicatedStorage.Shared.StatProgression)
+local SkillTreeConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
+local SkillTreeService
+local TalentService
 
 function DamageService:CanDamage(Character: Model, _Attacker: Model?): boolean
 	return not Character:GetAttribute("Died") and not Character:GetAttribute("ForceField")
@@ -64,7 +67,6 @@ function DamageService:CalculateDamage(
 			SwordBaseDamage += StatService:GetLevel(Attacker, "Strength") * Progression.Bonuses.Strength.WeaponDamage
 
 			BaseDamage += SwordBaseDamage
-			NodeIncrease = ValuesService:GetAmountUnlockedNodesMatch(Attacker, "Kendo Proficiency")
 		end
 
 		BaseDamage += NodeIncrease
@@ -85,7 +87,7 @@ function DamageService:CalculateDamage(
 	return FinalDamage
 end
 
-function DamageService:IncrementDamage(Character: Model, Damage: number, Attacker: Model)
+function DamageService:IncrementDamage(Character: Model, Damage: number, Attacker: Model?)
 	if not Attacker or Attacker:GetAttribute("IsAI") then
 		return
 	end
@@ -111,7 +113,7 @@ function DamageService:IncrementDamage(Character: Model, Damage: number, Attacke
 	DamageValue.Value = DamageValue.Value + Damage
 end
 
-function DamageService:DealDamage(Character: Model, Amount: number, Attacker: Model)
+function DamageService:DealDamage(Character: Model, Amount: number, Attacker: Model?)
 	if typeof(Amount) ~= "number" or Amount ~= Amount or Amount <= 0 or Amount == math.huge then
 		return
 	end
@@ -154,6 +156,7 @@ function DamageService:DealDamage(Character: Model, Amount: number, Attacker: Mo
 
 	DamageService:IncrementDamage(Character, Amount, Attacker)
 	StatService:RecordDamage(Character, Attacker, math.min(Amount, PreviousHealth))
+	TalentService:RecordDamage(Character, Attacker, math.max(0, PreviousHealth - NextHealth))
 
 	if Character:GetAttribute("Health") <= 0 and not Character:GetAttribute("Downed") then
 		if Character:GetAttribute("IsAI") then
@@ -174,12 +177,14 @@ function DamageService:DealDamage(Character: Model, Amount: number, Attacker: Mo
 	end
 end
 function DamageService.Client:FallDamage(Player: Player, Velocity: number)
-	if Velocity < 0 then
+	if typeof(Velocity) ~= "number" or Velocity ~= Velocity or Velocity <= 130 or Velocity == math.huge then
 		return
 	end
 	local Character = Player.Character
 	if Character then
-		self.Server:DealDamage(Character, Velocity / 4)
+		local Multiplier = if Velocity <= SkillTreeConfig.Effects.ModerateFallLimit
+			and SkillTreeService:IsSkillUnlocked(Character, "Controlled Landing") then SkillTreeConfig.Effects.FallDamageMultiplier else 1
+		self.Server:DealDamage(Character, Velocity / 4 * Multiplier)
 	end
 end
 
@@ -191,6 +196,8 @@ function DamageService.KnitInit()
 	StanceService = Knit.GetService("StanceService")
 	StatService = Knit.GetService("StatService")
 	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
+	SkillTreeService = Knit.GetService("SkillTreeService")
+	TalentService = Knit.GetService("TalentService")
 end
 
 function DamageService.KnitStart() end

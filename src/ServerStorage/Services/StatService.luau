@@ -4,6 +4,9 @@ local RunService = game:GetService("RunService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local Progression = require(ReplicatedStorage.Shared.StatProgression)
+local SkillTreeConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
+local SkillTreeProgression = require(ReplicatedStorage.Shared.SkillTreeProgression)
+local SkillNodes = SkillTreeProgression.Index(SkillTreeConfig.Trees)
 
 local StatService = Knit.CreateService({
 	Name = "StatService",
@@ -62,6 +65,12 @@ function StatService:Publish(Player: Player)
 		Player:SetAttribute(Name .. "Level", Stat.Level)
 		Player:SetAttribute(Name .. "XP", Stat.XP)
 		Player:SetAttribute(Name .. "XPRequired", Stat.XPRequired)
+		if SkillTreeConfig.Trees[Name] then
+			local Data = DataService:GetData(Player)
+			Data.SkillPoints = Data.SkillPoints or {}
+			Data.SkillPoints[Name] = SkillTreeProgression.GetPoints(Data, Name, SkillNodes)
+			Player:SetAttribute(Name .. "SkillPoints", Data.SkillPoints[Name])
+		end
 	end
 
 	self.Client.ProgressUpdated:Fire(Player, Progress)
@@ -114,15 +123,19 @@ function StatService:UnloadPlayer(Player: Player)
 	MeditationPositions[Player] = nil
 end
 
-function StatService:GetEarnedSkillPoints(Player: Player): number
+function StatService:GetEarnedSkillPoints(Player: Player, Name: string?): number
 	local Data = DataService:GetData(Player)
 	if not Data or not Data.Stats then
 		return 0
 	end
 
-	local Points = Data.LegacySkillPointCredits or 0
-	for _, Stat in Data.Stats do
-		Points += Stat.Level * Progression.PointsPerLevel
+	if Name then
+		return if SkillTreeConfig.Trees[Name] then SkillTreeProgression.GetEarnedPoints(Data, Name) else 0
+	end
+
+	local Points = 0
+	for _, Stat in SkillTreeConfig.Names do
+		Points += SkillTreeProgression.GetEarnedPoints(Data, Stat)
 	end
 
 	return Points
@@ -139,8 +152,6 @@ function StatService:GiveXP(Player: Player, Name: string, Amount: number): numbe
 	end
 
 	local Levels = Progression.Advance(Data.Stats[Name], Name, Amount)
-	Data.FreePoints += Levels * Progression.PointsPerLevel
-	Player:SetAttribute("FreePoints", Data.FreePoints)
 	self:Publish(Player)
 	if Levels > 0 and Player.Character and Player.Character:GetAttribute("Loaded") then
 		ValuesService:UpdateAll(Player.Character, false)

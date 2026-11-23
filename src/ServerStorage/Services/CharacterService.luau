@@ -1,11 +1,9 @@
 local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
-local TeleportCharacter = require(ReplicatedStorage.Shared.Utils.TeleportCharacter)
 local IntroCutsceneConfig = require(ReplicatedStorage.Shared.IntroCutsceneConfig)
+local TalentConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
 
 local CharacterService = Knit.CreateService({
 	Name = "CharacterService",
@@ -26,7 +24,6 @@ local ToolService
 local SkillService
 local EquipmentService
 local QuestService
-local PlayerService
 local RaceService
 local DamageService
 local SkillTreeService
@@ -169,6 +166,8 @@ function CharacterService:SetAttributes(Character: Model, Player: Player?)
 end
 
 local UpdateBothAttributes = {
+	"Bandaging",
+	"TalentMobileGuard",
 	"Attack",
 	"Attacking",
 	"PostureBreak",
@@ -181,10 +180,10 @@ local UpdateBothAttributes = {
 	"SkillLockMovement",
 }
 
-function CharacterService:BindEvents(Character: Model, Player: Player)
+function CharacterService:BindEvents(Character: Model, Owner: Player)
 	Character:GetAttributeChangedSignal("Died"):Connect(function()
 		if Character:GetAttribute("Died") then
-			QuestService:CallQuestFunction(Player, "Died")
+			QuestService:CallQuestFunction(Owner, "Died")
 			SkillService:ClearSkillData(Character)
 
 			local Player = Players:GetPlayerFromCharacter(Character)
@@ -261,7 +260,7 @@ function CharacterService:BindEvents(Character: Model, Player: Player)
 			if Character:FindFirstChild("CarryPrompt") then
 				Character:FindFirstChild("CarryPrompt"):Destroy()
 			end
-			for i, v in pairs(Character:GetChildren()) do
+			for _, v in pairs(Character:GetChildren()) do
 				if v:IsA("BasePart") then
 					v.CanCollide = false
 					v.CollisionGroup = "Entity"
@@ -274,7 +273,7 @@ function CharacterService:BindEvents(Character: Model, Player: Player)
 			end
 		elseif Character:GetAttribute("Health") < MinHealthToGetUp and not Character:GetAttribute("Carried") then
 			InteractionService:CreateButton(Character, Enum.KeyCode.C, "Carry", "CarryPrompt", nil, 2, "Carry")
-			for i, v in pairs(Character:GetChildren()) do
+			for _, v in pairs(Character:GetChildren()) do
 				if v:IsA("BasePart") then
 					v.CanCollide = false
 					v.CollisionGroup = "Entity"
@@ -286,7 +285,7 @@ function CharacterService:BindEvents(Character: Model, Player: Player)
 				end
 			end
 		elseif Character:GetAttribute("Carried") then
-			for i, v in pairs(Character:GetChildren()) do
+			for _, v in pairs(Character:GetChildren()) do
 				if v:IsA("BasePart") then
 					v.CanCollide = false
 					v.CollisionGroup = "Carried"
@@ -367,9 +366,9 @@ function CharacterService:EnableForceField(Character: Model, state: boolean)
 
 		self:SetCollisionGroup(Character, "ForceField")
 
-		local ForceField = game.ReplicatedStorage.Assets.VFX.Misc.ForceField:Clone()
-		ForceField.Parent = Character
-		ForceField.Script.Enabled = true
+		local Effect = ReplicatedStorage.Assets.VFX.Misc.ForceField:Clone()
+		Effect.Parent = Character
+		Effect.Script.Enabled = true
 	else
 		local ForceField = Character:FindFirstChild("ForceField")
 		self:SetCollisionGroup(Character)
@@ -576,14 +575,14 @@ function CharacterService:LoadHairByUserId(Character: Model, UserId: number)
 
 		Humanoid:ApplyDescriptionResetAsync(OtherHumanoidDescription)
 
-		for i, accessory in Character:GetChildren() do
+		for _, accessory in Character:GetChildren() do
 			if not accessory:IsA("Accessory") then
 				continue
 			end
 
 			accessory.Name = "Hair"
 
-			for i, handle in ipairs(accessory:GetChildren()) do
+			for _, handle in ipairs(accessory:GetChildren()) do
 				if handle:IsA("BasePart") then
 					handle.CanCollide = false
 					handle.Anchored = false
@@ -622,6 +621,9 @@ function CharacterService:BindRegeneration(Character: Model)
 			-- Health regen
 			if Downed or not InCombat then
 				local regenAmount = MaxHealth * Regen
+				if not Downed and not InCombat and SkillTreeService:IsSkillUnlocked(Character, "Rest Recovery") then
+					regenAmount += MaxHealth * TalentConfig.Effects.RestRegeneration
+				end
 				if IsAI then
 					regenAmount = MaxHealth * (Downed and 0.01 or 0.05)
 				end
@@ -652,7 +654,10 @@ function CharacterService:BindRegeneration(Character: Model)
 
 			-- Posture recovery
 			if Posture > 0 then
-				local newPosture = math.clamp(Posture - MaxPosture * (Regen + 0.01), 0, MaxPosture)
+				local Bonus = if not Attacking and not Character:GetAttribute("Blocking")
+					and not Character:GetAttribute("BeenHitted") and SkillTreeService:IsSkillUnlocked(Character, "Recompose Guard")
+					then TalentConfig.Effects.GuardRecoveryBonus else 0
+				local newPosture = math.clamp(Posture - MaxPosture * (Regen + 0.01 + Bonus), 0, MaxPosture)
 				if newPosture ~= Posture then
 					Character:SetAttribute("Posture", newPosture)
 				end
@@ -693,7 +698,6 @@ function CharacterService.KnitInit()
 	SkillService = Knit.GetService("SkillService")
 	EquipmentService = Knit.GetService("EquipmentService")
 	QuestService = Knit.GetService("QuestService")
-	PlayerService = Knit.GetService("PlayerService")
 	RaceService = Knit.GetService("RaceService")
 	DamageService = Knit.GetService("DamageService")
 	SkillTreeService = Knit.GetService("SkillTreeService")

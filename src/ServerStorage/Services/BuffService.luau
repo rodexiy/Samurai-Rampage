@@ -1,4 +1,6 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local TalentConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
 
 local BuffService = Knit.CreateService({
 	Name = "BuffService",
@@ -7,7 +9,6 @@ local BuffService = Knit.CreateService({
 
 local Buffs = {}
 
-local ValuesService
 local SkillTreeService
 
 local function sum(base: number, value: number, operation: string)
@@ -21,8 +22,8 @@ local function sum(base: number, value: number, operation: string)
 end
 
 -- retorna se o Character possui o buff com o mesmo nome
-function BuffService:HasBuff(Character: Model, BuffName: string)
-	for _, v in Buffs do
+function BuffService:HasBuff(Character: Model, BuffName: string): boolean
+	for _, v in Buffs[Character] or {} do
 		if v.Name == BuffName then
 			return true
 		end
@@ -34,15 +35,10 @@ end
 function BuffService:UpdateCharacterBuff(Character: Model, BuffType: string)
 	local BuffTypes = {
 		Burn = function()
-			if SkillTreeService:IsSkillUnlocked(Character, "Debuff Resistance") then
-				Character:SetAttribute("BurnDamage", 0)
-				Character:RemoveTag("Burn")
-				return
-			end
-			local Buffs = BuffService:GetBuffsByType(Character, "Burn")
+			local ActiveBuffs = BuffService:GetBuffsByType(Character, "Burn")
 			local Damage = BuffService:GetBuffsFromType(Character, "Burn", 0)
 			Character:SetAttribute("BurnDamage", Damage)
-			if Buffs and #Buffs > 0 then
+			if ActiveBuffs and #ActiveBuffs > 0 then
 				Character:AddTag("Burn")
 			else
 				Character:RemoveTag("Burn")
@@ -50,8 +46,8 @@ function BuffService:UpdateCharacterBuff(Character: Model, BuffType: string)
 		end,
 
 		Confetti = function()
-			local Buffs = BuffService:GetBuffsByType(Character, "Confetti")
-			if Buffs and #Buffs > 0 then
+			local ActiveBuffs = BuffService:GetBuffsByType(Character, "Confetti")
+			if ActiveBuffs and #ActiveBuffs > 0 then
 				Character:AddTag("Confetti")
 			else
 				Character:RemoveTag("Confetti")
@@ -59,8 +55,8 @@ function BuffService:UpdateCharacterBuff(Character: Model, BuffType: string)
 		end,
 
 		Electrified = function()
-			local Buffs = BuffService:GetBuffsByType(Character, "Electrified")
-			if Buffs and #Buffs > 0 then
+			local ActiveBuffs = BuffService:GetBuffsByType(Character, "Electrified")
+			if ActiveBuffs and #ActiveBuffs > 0 then
 				Character:AddTag("Electrified")
 			else
 				Character:RemoveTag("Electrified")
@@ -83,7 +79,7 @@ function BuffService:GetBuffsFromType(Character: Model, Type: string, Base: numb
 
 	local total = 0
 	local added = {}
-	for i, buff in CharacterBuffs do
+	for _, buff in CharacterBuffs do
 		if buff.Type ~= Type then
 			continue
 		end
@@ -120,7 +116,7 @@ function BuffService:GetBuffsByType(Character: Model, BuffType: string)
 	if not Buffs[Character] then
 		return
 	end
-	for i, v in Buffs[Character] do
+	for _, v in Buffs[Character] do
 		if v.Type == BuffType then
 			table.insert(buffs, v)
 		end
@@ -156,11 +152,14 @@ function BuffService:AddBuff(
 	Character: Model,
 	Name: string,
 	Type: string,
-	Value: string,
+	Value: number,
 	Duration: number,
 	ValueType: "int" | "%" | "*"
 )
-	local ValueType = ValueType or "int"
+	ValueType = ValueType or "int"
+	if Type == "Burn" and SkillTreeService:IsSkillUnlocked(Character, "Burn Resistance") then
+		Duration *= TalentConfig.Effects.BurnDurationMultiplier
+	end
 
 	if not Buffs[Character] then
 		Buffs[Character] = {}
@@ -188,7 +187,6 @@ function BuffService:AddBuff(
 end
 
 function BuffService.KnitInit()
-	ValuesService = Knit.GetService("ValuesService")
 	SkillTreeService = Knit.GetService("SkillTreeService")
 end
 

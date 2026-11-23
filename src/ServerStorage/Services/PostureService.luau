@@ -12,6 +12,8 @@ local PostureService = Knit.CreateService({
 })
 
 local Validate = require(ReplicatedStorage.Shared.Validate)
+local TalentConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
+local Effects = TalentConfig.Effects
 
 local BlockSequences: { [Model]: number } = setmetatable({}, { __mode = "k" })
 local PendingBlocks: { [Model]: RBXScriptConnection } = setmetatable({}, { __mode = "k" })
@@ -25,6 +27,7 @@ local SoundEffectService
 local StaminaService
 local SkillTreeService
 local QuestService
+local TalentService
 
 local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
 
@@ -53,7 +56,8 @@ function PostureService:Deflected(Character: Model, Attacker: Model, Damage: num
 		DebounceService:AddDebounce(Attacker, "BeenDeflected", 0.75)
 	end
 
-	DebounceService:AddDebounce(Character, "HasDeflected", 0.25)
+	TalentService:OnParry(Character)
+	DebounceService:AddDebounce(Character, "HasDeflected", if TalentService:Has(Character, "Retake Initiative") then Effects.ParryRecovery else 0.25)
 
 	AnimationService:StopAnimationFind(Character, "Deflected")
 	local CombatAnimations = WeaponService:GetCombatAnimationFolder(Character)
@@ -72,19 +76,19 @@ function PostureService:Deflected(Character: Model, Attacker: Model, Damage: num
 		end
 
 		AnimationService:PlayAnimation(Character, game.ReplicatedStorage.Assets.Animations.Combat.HeavyDeflect)
-		local RootPart = Character:FindFirstChild("HumanoidRootPart")
+		local RootPart = Character.PrimaryPart
 		local BodyVelocity = Instance.new("BodyVelocity")
 		BodyVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)
-		BodyVelocity.Velocity = CharacterLookVector * -25
+		BodyVelocity.Velocity = CharacterLookVector * -25 * (if TalentService:Has(Character, "Firm Footing") then Effects.GuardPushMultiplier else 1)
 		BodyVelocity.P = 850
 		BodyVelocity.Parent = RootPart
 
 		Debris:AddItem(BodyVelocity, 0.5)
 	elseif not Data.DontApplyForce then
-		local RootPart = Character:FindFirstChild("HumanoidRootPart")
+		local RootPart = Character.PrimaryPart
 		local BodyVelocity = Instance.new("BodyVelocity")
 		BodyVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)
-		BodyVelocity.Velocity = CharacterLookVector * -17.5
+		BodyVelocity.Velocity = CharacterLookVector * -17.5 * (if TalentService:Has(Character, "Firm Footing") then Effects.GuardPushMultiplier else 1)
 		BodyVelocity.P = 850
 		BodyVelocity.Parent = RootPart
 
@@ -107,10 +111,8 @@ function PostureService:Deflected(Character: Model, Attacker: Model, Damage: num
 	end
 
 	if not Character:GetAttribute("IsAI") then
-		if SkillTreeService:IsSkillUnlocked(Character, "Deflect Stamina Recovery II") then
-			StaminaService:AddStamina(Character, Damage / 1.15)
-		elseif SkillTreeService:IsSkillUnlocked(Character, "Deflect Stamina Recovery I") then
-			StaminaService:AddStamina(Character, Damage / 1.45)
+		if SkillTreeService:IsSkillUnlocked(Character, "Deflect Stamina Recovery") then
+			StaminaService:AddStamina(Character, Damage / Effects.ParryStaminaDivisor)
 		else
 			StaminaService:AddStamina(Character, Damage / 2)
 		end
@@ -132,7 +134,7 @@ end
 
 function PostureService:Blocked(Character: Model, Attacker: Model, Damage: number, Data: { any })
 	DebounceService:AddDebounce(Attacker, "BeenBlocked", 0.15)
-	DebounceService:AddDebounce(Character, "HasBlocked", 0.65)
+	DebounceService:AddDebounce(Character, "HasBlocked", if TalentService:Has(Character, "Defensive Retreat") then Effects.BlockRecovery else 0.65)
 
 	if Character:GetAttribute("ForceField") then
 		return
@@ -145,7 +147,11 @@ function PostureService:Blocked(Character: Model, Attacker: Model, Damage: numbe
 		PostureService:PostureBreak(Character, Attacker)
 		return
 	end
-	PostureService:DealPostureDamage(Character, Damage * 2, false, Attacker)
+	local Multiplier = if Data.Action == "StrongAttack" and TalentService:Has(Attacker, "Committed Attack") then Effects.HeavyPostureMultiplier else 1
+	PostureService:DealPostureDamage(Character, Damage * 2 * Multiplier + (Data.TalentPosture or 0), false, Attacker)
+	if not Character:GetAttribute("PostureBreak") then
+		TalentService:OnBlock(Character)
+	end
 
 	if not Data.Ranged then
 		AnimationService:StopAttackAnimations(Attacker)
@@ -181,7 +187,8 @@ function PostureService:PostureBreak(Character: Model, Attacker: Model)
 
 	DebounceService:RemoveDebounce(Character, "BlockDebounce")
 
-	DebounceService:AddDebounce(Character, "PostureBreak", 2)
+	DebounceService:AddDebounce(Character, "PostureBreak", TalentService:GetPostureBreakDuration(Character))
+	TalentService:OnGuardBreak(Attacker)
 	AnimationService:PlayAnimation(Character, game.ReplicatedStorage.Assets.Animations.Combat.PostureBreak)
 	SoundEffectService:PlaySoundEffect("PostureBreak", true, Character.PrimaryPart)
 
@@ -360,6 +367,7 @@ function PostureService.KnitInit()
 	StaminaService = Knit.GetService("StaminaService")
 	SkillTreeService = Knit.GetService("SkillTreeService")
 	QuestService = Knit.GetService("QuestService")
+	TalentService = Knit.GetService("TalentService")
 end
 
 function PostureService.KnitStart()

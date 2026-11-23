@@ -16,6 +16,9 @@ FILES = {
     "DamageService": "src/ServerStorage/Services/DamageService.luau",
     "SkillService": "src/ServerStorage/Services/SkillService/init.luau",
     "PureTests": "tests/StatProgression.spec.luau",
+    "TreeConfig": "src/ReplicatedStorage/SkillTreeConfig.luau",
+    "TreeProgression": "src/ReplicatedStorage/SkillTreeProgression.luau",
+    "TreeTests": "tests/SkillTreeProgression.spec.luau",
 }
 
 

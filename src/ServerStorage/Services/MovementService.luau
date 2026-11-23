@@ -16,6 +16,8 @@ local SkillTreeService
 local QuestService
 local StatService
 local Progression = require(ReplicatedStorage.Shared.StatProgression)
+local TalentConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
+local TalentService
 
 local Validate = require(ReplicatedStorage.Shared.Validate)
 function MovementService:Run(Character: Model, State: boolean)
@@ -33,6 +35,9 @@ function MovementService.Client:Run(Player: Player, State: boolean)
 end
 
 function MovementService:Roll(Character: Model, Direction: string, StartCFrame: CFrame)
+	if not table.find({ "Forward", "Backward", "Left", "Right" }, Direction) or typeof(StartCFrame) ~= "CFrame" then
+		return
+	end
 	if not Character:GetAttribute("IsAI") then
 		if not Validate:CanRoll(Character) then
 			Character:SetAttribute("Rolling", false)
@@ -45,8 +50,10 @@ function MovementService:Roll(Character: Model, Direction: string, StartCFrame: 
 	--SoundEffectService:PlaySoundEffect("Roll", true, Character)
 	AnimationService:StopAttackAnimations(Character)
 	Character:SetAttribute("RollDirection", Direction)
-	StaminaService:RemoveStamina(Character, 5)
-	local RollingDuration = 0.5
+	StaminaService:RemoveStamina(Character, TalentService:GetRollCost(Character))
+	local RollingDuration = TalentConfig.GetRollProfile(
+		TalentService:Has(Character, "Long Roll"), TalentService:Has(Character, "Short Roll")
+	)
 	if Character:GetAttribute("Race") == "Raijin" and SkillTreeService:IsSkillUnlocked(Character, "Lightning Dash") then
 		RollingDuration = 0.3
 	end
@@ -68,7 +75,7 @@ function MovementService:Roll(Character: Model, Direction: string, StartCFrame: 
 		{ Character = Character, Direction = Direction, StartCFrame = StartCFrame }
 	)
 
-	task.delay(0.5, function()
+	task.delay(RollingDuration, function()
 		Character:SetAttribute("RollDirection", nil)
 	end)
 end
@@ -99,6 +106,7 @@ function MovementService.KnitInit()
 	SkillTreeService = Knit.GetService("SkillTreeService")
 	QuestService = Knit.GetService("QuestService")
 	StatService = Knit.GetService("StatService")
+	TalentService = Knit.GetService("TalentService")
 end
 
 function MovementService.KnitStart() end

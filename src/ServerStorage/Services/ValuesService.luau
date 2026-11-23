@@ -26,8 +26,12 @@ function ValuesService:UpdateAll(Character: Model, SetToMax: boolean)
 	ValuesService:UpdateMaxHealth(Character, SetToMax)
 	ValuesService:UpdateMaxPosture(Character)
 	ValuesService:UpdateMaxStamina(Character, SetToMax)
-	ValuesService:UpdateWalkspeed(Character)
 	ValuesService:UpdateRegeneration(Character)
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if Player then
+		SkillTreeService:ApplyCharacterTalents(Player)
+	end
+	ValuesService:UpdateWalkspeed(Character)
 end
 
 function ValuesService:GetEquipmentAttributeValue(Character: Model, AttributeName: string)
@@ -47,13 +51,7 @@ function ValuesService:GetEquipmentAttributeValue(Character: Model, AttributeNam
 end
 
 function ValuesService:UpdateRegeneration(Character: Model)
-	local NodeIncrease = 0
-	local Player = Players:GetPlayerFromCharacter(Character)
-	if Player then
-		NodeIncrease = self:GetAmountUnlockedNodesMatch(Player, "Regeneration") * 0.01
-	end
-
-	Character:SetAttribute("Regeneration", 0.01 + NodeIncrease + StatService:GetLevel(Character, "Spirit") * Progression.Bonuses.Spirit.Regeneration)
+	Character:SetAttribute("Regeneration", 0.01 + StatService:GetLevel(Character, "Spirit") * Progression.Bonuses.Spirit.Regeneration)
 end
 
 local function NormalizeWeaponSide(WeaponSide: string?): string
@@ -104,32 +102,19 @@ end
 function ValuesService:GetWeaponDamage(Character: Model, WeaponSide: string?): number
 	local StanceData = StanceService:GetStance(Character:GetAttribute("Stance")) or {}
 
-	local Kendo = 1
-	local Player = Players:GetPlayerFromCharacter(Character)
-	if Player then
-		Kendo = self:GetAmountUnlockedNodesMatch(Player, "Kendo") * 2
-	end
-
 	local SwordBaseDamage = StanceData.BaseDamage or 0
 	SwordBaseDamage += self:GetWeaponAdditionalStat(Character, WeaponSide, "AdditionalDamage")
 
-	return SwordBaseDamage + Kendo + StatService:GetLevel(Character, "Strength") * Progression.Bonuses.Strength.WeaponDamage
+	return SwordBaseDamage + StatService:GetLevel(Character, "Strength") * Progression.Bonuses.Strength.WeaponDamage
 end
 
 function ValuesService:GetWeaponStaminaCost(Character: Model, WeaponSide: string?): number
 	local StanceData = StanceService:GetStance(Character:GetAttribute("Stance")) or {}
-	local EnergyConservation = 1
-
-	local Player = Players:GetPlayerFromCharacter(Character)
-	if Player and SkillTreeService:IsSkillUnlocked(Player, "Energy Conservation") then
-		EnergyConservation = 0.7
-	end
-
 	local SwordBaseStaminaCost = StanceData.BaseStaminaCost or 0
 	SwordBaseStaminaCost += self:GetWeaponAdditionalStat(Character, WeaponSide, "AdditionalStaminaCost")
 
 	local StatReduction = StatService:GetLevel(Character, "Dexterity") * Progression.Bonuses.Dexterity.StaminaCostReduction
-	return SwordBaseStaminaCost * EnergyConservation * math.max(0.1, 1 - StatReduction)
+	return SwordBaseStaminaCost * math.max(0.1, 1 - StatReduction)
 end
 
 function ValuesService:UpdateDamage(Character: Model)
@@ -147,19 +132,13 @@ function ValuesService:UpdateMaxHealth(Character: Model, SetToMax: boolean)
 		return
 	end
 
-	local NodeIncrease = 0
-	local Player = Players:GetPlayerFromCharacter(Character)
-	if Player then
-		NodeIncrease = self:GetAmountUnlockedNodesMatch(Player, "Resistance") * 10
-	end
-
 	local ArmorIncrease = self:GetEquipmentAttributeValue(Character, "MaxHealthIncrease")
 
 	local RaceData = RaceService:GetRaceData(Character:GetAttribute("Race") or "Human")
 	local BASE_HEALTH = RaceData.BaseStats.MaxHealth
 	local StatIncrease = StatService:GetLevel(Character, "Vitality") * Progression.Bonuses.Vitality.Health
 
-	Character:SetAttribute("MaxHealth", BASE_HEALTH + NodeIncrease + ArmorIncrease + StatIncrease)
+	Character:SetAttribute("MaxHealth", BASE_HEALTH + ArmorIncrease + StatIncrease)
 
 	if SetToMax then
 		Character:SetAttribute("Health", Character:GetAttribute("MaxHealth"))
@@ -205,16 +184,10 @@ function ValuesService:UpdateMaxStamina(Character: Model, SetToMax: boolean)
 		return
 	end
 
-	local NodeIncrease = 0
-	local Player = Players:GetPlayerFromCharacter(Character)
-	if Player then
-		NodeIncrease = self:GetAmountUnlockedNodesMatch(Player, "Stamina") * 10
-	end
-
 	local ArmorIncrease = self:GetEquipmentAttributeValue(Character, "MaxStaminaIncrease")
 	local StatIncrease = StatService:GetLevel(Character, "Resistance") * Progression.Bonuses.Resistance.Stamina
 
-	Character:SetAttribute("MaxStamina", BASE_STAMINA + ArmorIncrease + NodeIncrease + StatIncrease)
+	Character:SetAttribute("MaxStamina", BASE_STAMINA + ArmorIncrease + StatIncrease)
 
 	if SetToMax then
 		Character:SetAttribute("Stamina", Character:GetAttribute("MaxStamina"))

@@ -120,6 +120,7 @@ return function(Sources: { [string]: string }): string
 	local ReplicatedStorage = {
 		Packages = { Knit = "Knit" },
 		Shared = { StatProgression = "Config", CharacterShared = "CharacterShared", Index = { SkillTrees = "Trees" },
+			SkillTreeConfig = "TreeConfig", SkillTreeProgression = "TreeProgression",
 			InventoryConfig = "InventoryConfig", HorseConfig = "HorseConfig" },
 		Assets = { Public = { MousePositionUpdater = {} } },
 	}
@@ -156,6 +157,9 @@ return function(Sources: { [string]: string }): string
 	Services.ItemService = { GetItemData = function(_Self: any, Name: string): any
 		return if Name == "TestArtifact" then { Type = "Artifact" } else nil
 	end }
+	Services.ItemService.CreateItem = function(_Self: any, Name: string, Stack: number): any
+		return { Name = Name, Stack = Stack, Class = "Skill" }
+	end
 	Services.StanceService = { GetStance = function(): any
 		return { BaseDamage = 10, BaseStaminaCost = 10 }
 	end }
@@ -163,9 +167,25 @@ return function(Sources: { [string]: string }): string
 		return { BaseStats = { MaxHealth = 100 } }
 	end }
 	Services.EquipmentService = { EquipmentTypes = {} }
+	local TalentDamage = {}
+	Services.TalentService = { RecordDamage = function(_Self: any, Character: any, Attacker: any, Amount: number)
+		table.insert(TalentDamage, { Character, Attacker, Amount })
+	end }
 	Services.InventoryService = { RemoveItemFromPlayer = function() end }
-	Services.AlertService = {}
+	Services.InventoryService.GetPlayerItemByName = function(_Self: any, Player: any, Name: string): any
+		for _, Item in Profiles[Player].Inventory do
+			if Item.Name == Name then return Item end
+		end
+		return nil
+	end
+	Services.InventoryService.GiveItemToPlayer = function(_Self: any, Player: any, Item: any)
+		table.insert(Profiles[Player].Inventory, Item)
+	end
+	Services.AlertService = { AlertPlayer = function() end }
 	Services.ArtifactService = {}
+	Services.IntroCutsceneService = { TryInterceptHit = function(): boolean
+		return false
+	end }
 	local Modules = {
 		Knit = Knit,
 		Trees = { Kendo = { Name = "Kendo", Branches = { { Name = "Kendo Proficiency I", Passive = true, PointsRequired = 1 } } } },
@@ -180,6 +200,7 @@ return function(Sources: { [string]: string }): string
 		workspace = Workspace,
 		Instance = { new = InstanceNew },
 		Vector3 = { new = VectorNew },
+		Color3 = { fromRGB = function(...: any): any return { ... } end },
 		require = function(Name: string): any
 			assert(Modules[Name], Name)
 			return Modules[Name]
@@ -192,6 +213,8 @@ return function(Sources: { [string]: string }): string
 	end
 	local Config = Load(Sources.Config)
 	Modules.Config = Config
+	Modules.TreeConfig = Load(Sources.TreeConfig)
+	Modules.TreeProgression = Load(Sources.TreeProgression)
 	local Template = Load(Sources.Profile)
 	local Stats = Load(Sources.StatService)
 	local Trees = Load(Sources.SkillTreeService)
@@ -202,7 +225,7 @@ return function(Sources: { [string]: string }): string
 		Service.KnitInit()
 	end
 	Trees.KnitStart()
-	local PureChecks = Load(Sources.PureTests)(Config)
+	local PureChecks = Load(Sources.PureTests)(Config) + Load(Sources.TreeTests)(Modules.TreeConfig, Modules.TreeProgression)
 	local LoadingPlayer = InstanceNew("Player")
 	Profiles[LoadingPlayer] = Copy(Template)
 	Check(Stats:GetProgress(LoadingPlayer).Strength.Level == 0, "UI reads safely before stat initialization")
@@ -233,25 +256,28 @@ return function(Sources: { [string]: string }): string
 	local Player = NewPlayer()
 	local Data = Profiles[Player]
 	Check(Data.Level == nil and Data.Exp == nil, "New profiles have no general level")
-	Check(Data.FreePoints == 0, "New profiles start without skill points")
+	Check(Data.FreePoints == 0 and Data.SkillPoints.Strength == 0, "New profiles start without attribute points")
+	Check(#Data.Inventory == 3 and #Data.OtherSkills == 3, "The beginner sword kit is granted without attribute points")
+	Check(Player:GetAttribute("FightingStyle") == nil and Player:GetAttribute("SwordStyle") == "Beginner",
+		"The initial sword path does not occupy the fighting style slot")
 	for _, Name in Config.Names do
 		Check(Data.Stats[Name].Level == 0 and Data.Stats[Name].XP == 0, Name .. " starts at zero")
 	end
 	Stats:GiveXP(Player, "Strength", Config.GetXPRequired("Strength", 0))
-	Check(Data.Stats.Strength.Level == 1 and Data.Stats.Strength.XP == 0 and Data.FreePoints == 1, "Exact threshold grants a shared point")
+	Check(Data.Stats.Strength.Level == 1 and Data.Stats.Strength.XP == 0 and Data.SkillPoints.Strength == 1, "Exact threshold grants a strength point")
 	Stats:GiveXP(Player, "Vitality", Config.GetXPRequired("Vitality", 0))
-	Check(Data.FreePoints == 2 and Data.Stats.Dexterity.Level == 0, "Different attributes share points without sharing XP")
+	Check(Data.SkillPoints.Strength == 1 and Data.SkillPoints.Vitality == 1 and Data.SkillPoints.Dexterity == 0, "Attributes have independent point balances")
 	Stats:GiveXP(Player, "Strength", Config.GetXPRequired("Strength", 1) + Config.GetXPRequired("Strength", 2) + 17)
-	Check(Data.Stats.Strength.Level == 3 and Data.Stats.Strength.XP == 17 and Data.FreePoints == 4, "Multiple levels preserve remainder and award all points")
+	Check(Data.Stats.Strength.Level == 3 and Data.Stats.Strength.XP == 17 and Data.SkillPoints.Strength == 3, "Multiple levels preserve remainder and award attribute points")
 	for _, Amount in { -1, math.huge, 0 / 0 } do
 		Stats:GiveXP(Player, "Strength", Amount)
 	end
 	Stats:GiveXP(Player, "Unknown", 100)
 	Check(Data.Stats.Strength.XP == 17, "Invalid awards cannot change progress")
 	Stats:GiveXP(Player, "Strength", 10000000)
-	local Points = Data.FreePoints
+	local Points = Data.SkillPoints.Strength
 	Stats:GiveXP(Player, "Strength", 10000000)
-	Check(Data.Stats.Strength.Level == Config.MaxLevel and Data.Stats.Strength.XP == 0 and Data.FreePoints == Points, "The cap prevents additional XP and points")
+	Check(Data.Stats.Strength.Level == Config.MaxLevel and Data.Stats.Strength.XP == 0 and Data.SkillPoints.Strength == Points, "The cap prevents additional XP and points")
 	Check(Stats.Client.GiveXP == nil, "There is no client XP-award remote")
 	local RewardPlayer = NewPlayer()
 	Stats:GiveRewardXP(RewardPlayer, 60, "Combat")
@@ -266,19 +292,59 @@ return function(Sources: { [string]: string }): string
 	Old.Level = 3
 	Old.Exp = 50
 	Old.FreePoints = 2
-	Old.UnlockedNodes = { "Kendo Proficiency I" }
+	Old.UnlockedNodes = { "Kendo Proficiency I", "Oni Health Recovery", "Longer Barrage" }
+	Old.SkillTreeVersion = 0
+	Old.LegacySkillTree = nil
 	Stats:LoadPlayer(Legacy)
 	Trees:LoadAttributes(Legacy)
 	Check(Old.Level == nil and Old.Exp == nil and Old.LegacyProgression.Level == 3, "Legacy fields are archived and retired")
-	Check(Old.FreePoints >= 2 and Legacy.UnlockedNodes:FindFirstChild("Kendo Proficiency I") ~= nil, "Migration preserves skills and spendable points")
+	Check(Old.LegacySkillTree.FreePoints == 2 and Old.LegacySkillTree.UnlockedNodes[1] == "Kendo Proficiency I"
+		and Legacy.UnlockedNodes:FindFirstChild("Kendo Proficiency I") == nil, "Migration archives legacy points and retires old nodes")
+	Check(Trees:IsSkillUnlocked(Legacy, "Oni Health Recovery") and Trees:IsSkillUnlocked(Legacy, "Longer Barrage"),
+		"Already learned racial skills and sword modifiers become permanent knowledge")
 	local XP = Old.Stats.Strength.XP
 	local Credits = Old.LegacySkillPointCredits
 	Stats:LoadPlayer(Legacy)
 	Trees:LoadAttributes(Legacy)
 	Check(Old.Stats.Strength.XP == XP and Old.LegacySkillPointCredits == Credits, "Repeated loads do not migrate twice")
-	local Earned = Stats:GetEarnedSkillPoints(Legacy)
+	local Earned = Stats:GetEarnedSkillPoints(Legacy, "Strength")
 	Trees:ResetSkillTree(Legacy)
-	Check(Old.FreePoints == Earned and #Old.UnlockedNodes == 0, "Reset restores the full shared entitlement")
+	Check(Old.SkillPoints.Strength == Earned and #Old.UnlockedNodes == 0 and #Old.Inventory == 3,
+		"Reset restores attribute points and preserves permanent sword skills")
+	local Specialist = NewPlayer()
+	local SpecialData = Profiles[Specialist]
+	SpecialData.Stats.Strength.Level = 10
+	SpecialData.Stats.Agility.Level = 10
+	SpecialData.Stats.Spirit.Level = 10
+	Stats:Publish(Specialist)
+	Check(SpecialData.SkillPoints.Strength == 10 and SpecialData.SkillPoints.Spirit == nil,
+		"Spirit creates no spendable skill tree points")
+	Check(not Trees:UnlockNode(Specialist, "Feint"), "Strength cannot buy Dexterity nodes")
+	for _, Name in { "Committed Attack", "Continuity", "Make Room", "Heavy Impact", "Exploit Opening" } do
+		Check(Trees:UnlockNode(Specialist, Name), "A full strength route can be purchased")
+	end
+	Check(SpecialData.SkillPoints.Strength == 0 and SpecialData.SkillPoints.Agility == 10, "Purchases debit only their own attribute")
+	Check(not Trees:UnlockNode(Specialist, "Close Pressure") and not Trees:UnlockNode(Specialist, "Heavy Impact"), "Exclusive and duplicate purchases fail")
+	Check(not Trees:UnlockNode(Specialist, {}) and not Trees:UnlockNode(Specialist, "Kendo Proficiency I"), "Malformed and retired nodes are rejected")
+	Trees:LoadAttributes(Specialist)
+	Check(SpecialData.SkillPoints.Strength == 0 and #SpecialData.Inventory == 3, "Reloading does not refund purchases or duplicate starter items")
+	Check(Trees:UnlockNode(Specialist, "Climb"), "Another attribute can spend its own points")
+	Check(Trees:ResetSpecificSkillTree(Specialist, "Strength"), "A single tree can be reset")
+	Check(SpecialData.SkillPoints.Strength == 10 and SpecialData.SkillPoints.Agility == 8 and Trees:IsSkillUnlocked(Specialist, "Climb"),
+		"Single-tree resets preserve other purchases")
+	Check(Trees:UnlockNode(Specialist, "Committed Attack"), "Refunded points remain spendable")
+	Trees:ResetSkillTree(Specialist)
+	Check(SpecialData.SkillPoints.Strength == 10 and SpecialData.SkillPoints.Agility == 10
+		and #SpecialData.Inventory == 3 and Trees:IsSkillUnlocked(Specialist, "Up Slash"), "Full resets preserve the sword kit")
+	SpecialData.FightingStyle = "Bow"
+	Trees:LoadAttributes(Specialist)
+	Trees:ResetSkillTree(Specialist)
+	Check(Specialist:GetAttribute("FightingStyle") == "Bow" and Specialist:GetAttribute("SwordStyle") == "Beginner",
+		"Sword paths and learned fighting styles coexist and survive tree resets")
+	SpecialData.FightingStyle = "Sword"
+	Trees:LoadAttributes(Specialist)
+	Check(Specialist:GetAttribute("FightingStyle") == nil and Specialist:GetAttribute("SwordStyle") == "Beginner",
+		"Sword cannot be restored into the fighting style slot")
 	local Trainee = NewPlayer()
 	local AttackingPlayer = NewPlayer()
 	local Defender = Character(Trainee)
@@ -292,9 +358,12 @@ return function(Sources: { [string]: string }): string
 	Check(Profiles[AttackingPlayer].Stats.Strength.XP == Config.Training.MeleeHit, "Landed melee attacks train strength")
 	Damage:DealDamage(Defender, 20, Attacker)
 	Check(Defender:GetAttribute("Health") == 80 and Training.Vitality.XP == 20 * Config.Training.DamageTaken, "Actual combat damage trains vitality")
+	Check(#TalentDamage == 1 and TalentDamage[1][1] == Defender and TalentDamage[1][2] == Attacker and TalentDamage[1][3] == 20,
+		"Actual health loss notifies combat recovery on the server")
 	Defender:SetAttribute("ForceField", true)
 	Damage:DealDamage(Defender, 20, Attacker)
 	Check(Training.Vitality.XP == 20 * Config.Training.DamageTaken, "Protected damage grants no vitality XP")
+	Check(#TalentDamage == 1, "Protected damage cannot start or cancel talent recovery")
 	Defender:SetAttribute("ForceField", false)
 	Stats:SampleTraining(1)
 	Defender:SetAttribute("Running", true)

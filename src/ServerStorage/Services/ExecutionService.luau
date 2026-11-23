@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
+local TalentConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
 
 local ExecutionService = Knit.CreateService({
 	Name = "ExecutionService",
@@ -30,20 +31,21 @@ function ExecutionService:Execute(Attacker: Model, Character: Model, Ranged: boo
 	Character:SetAttribute("Died", true)
 	self.Executed:Fire(Attacker, Character)
 
-	if SkillTreeService:IsSkillUnlocked(Character, "Health Recovery") then
-		Attacker:SetAttribute(
-			"Health",
-			math.clamp(
-				Attacker:GetAttribute("Health") + (Attacker:GetAttribute("MaxHealth") * 0.25),
-				0,
-				Attacker:GetAttribute("MaxHealth")
-			)
-		)
-	elseif SkillTreeService:IsSkillUnlocked(Character, "Oni Health Recovery") then
+	local ValidReward = not Character:GetAttribute("NoRewards") and not Character:GetAttribute("WisdomWorldMob")
+	if ValidReward and SkillTreeService:IsSkillUnlocked(Attacker, "Oni Health Recovery") then
 		Attacker:SetAttribute(
 			"Health",
 			math.clamp(
 				Attacker:GetAttribute("Health") + (Attacker:GetAttribute("MaxHealth") * 0.55),
+				0,
+				Attacker:GetAttribute("MaxHealth")
+			)
+		)
+	elseif ValidReward and SkillTreeService:IsSkillUnlocked(Attacker, "Health Recovery") then
+		Attacker:SetAttribute(
+			"Health",
+			math.clamp(
+				Attacker:GetAttribute("Health") + (Attacker:GetAttribute("MaxHealth") * TalentConfig.Effects.ExecutionHealFraction),
 				0,
 				Attacker:GetAttribute("MaxHealth")
 			)

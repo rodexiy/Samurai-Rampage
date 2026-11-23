@@ -1,289 +1,257 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+
 local Knit = require(ReplicatedStorage.Packages.Knit)
+local Config = require(ReplicatedStorage.Shared.SkillTreeConfig)
+local Progression = require(ReplicatedStorage.Shared.SkillTreeProgression)
 
 local SkillTreeService = Knit.CreateService({
 	Name = "SkillTreeService",
-	Client = {
-		UpdateUI = Knit.CreateSignal(),
-	},
+	Client = { UpdateUI = Knit.CreateSignal() },
 })
 
+local AllNodes = Progression.Index(Config.Trees)
 local AlertService
+local DataService
 local InventoryService
 local ItemService
 local ValuesService
 
-local AllNodes = {}
-local SkillTrees = require(ReplicatedStorage.Shared.Index.SkillTrees)
-local StatService
-
-local DataService
-
-function SkillTreeService:Instantiate(NodeName: string)
-	local NodeInstance = Instance.new("BoolValue")
-	NodeInstance.Name = NodeName
-	return NodeInstance
-end
-
-function SkillTreeService:GetTreeNodes(TreeName: string)
-	local Tree = SkillTrees[TreeName]
-
-	local Nodes = {}
-	local function AddNode(Node, PreviousName)
-		local Clone = table.clone(Node)
-		Clone.Previous = PreviousName
-		Clone.Branches = nil
-		Nodes[Node.Name] = Clone
-
-		if Node.Branches then
-			for _, Branch in Node.Branches do
-				AddNode(Branch, Node.Name)
-			end
-		end
+local function GetFolder(Player: Player): Folder
+	local Existing = Player:FindFirstChild("UnlockedNodes")
+	if Existing and Existing:IsA("Folder") then
+		return Existing
 	end
 
-	for _, Node in Tree.Branches do
-		AddNode(Node, Tree.Name)
+	local Folder = Instance.new("Folder")
+	Folder.Name = "UnlockedNodes"
+	Folder.Parent = Player
+	return Folder
+end
+
+function SkillTreeService:Instantiate(NodeName: string): BoolValue
+	local Node = Instance.new("BoolValue")
+	Node.Name = NodeName
+	Node.Value = true
+	return Node
+end
+
+function SkillTreeService:GetTreeNodes(TreeName: string): { [string]: any }
+	local Nodes = {}
+	for Name, Node in AllNodes do
+		if Node.Stat == TreeName then
+			Nodes[Name] = Node
+		end
 	end
 
 	return Nodes
 end
 
-function SkillTreeService:ResetSpecificSkillTree(Player: Player, TreeName: string)
-	local PlayerData = DataService:GetData(Player)
+function SkillTreeService:RefreshPoints(Player: Player)
+	local Data = DataService:GetData(Player)
+	if not Data then
+		return
+	end
 
-	local TreeNodes = self:GetTreeNodes(TreeName)
+	Data.SkillPoints = Data.SkillPoints or {}
+	for _, Stat in Config.Names do
+		local Points = Progression.GetPoints(Data, Stat, AllNodes)
+		Data.SkillPoints[Stat] = Points
+		Player:SetAttribute(Stat .. "SkillPoints", Points)
+	end
+	Player:SetAttribute("FreePoints", nil)
+end
 
-	for Node in TreeNodes do
-		local Index = table.find(PlayerData.UnlockedNodes, Node)
-		if Index then
-			table.remove(PlayerData.UnlockedNodes, Index)
-
-			PlayerData.FreePoints += TreeNodes[Node].PointsRequired
-			local NodeInstance = Player.UnlockedNodes:FindFirstChild(Node)
-			if NodeInstance then
-				NodeInstance:Destroy()
-			end
-
-			if not Node.Passive then
-				InventoryService:RemoveItemFromPlayer(Player, Node:gsub(" ", ""), "all")
-			end
+function SkillTreeService:ApplyCharacterTalents(Player: Player)
+	local Character = Player.Character
+	if not Character then
+		return
+	end
+	local Data = DataService:GetData(Player)
+	for _, Name in (Data and Data.RetiredSkillNodes) or {} do
+		if not AllNodes[Name] then
+			Character:SetAttribute("Talent" .. Name:gsub(" ", ""), nil)
 		end
 	end
 
-	Player:SetAttribute("FreePoints", PlayerData.FreePoints)
-	ValuesService:UpdateAll(Player.Character)
+	for Name in AllNodes do
+		Character:SetAttribute("Talent" .. Name:gsub(" ", ""), self:IsSkillUnlocked(Player, Name))
+	end
+end
+
+function SkillTreeService:ResetSpecificSkillTree(Player: Player, TreeName: string): boolean
+	local Data = DataService:GetData(Player)
+	if not Data or not Config.Trees[TreeName] then
+		return false
+	end
+
+	local Remaining = {}
+	local Folder = GetFolder(Player)
+	for _, Name in Data.UnlockedNodes do
+		local Node = AllNodes[Name]
+		if Node and Node.Stat == TreeName then
+			local Marker = Folder:FindFirstChild(Name)
+			if Marker then
+				Marker:Destroy()
+			end
+		else
+			table.insert(Remaining, Name)
+		end
+	end
+	Data.UnlockedNodes = Remaining
+
+	self:RefreshPoints(Player)
+	self:ApplyCharacterTalents(Player)
+	ValuesService:UpdateAll(Player.Character, false)
+	self:UpdateUI(Player)
+	return true
 end
 
 function SkillTreeService:ResetSkillTree(Player: Player)
-	local PlayerData = DataService:GetData(Player)
-	PlayerData.UnlockedNodes = {}
-	PlayerData.FreePoints = StatService:GetEarnedSkillPoints(Player)
+	local Data = DataService:GetData(Player)
+	if not Data then
+		return
+	end
 
-	local PlayerSkills = {}
-	for _, Item in PlayerData.Inventory do
-		if Item.Class == "Skill" then
-			table.insert(PlayerSkills, Item)
+	Data.UnlockedNodes = {}
+	self:LoadAttributes(Player)
+	self:ApplyCharacterTalents(Player)
+	ValuesService:UpdateAll(Player.Character, false)
+	self:UpdateUI(Player)
+end
+
+function SkillTreeService:EnsureStarterSkills(Player: Player)
+	local Data = DataService:GetData(Player)
+	for _, Name in Config.StarterSkills do
+		if not table.find(Data.OtherSkills, Name) then
+			table.insert(Data.OtherSkills, Name)
+		end
+
+		local ItemName = Name:gsub(" ", "")
+		if not InventoryService:GetPlayerItemByName(Player, ItemName) then
+			local Item = ItemService:CreateItem(ItemName, 1)
+			if Item then
+				InventoryService:GiveItemToPlayer(Player, Item)
+			end
 		end
 	end
-
-	for _, Item in PlayerSkills do
-		InventoryService:RemoveItemFromPlayer(Player, Item.Name, Item.Stack)
-	end
-
-	Player.UnlockedNodes:ClearAllChildren()
-	Player:SetAttribute("FreePoints", PlayerData.FreePoints)
-
-	ValuesService:UpdateAll(Player.Character)
 end
 
 function SkillTreeService:LoadAttributes(Player: Player)
-	local PlayerData = DataService:GetData(Player)
-
-	local UnlockedNodes = Player:FindFirstChild("UnlockedNodes") or Instance.new("Folder")
-	UnlockedNodes.Parent = Player
-	UnlockedNodes.Name = "UnlockedNodes"
-
-	UnlockedNodes:ClearAllChildren()
-	for _, NodeName in PlayerData.UnlockedNodes do
-		local NodeInstance = self:Instantiate(NodeName)
-		NodeInstance.Parent = UnlockedNodes
+	local Data = DataService:GetData(Player)
+	if not Data then
+		return
 	end
 
-	for _, NodeName in PlayerData.OtherSkills do
-		local NodeInstance = self:Instantiate(NodeName)
-		NodeInstance.Parent = UnlockedNodes
+	Progression.Reconcile(Data, AllNodes, Config.Version, Config.LegacyPermanentSkills)
+	self:EnsureStarterSkills(Player)
+	Data.SwordStyle = Data.SwordStyle or "Beginner"
+	Player:SetAttribute("SwordStyle", Data.SwordStyle)
+	if Data.FightingStyle == "Sword" or Data.FightingStyle == "Katana" then
+		Data.FightingStyle = ""
 	end
+	Player:SetAttribute("FightingStyle", if Data.FightingStyle ~= "" then Data.FightingStyle else nil)
 
-	local OtherAttributes = {
-		"Movement",
-		"Kendo",
-		"Resistance",
-		PlayerData.Race,
-		PlayerData.Artifact,
-	}
-
-	local SpentPoints = 0
-
-	for _, Node in PlayerData.UnlockedNodes do
-		local NodeInfo = AllNodes[Node]
-		if NodeInfo then
-			SpentPoints += NodeInfo.PointsRequired or 0
+	local Folder = GetFolder(Player)
+	Folder:ClearAllChildren()
+	local function Add(Name: string)
+		if not Folder:FindFirstChild(Name) then
+			self:Instantiate(Name).Parent = Folder
 		end
 	end
 
-	if PlayerData.LegacyProgression and PlayerData.LegacyProgression.MigrateSkills then
-		local ExistingPoints = math.max(0, PlayerData.LegacyProgression.FreePoints or 0)
-		PlayerData.LegacySkillPointCredits = math.max(0, SpentPoints + ExistingPoints - StatService:GetEarnedSkillPoints(Player))
-		PlayerData.LegacyProgression.MigrateSkills = false
+	for _, Name in Data.UnlockedNodes do
+		Add(Name)
+	end
+	for _, Name in Data.OtherSkills do
+		if not AllNodes[Name] then
+			Add(Name)
+		end
+	end
+	for _, Name in Config.Names do
+		Add(Name)
 	end
 
-	PlayerData.FreePoints = math.max(0, StatService:GetEarnedSkillPoints(Player) - SpentPoints)
-
-	Player:SetAttribute("FreePoints", PlayerData.FreePoints)
-	for _, Attribute in OtherAttributes do
-		Attribute = Attribute:gsub(" ", "")
-		local NodeInstance = self:Instantiate(Attribute)
-		NodeInstance.Parent = UnlockedNodes
-	end
+	self:RefreshPoints(Player)
+	self:ApplyCharacterTalents(Player)
 end
 
-function SkillTreeService:UpdateUI(Player: Player)
-	SkillTreeService.Client.UpdateUI:Fire(Player, SkillTreeService:GetTreesName(Player))
+function SkillTreeService:GetTreesName(_Player: Player): { string }
+	return table.clone(Config.Names)
 end
 
-function SkillTreeService:GetTreesName(Player: Player)
-	local PlayerData = DataService:GetData(Player)
-
-	return {
-		"Movement",
-		"Kendo",
-		"Resistance",
-		PlayerData.Race,
-		PlayerData.Artifact,
-	}
-end
-function SkillTreeService.Client:GetTreesName(Player: Player)
+function SkillTreeService.Client:GetTreesName(Player: Player): { string }
 	return self.Server:GetTreesName(Player)
 end
 
-function SkillTreeService:GetFreePoints(Player: Player)
-	local PlayerData = DataService:GetData(Player)
-	return PlayerData.FreePoints
+function SkillTreeService:UpdateUI(Player: Player)
+	self.Client.UpdateUI:Fire(Player, self:GetTreesName(Player))
+end
+
+function SkillTreeService:GetFreePoints(Player: Player, Stat: string): number
+	local Data = DataService:GetData(Player)
+	return if Data and Config.Trees[Stat] then Progression.GetPoints(Data, Stat, AllNodes) else 0
 end
 
 function SkillTreeService:LearnOtherSkill(Player: Player, SkillName: string)
-	local UnlockedNodes = Player:FindFirstChild("UnlockedNodes")
-
-	if UnlockedNodes:FindFirstChild(SkillName) then
+	local Data = DataService:GetData(Player)
+	if not Data or typeof(SkillName) ~= "string" or AllNodes[SkillName] then
+		return
+	end
+	if self:IsSkillUnlocked(Player, SkillName) then
 		AlertService:AlertPlayer(Player, "Skill already unlocked.", "Error")
 		return
 	end
 
-	table.insert(DataService:GetData(Player).OtherSkills, SkillName)
-	local NodeInstance = self:Instantiate(SkillName)
-	NodeInstance.Parent = UnlockedNodes
+	table.insert(Data.OtherSkills, SkillName)
+	self:Instantiate(SkillName).Parent = GetFolder(Player)
 end
 
-function SkillTreeService:UnlockNode(Player: Player, NodeName: string)
-	local NodeInfo = AllNodes[NodeName]
-
-	if not NodeInfo then
-		AlertService:AlertPlayer(Player, "Invalid node name.", "Error")
-		return
+function SkillTreeService:UnlockNode(Player: Player, NodeName: string): boolean
+	local Data = DataService:GetData(Player)
+	if not Data or Data.SkillTreeVersion ~= Config.Version then
+		return false
 	end
 
-	local UnlockedNodes = Player:FindFirstChild("UnlockedNodes")
-
-	if UnlockedNodes:FindFirstChild(NodeName) then
-		AlertService:AlertPlayer(Player, "Skill already unlocked.", "Error")
-		return
-	end
-	local PlayerData = DataService:GetData(Player)
-
-	local function SpaceOut(String)
-		return String:gsub("(%l)(%u)", "%1 %2")
+	local Allowed, Reason = Progression.CanUnlock(Data, NodeName, AllNodes)
+	if not Allowed then
+		AlertService:AlertPlayer(Player, Reason, "Error")
+		return false
 	end
 
-	local IgnoreNames = {
-		"Movement",
-		"Kendo",
-		"Resistance",
-		PlayerData.Race,
-	}
-
-	if PlayerData.Artifact then
-		local Subbed = SpaceOut(PlayerData.Artifact)
-		table.insert(IgnoreNames, Subbed)
-	end
-
-	if not UnlockedNodes:FindFirstChild(NodeInfo.Previous) and not table.find(IgnoreNames, NodeInfo.Previous) then
-		AlertService:AlertPlayer(Player, "You have to unlock the previous skill first.", "Error")
-		return
-	end
-
-	if PlayerData.FreePoints < NodeInfo.PointsRequired then
-		AlertService:AlertPlayer(Player, "Not enough free points.", "Error")
-		return
-	end
-
-	PlayerData.FreePoints -= NodeInfo.PointsRequired
-	Player:SetAttribute("FreePoints", PlayerData.FreePoints)
-
-	table.insert(PlayerData.UnlockedNodes, NodeName)
-	local NodeInstance = self:Instantiate(NodeName)
-	NodeInstance.Parent = UnlockedNodes
-
-	local SubName = NodeInfo.Name:gsub(" ", "")
-	if not NodeInfo.Passive then
-		local Skill = ItemService:CreateItem(SubName, 1)
-		if Skill then
-			InventoryService:GiveItemToPlayer(Player, Skill)
-		else
-			warn("Skill not found ", SubName)
-		end
-	end
-
+	-- No yielding calls between validation and the saved unlock.
+	table.insert(Data.UnlockedNodes, NodeName)
+	self:Instantiate(NodeName).Parent = GetFolder(Player)
+	self:RefreshPoints(Player)
+	self:ApplyCharacterTalents(Player)
+	ValuesService:UpdateAll(Player.Character, false)
 	AlertService:AlertPlayer(Player, "Skill unlocked.", "Success")
-
-	if SubName:find("Stamina") then
-		ValuesService:UpdateMaxStamina(Player.Character)
-	elseif SubName:find("Resistance") then
-		ValuesService:UpdateMaxHealth(Player.Character)
-	elseif SubName:find("Regeneration") then
-		ValuesService:UpdateRegeneration(Player.Character)
-	elseif SubName:find("KendoProficiency") or SubName:find("EnergyConservation") then
-		ValuesService:UpdateDamage(Player.Character)
-	end
-
 	return true
 end
-function SkillTreeService.Client:UnlockNode(Player: Player, NodeName: string)
+
+function SkillTreeService.Client:UnlockNode(Player: Player, NodeName: string): boolean
 	return self.Server:UnlockNode(Player, NodeName)
 end
 
-function SkillTreeService:IsSkillUnlocked(Character: Player | Model, SkillName: string)
-	if Character:GetAttribute("IsAI") then
+function SkillTreeService:IsSkillUnlocked(Subject: Player | Model, SkillName: string): boolean
+	if Subject:GetAttribute("IsAI") then
 		return false
 	end
 
-	local Player = Character
-	if Player:IsA("Model") then
-		Player = Players:GetPlayerFromCharacter(Character)
-	end
-
-	if not Player then
+	local Player = if Subject:IsA("Model") then Players:GetPlayerFromCharacter(Subject) else Subject
+	local Data = Player and DataService:GetData(Player)
+	if not Data then
 		return false
 	end
 
-	local PlayerData = DataService:GetData(Player)
-	if not PlayerData then
-		return false
+	if SkillName == "No Run Stamina Drain" or SkillName == "No Climb Stamina Drain" then
+		SkillName = "Travel Breath"
 	end
-	
-	return table.find(PlayerData.UnlockedNodes, SkillName) ~= nil
-		or table.find(PlayerData.OtherSkills, SkillName) ~= nil
+	if AllNodes[SkillName] then
+		return table.find(Data.UnlockedNodes or {}, SkillName) ~= nil
+	end
+
+	return table.find(Data.OtherSkills or {}, SkillName) ~= nil
 end
 
 function SkillTreeService.KnitInit()
@@ -292,31 +260,8 @@ function SkillTreeService.KnitInit()
 	InventoryService = Knit.GetService("InventoryService")
 	ItemService = Knit.GetService("ItemService")
 	ValuesService = Knit.GetService("ValuesService")
-	StatService = Knit.GetService("StatService")
 end
 
-function SkillTreeService.KnitStart()
-	local function AddNode(Node, PreviousName)
-		local Clone = table.clone(Node)
-		Clone.Previous = PreviousName
-		Clone.Branches = nil
-		AllNodes[Node.Name] = Clone
-
-		if Node.Branches then
-			for _, Branch in Node.Branches do
-				AddNode(Branch, Node.Name)
-			end
-		end
-	end
-
-	for _, Tree in SkillTrees do
-		if not Tree.Branches then
-			continue
-		end
-		for _, Node in Tree.Branches do
-			AddNode(Node, Tree.Name)
-		end
-	end
-end
+function SkillTreeService.KnitStart() end
 
 return SkillTreeService

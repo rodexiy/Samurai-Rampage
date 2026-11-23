@@ -15,6 +15,7 @@ local BloodService
 local SoundEffectService
 local ItemService
 local QuestService
+local TalentService
 
 local WeaponsModules = {}
 
@@ -635,10 +636,14 @@ function WeaponService:WeaponInput(Character: Model, Action: string, Data: { any
 	if Character:GetAttribute("RealmEditing") then
 		return
 	end
+	if Action == "Feint" then
+		TalentService:TryFeint(Character)
+		return
+	end
 
 	Data = Data or {}
 	Data.Server = Data.Server or {}
-	Data.RootCFrame = Data.RootCFrame or Character:GetPivot()
+	Data.RootCFrame = if typeof(Data.RootCFrame) == "CFrame" then Data.RootCFrame else Character:GetPivot()
 
 	if (Data.RootCFrame.Position - Character:GetPivot().Position).Magnitude > 10 then
 		Data.RootCFrame = Character:GetPivot()
@@ -670,6 +675,9 @@ function WeaponService.Client:WeaponInput(Player: Player, Action: string, Data: 
 		return
 	end
 
+	if typeof(Action) ~= "string" or typeof(Data) ~= "table" then
+		return
+	end
 	Data.Server = {}
 
 	self.Server:WeaponInput(Character, Action, Data)
@@ -710,6 +718,7 @@ function WeaponService.KnitInit()
 	SoundEffectService = Knit.GetService("SoundEffectService")
 	ItemService = Knit.GetService("ItemService")
 	QuestService = Knit.GetService("QuestService")
+	TalentService = Knit.GetService("TalentService")
 
 	for _, Weapon in script:GetDescendants() do
 		if Weapon:IsA("ModuleScript") then

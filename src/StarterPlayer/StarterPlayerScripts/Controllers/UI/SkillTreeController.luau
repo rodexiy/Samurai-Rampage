@@ -1,6 +1,10 @@
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local Config = require(ReplicatedStorage.Shared.SkillTreeConfig)
+local Progression = require(ReplicatedStorage.Shared.SkillTreeProgression)
 
 local SkillTreeController = Knit.CreateController({
 	Name = "SkillTreeController",
@@ -9,16 +13,15 @@ local SkillTreeController = Knit.CreateController({
 local HotbarController
 
 local SkillTreeService
-local SkillTreesIndex = require(game.ReplicatedStorage.Shared.Index.SkillTrees)
+local SkillTreesIndex = require(ReplicatedStorage.Shared.Index.SkillTrees)
 
 local Trees = {}
 
 local DEFAULT_SCALE = 20
 
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 
 local PlayerGui
-local Hud
 local Menu
 
 local SkillTree
@@ -33,13 +36,16 @@ local Camera = workspace.CurrentCamera
 
 local BackgroundTween = nil
 
-local NodesInfo = {}
+local NodesInfo = Progression.Index(Config.Trees)
 
 type Branch = {
 	Name: string,
 	PointsRequired: number,
 	Description: string,
-	Position: string,
+	Layout: { X: number, Y: number },
+	Stat: string,
+	Passive: boolean?,
+	Color: Color3?,
 
 	Branches: { Branch }?,
 }
@@ -50,11 +56,14 @@ function UdimToVector(Udim: UDim2): Vector2
 	return Vector2.new(Udim.X.Offset, Udim.Y.Offset)
 end
 
-function MultUdim2(Vector: UDim2, Scale: number)
+function MultUdim2(Vector: UDim2, Scale: number): UDim2
 	return UDim2.new(Vector.X.Scale * Scale, Vector.X.Offset * Scale, Vector.Y.Scale * Scale, Vector.Y.Offset * Scale)
 end
 
-function SkillTreeController:IsSkillUnlocked(SkillName: string)
+function SkillTreeController:IsSkillUnlocked(SkillName: string): boolean
+	if SkillName == "No Run Stamina Drain" or SkillName == "No Climb Stamina Drain" then
+		SkillName = "Travel Breath"
+	end
 	local UnlockedNodes = Player:FindFirstChild("UnlockedNodes")
 	if not UnlockedNodes then
 		warn("Unlocked nodes missing!")
@@ -70,17 +79,73 @@ function SkillTreeController:CheckUnlockButton()
 		return
 	end
 
-	if NodeInfo.Passive and self:IsSkillUnlocked(NodeInfo.Name) then
-		Description.TextButton.Visible = false
-	elseif not NodeInfo.Passive and self:IsSkillUnlocked(NodeInfo.Name) then
-		Description.TextButton.Visible = true
-		Description.TextButton.Text = "Equip"
-	else
-		Description.TextButton.Visible = true
-		Description.TextButton.Text = "Unlock - "
-			.. tostring(NodeInfo.PointsRequired)
-			.. (NodeInfo.PointsRequired == 1 and " Point" or " Points")
+	local Allowed, Reason = Progression.CanUnlock(self:GetLocalProgress(), NodeInfo.Name, NodesInfo)
+	Description.TextButton.Visible = not self:IsSkillUnlocked(NodeInfo.Name)
+	Description.TextButton.Active = Allowed
+	Description.TextButton.AutoButtonColor = Allowed
+	Description.TextButton.Text = if Allowed then "Unlock - " .. NodeInfo.PointsRequired .. " " .. NodeInfo.Stat .. " points" else "Locked"
+	Description.Description.Text = NodeInfo.Description .. "\n\nCost: " .. NodeInfo.PointsRequired .. " " .. NodeInfo.Stat .. " points."
+		.. (if not Allowed and not self:IsSkillUnlocked(NodeInfo.Name) then "\n" .. (Reason or "") else "")
+end
+
+function SkillTreeController:GetLocalProgress(): { [string]: any }
+	local Data = { Stats = {}, UnlockedNodes = {} }
+	for _, Stat in Config.Names do
+		Data.Stats[Stat] = { Level = Player:GetAttribute(Stat .. "Level") or 0 }
 	end
+
+	local Folder = Player:FindFirstChild("UnlockedNodes")
+	if Folder then
+		for _, Node in Folder:GetChildren() do
+			if NodesInfo[Node.Name] then
+				table.insert(Data.UnlockedNodes, Node.Name)
+			end
+		end
+	end
+
+	return Data
+end
+
+function SkillTreeController:RefreshPoints()
+	local Info = NodesInfo[SelectedNodeName] or SkillTreesIndex[SelectedNodeName]
+	if Info then
+		SkillTree.SkillPointsLeft.Text = tostring(Player:GetAttribute(Info.Stat .. "SkillPoints") or 0)
+			.. " " .. Info.Stat:upper() .. " POINTS"
+	else
+		SkillTree.SkillPointsLeft.Text = "SELECT AN ATTRIBUTE TREE"
+	end
+
+	for _, Stat in Config.Names do
+		local Root = Content:FindFirstChild(Stat) :: ImageButton?
+		if Root then
+			Root.Frame.TextLabel.Text = Stat .. "\n" .. tostring(Player:GetAttribute(Stat .. "SkillPoints") or 0) .. " points"
+		end
+	end
+	self:CheckUnlockButton()
+end
+
+function SkillTreeController:RefreshNodes()
+	local Data = self:GetLocalProgress()
+	for Name in NodesInfo do
+		local Node = Content:FindFirstChild(Name) :: ImageButton?
+		local Learned = self:IsSkillUnlocked(Name)
+		local Allowed = Progression.CanUnlock(Data, Name, NodesInfo)
+		local Color = if Learned then Color3.new(1, 1, 1)
+			elseif Allowed then Color3.fromRGB(160, 160, 160) else Color3.fromRGB(65, 65, 65)
+		if Node then
+			Node.ImageColor3 = Color
+		end
+	end
+	for _, Line in Content:GetChildren() do
+		local Target = Line:GetAttribute("TargetNode")
+		local Required = Line:GetAttribute("RequiredNode")
+		if Line:IsA("ImageLabel") and Target and Required then
+			local Connected = self:IsSkillUnlocked(Required)
+			Line.ImageColor3 = if Connected and self:IsSkillUnlocked(Target) then Color3.new(1, 1, 1)
+				elseif Connected then Color3.fromRGB(160, 160, 160) else Color3.fromRGB(65, 65, 65)
+		end
+	end
+	self:RefreshPoints()
 end
 
 function SkillTreeController:GetTrees()
@@ -89,117 +154,89 @@ function SkillTreeController:GetTrees()
 	table.clear(Trees)
 
 	for _, BranchName in TreesName do
-		table.insert(Trees, SkillTreesIndex[BranchName])
+		if SkillTreesIndex[BranchName] then
+			table.insert(Trees, SkillTreesIndex[BranchName])
+		end
 	end
 end
 
-function SkillTreeController:GetPositionOffset(Position)
-	local OffsetAmount = NodeTemplate.AbsoluteSize.Y + 64
-	if not Position then
-		return UDim2.new(0, 0, 0, OffsetAmount)
-	end
-
-	local SideOffset = 64
-
-	local Offsets = {
-		Forward = UDim2.new(0, 0, 0, -OffsetAmount),
-		Backward = UDim2.new(0, 0, 0, OffsetAmount),
-		Left = UDim2.new(0, -OffsetAmount, 0, 0),
-		Right = UDim2.new(0, OffsetAmount, 0, 0),
-		DiagonalLeft = UDim2.new(0, -OffsetAmount, 0, -OffsetAmount),
-		DiagonalRight = UDim2.new(0, OffsetAmount, 0, -OffsetAmount),
-		BackwardLeft = UDim2.new(0, -OffsetAmount, 0, OffsetAmount),
-		BackwardRight = UDim2.new(0, OffsetAmount, 0, OffsetAmount),
-	}
-
-	local Offset = Offsets[Position]
-
-	if Offset.X.Offset > 0 then
-		Offset += UDim2.fromOffset(SideOffset, 0)
-	elseif Offset.X.Offset < 0 then
-		Offset -= UDim2.fromOffset(SideOffset, 0)
-	end
-
-	if Position == "DiagonalLeft" then
-		Offset += UDim2.fromOffset(-SideOffset, -SideOffset * 2)
-	elseif Position == "DiagonalRight" then
-		Offset += UDim2.fromOffset(SideOffset, -SideOffset * 2)
-	end
-
-	local Vector = Vector2.new(Offset.X.Offset, Offset.Y.Offset).Unit
-	local Normalized = UDim2.new(0, Vector.X * OffsetAmount, 0, Vector.Y * OffsetAmount)
-	return Normalized
+function SkillTreeController:GetLayoutSpacing(): Vector2
+	-- The template is outside the zoomed Content and already reflects SizeConstraint.
+	return NodeTemplate.AbsoluteSize + Vector2.new(64, 64)
 end
 
-local TotalPoints = 0
+function SkillTreeController:DrawConnections()
+	for Name, Info in NodesInfo do
+		local Requirements = {}
+		if not Info.RequiresAny and not Info.RequiresAll then
+			table.insert(Requirements, Info.Previous)
+		end
+		for _, Required in Info.RequiresAll or {} do
+			table.insert(Requirements, Required)
+		end
+		for _, Required in Info.RequiresAny or {} do
+			if not table.find(Requirements, Required) then
+				table.insert(Requirements, Required)
+			end
+		end
+		local Node = Content:FindFirstChild(Name) :: ImageButton?
+		for _, Required in Requirements do
+			local Previous = Content:FindFirstChild(Required) :: ImageButton?
+			if not Node or not Previous then
+				continue
+			end
+			local Start = Previous:GetAttribute("FinalPosition")
+			local Finish = Node:GetAttribute("FinalPosition")
+			local Difference = UdimToVector(Finish - Start)
+			local Line = InterligationTemplate:Clone()
+			Line.Name = Name .. "From" .. Required
+			Line:SetAttribute("TargetNode", Name)
+			Line:SetAttribute("RequiredNode", Required)
+			Line.AnchorPoint = Vector2.new(0.5, 0.5)
+			Line.Position = MultUdim2(Start + Finish, 0.5)
+			Line.Rotation = math.deg(math.atan2(Difference.Y, Difference.X)) - 90
+			Line.Size = UDim2.fromOffset(DEFAULT_SCALE / 3, Difference.Magnitude)
+			Line.ZIndex = 1
+			Line.Visible = true
+			Line.Parent = Content
+		end
+	end
+end
 
 function SkillTreeController:LoadBranch(Branch: Branch, ParentBranch: Branch?, Tree: Branch, InitialPosition: UDim2?)
 	local Node = NodeTemplate:Clone()
 	Node.Name = Branch.Name
 	Node.Frame.TextLabel.Text = Branch.Name
+	Node.Frame.TextLabel.TextWrapped = true
+	Node.Frame.TextLabel.TextScaled = true
+	Node.ZIndex = math.max(Node.ZIndex, 2)
+	if ParentBranch and Branch.Passive then
+		Node.Size = MultUdim2(Node.Size, 0.85)
+		Node.Image = "rbxassetid://73039894467555"
+		Node.Frame.Image = "rbxassetid://73039894467555"
+	end
+
+	-- Button styles must observe the final Size when the clone enters PlayerGui.
+	local EntranceScale = Instance.new("UIScale")
+	EntranceScale.Name = "EntranceScale"
+	EntranceScale.Scale = 0
+	EntranceScale.Parent = Node
 	Node.Parent = Content
 	Node.Frame.ImageColor3 = Tree.Color
-
-	TotalPoints += Branch.PointsRequired or 0
+	TweenService:Create(EntranceScale, TweenInfo.new(0.25), { Scale = 1 }):Play()
 
 	if ParentBranch and not self:IsSkillUnlocked(Branch.Name) then
 		Node.ImageColor3 = Color3.fromRGB(85, 85, 85)
 	end
 
-	local Interligation
-
 	if ParentBranch then
-		task.wait(0.05)
-		local ParentNodeInstance: ImageButton = Content:FindFirstChild(ParentBranch.Name)
-
-		local NormalSize = Node.Size
-		Node.Size = UDim2.fromOffset(0, 0)
+		local ParentNodeInstance = Content:FindFirstChild(ParentBranch.Name) :: ImageButton
 		Node.Position = ParentNodeInstance:GetAttribute("FinalPosition")
-		local FinalPosition = ParentNodeInstance:GetAttribute("FinalPosition") + self:GetPositionOffset(Branch.Position)
-		if Branch.Passive then
-			NormalSize = MultUdim2(NormalSize, 0.85)
-
-			Node.Image = "rbxassetid://73039894467555"
-			Node.Frame.Image = "rbxassetid://73039894467555"
-		end
-
-		TweenService:Create(Node, TweenInfo.new(0.25), { Size = NormalSize }):Play()
-		TweenService:Create(Node, TweenInfo.new(0.5), { Position = FinalPosition, Size = NormalSize }):Play()
+		local Root = Content:FindFirstChild(Tree.Name) :: ImageButton
+		local Spacing = self:GetLayoutSpacing()
+		local FinalPosition = Root:GetAttribute("FinalPosition") + UDim2.fromOffset(Branch.Layout.X * Spacing.X, Branch.Layout.Y * Spacing.Y)
+		TweenService:Create(Node, TweenInfo.new(0.5), { Position = FinalPosition }):Play()
 		Node:SetAttribute("FinalPosition", FinalPosition)
-
-		Interligation = InterligationTemplate:Clone()
-		Interligation.Parent = Content
-
-		Interligation.Name = Branch.Name .. "Interligation"
-
-		if ParentBranch and not self:IsSkillUnlocked(Branch.Name) then
-			Interligation.ImageColor3 = Color3.fromRGB(85, 85, 85)
-		end
-
-		Interligation.Size = UDim2.fromOffset(DEFAULT_SCALE / 3, 0)
-
-		task.delay(0.5, function()
-			TweenService:Create(Interligation, TweenInfo.new(1), {
-				Size = UDim2.fromOffset(DEFAULT_SCALE / 3, DEFAULT_SCALE * 8),
-			}):Play()
-		end)
-
-		local p1 = Node:GetAttribute("FinalPosition")
-		local p2 = ParentNodeInstance:GetAttribute("FinalPosition")
-
-		local heightDiff = UdimToVector(p1).X - UdimToVector(p2).X
-		heightDiff = -heightDiff / math.abs(heightDiff)
-		local ry = math.asin((UdimToVector(p1) - UdimToVector(p2)).Unit.Y)
-		Interligation.Rotation = (math.deg(-ry)) * heightDiff + 90
-
-		if Branch.Position == "Backward" or Branch.Position == "Forward" then
-			Interligation.Rotation = 0
-		end
-
-		Interligation.Position = MultUdim2(Node:GetAttribute("FinalPosition"), 0.5)
-			+ MultUdim2(ParentNodeInstance:GetAttribute("FinalPosition"), 0.5)
-
-		Interligation.Visible = true
 	else
 		Node:SetAttribute("FinalPosition", InitialPosition)
 		Node.Position = InitialPosition
@@ -208,13 +245,7 @@ function SkillTreeController:LoadBranch(Branch: Branch, ParentBranch: Branch?, T
 	Node.Activated:Connect(function()
 		HotbarController:LoadHotbar(false, false)
 		if SelectedNodeName == Branch.Name then
-			if SkillTreeService:UnlockNode(SelectedNodeName) then
-				Node.ImageColor3 = Color3.fromRGB(255, 255, 255)
-				if Interligation then
-					Interligation.ImageColor3 = Color3.fromRGB(255, 255, 255)
-				end
-				self:CheckUnlockButton()
-			end
+			self:UnlockSkillButton()
 			return
 		end
 
@@ -226,11 +257,13 @@ function SkillTreeController:LoadBranch(Branch: Branch, ParentBranch: Branch?, T
 		BackgroundTween = TweenService:Create(Background, TweenInfo.new(0.5), { BackgroundColor3 = Tree.Color })
 		BackgroundTween:Play()
 		Description.Description.Text = Branch.Description
+			.. (if Branch.PointsRequired then "\n\nCost: " .. Branch.PointsRequired .. " " .. Branch.Stat .. " points."
+				else "\n\nPoints belong to this attribute only.")
 		Description.SkillName.Text = Branch.Name
 
 		Description.Visible = true
 
-		self:CheckUnlockButton()
+		self:RefreshPoints()
 	end)
 
 	Node.Visible = true
@@ -244,8 +277,6 @@ end
 
 function SkillTreeController:LoadTree(Tree: Branch, InitialPosition: UDim2)
 	SkillTreeController:LoadBranch(Tree, nil, Tree, InitialPosition)
-
-	print(TotalPoints)
 end
 
 local LastScale
@@ -261,7 +292,7 @@ function SkillTreeController:BindControls()
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
 	end)
 
-	UserInputService.InputEnded:Connect(function(input, gameProcessedEvent)
+	UserInputService.InputEnded:Connect(function(input: InputObject, _gameProcessedEvent: boolean)
 		if not Background.Parent.Enabled then
 			return
 		end
@@ -304,8 +335,8 @@ function SkillTreeController:BindControls()
 	UserInputService.TouchPinch:Connect(
 		function(
 			touchPositions: { any },
-			scale: number,
-			velocity: number,
+			_scale: number,
+			_velocity: number,
 			state: Enum.UserInputState,
 			gameProcessedEvent: boolean
 		)
@@ -399,8 +430,8 @@ function SkillTreeController:BindControls()
 			end
 
 			local mapped = Vector2.new()
-			for _, key in Pressing do
-				local vec = map[key]
+			for _, PressedKey in Pressing do
+				local vec = map[PressedKey]
 				mapped += vec
 			end
 
@@ -425,7 +456,7 @@ function SkillTreeController:BindControls()
 		table.remove(Pressing, table.find(Pressing, key.KeyCode))
 	end)
 
-	for i, v: GuiButton in Content:GetChildren() do
+	for _, v: GuiButton in Content:GetChildren() do
 		if v:IsA("GuiButton") then
 			v.MouseButton1Up:Connect(function()
 				UserInputService.MouseBehavior = Enum.MouseBehavior.Default
@@ -434,7 +465,6 @@ function SkillTreeController:BindControls()
 	end
 end
 
-local threads = {}
 function SkillTreeController:UpdateTree()
 	for _, v in Content:GetChildren() do
 		if not v:IsA("UIScale") then
@@ -442,38 +472,36 @@ function SkillTreeController:UpdateTree()
 		end
 	end
 
-	for Index, Tree in Trees do
-		local NumberOfTrees = #Trees
-
-		-- Calculate the offset based on the index and number of trees
-		local OffsetX = (Index - (NumberOfTrees + 1) / 2) * 0.35 -- Adjust 0.1 for spacing between trees
-
-		-- Set the initial position, spreading outwards horizontally from the center
-		local InitialPosition = UDim2.new(0.5 + OffsetX, 0, 0.8, 0)
-
-		table.insert(
-			threads,
-			task.spawn(function()
-				SkillTreeController:LoadTree(Tree, InitialPosition)
-			end)
-		)
+	local Spacing = self:GetLayoutSpacing()
+	local Bounds = {}
+	local Width = 0
+	for _, Tree in Trees do
+		local Left, Right = 0, 0
+		for _, Info in NodesInfo do
+			if Info.Stat == Tree.Stat then
+				Left = math.min(Left, Info.Layout.X)
+				Right = math.max(Right, Info.Layout.X)
+			end
+		end
+		local Span = Right - Left + 2
+		table.insert(Bounds, { Left = Left, Span = Span })
+		Width += Span
 	end
+	local Cursor = -Width / 2
+	for Index, Tree in Trees do
+		local Bound = Bounds[Index]
+		local OffsetX = (Cursor - Bound.Left + 1) * Spacing.X
+		self:LoadTree(Tree, UDim2.new(0.5, OffsetX, 0.8, 0))
+		Cursor += Bound.Span
+	end
+	self:DrawConnections()
+	self:RefreshNodes()
 end
 
 function SkillTreeController:UnlockSkillButton()
-	if SelectedNodeName then
-		if Description.TextButton.Visible and Description.TextButton.Text == "Equip" then
-			HotbarController:LoadHotbar(true, true)
-		elseif SkillTreeService:UnlockNode(SelectedNodeName) then
-			local Node = Content:FindFirstChild(SelectedNodeName)
-			if Node then
-				Node.ImageColor3 = Color3.fromRGB(255, 255, 255)
-			end
-			local Interligation = Content:FindFirstChild(SelectedNodeName .. "Interligation")
-			if Interligation then
-				Interligation.ImageColor3 = Color3.fromRGB(255, 255, 255)
-			end
-			self:CheckUnlockButton()
+	if SelectedNodeName and Progression.CanUnlock(self:GetLocalProgress(), SelectedNodeName, NodesInfo) then
+		if SkillTreeService:UnlockNode(SelectedNodeName) then
+			self:RefreshNodes()
 		end
 	end
 end
@@ -492,21 +520,26 @@ function SkillTreeController.KnitInit()
 end
 
 function SkillTreeController.KnitStart()
-	PlayerGui = Player:WaitForChild("PlayerGui")
-	Hud = PlayerGui:WaitForChild("Hud")
+	PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
 	Menu = PlayerGui:WaitForChild("Menu")
 
-	SkillTree = Menu:WaitForChild("SkillTree")
-	Background = SkillTree:WaitForChild("Background")
-	Content = SkillTree:WaitForChild("Content")
-	Description = SkillTree:WaitForChild("Description")
+	SkillTree = Menu:WaitForChild("SkillTree") :: ScreenGui
+	Background = SkillTree:WaitForChild("Background") :: Frame
+	Content = SkillTree:WaitForChild("Content") :: Frame
+	Description = SkillTree:WaitForChild("Description") :: Frame
 
-	InterligationTemplate = SkillTree:WaitForChild("InterligationTemplate")
-	NodeTemplate = SkillTree:WaitForChild("NodeTemplate")
+	InterligationTemplate = SkillTree:WaitForChild("InterligationTemplate") :: ImageLabel
+	NodeTemplate = SkillTree:WaitForChild("NodeTemplate") :: ImageButton
 
 	LastScale = Content.UIScale.Scale
 	Content.Position = UDim2.fromOffset(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 	SkillTreeController:GetTrees()
+	SkillTreeService.UpdateUI:Connect(function(_Trees: { string })
+		SkillTreeController:GetTrees()
+		if SkillTree.Enabled then
+			SkillTreeController:UpdateTree()
+		end
+	end)
 
 	local function BindCharacter()
 		if not Player.Character then
@@ -531,7 +564,7 @@ function SkillTreeController.KnitStart()
 
 	BindCharacter()
 
-	Player.CharacterAdded:Connect(function(character)
+	Player.CharacterAdded:Connect(function(_character: Model)
 		BindCharacter()
 	end)
 
@@ -541,11 +574,6 @@ function SkillTreeController.KnitStart()
 		LastScale = 1
 		if not SkillTree.Enabled then
 			HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
-			for _, thread in threads do
-				task.cancel(thread)
-			end
-
-			table.clear(threads)
 		end
 
 		SelectedNodeName = nil
@@ -562,32 +590,22 @@ function SkillTreeController.KnitStart()
 		end
 	end)
 
-	Player:GetAttributeChangedSignal("FreePoints"):Connect(function()
-		SkillTree.SkillPointsLeft.Text = Player:GetAttribute("FreePoints") .. " SKILL POINTS"
+	for _, Stat in Config.Names do
+		Player:GetAttributeChangedSignal(Stat .. "SkillPoints"):Connect(function()
+			SkillTreeController:RefreshNodes()
+		end)
+		Player:GetAttributeChangedSignal(Stat .. "Level"):Connect(function()
+			SkillTreeController:RefreshNodes()
+		end)
+	end
+	local Folder = Player:WaitForChild("UnlockedNodes") :: Folder
+	Folder.ChildAdded:Connect(function()
+		SkillTreeController:RefreshNodes()
 	end)
-	SkillTree.SkillPointsLeft.Text = Player:GetAttribute("FreePoints") .. " SKILL POINTS"
-
-	local function AddNode(Node, PreviousName)
-		local Clone = table.clone(Node)
-		Clone.Previous = PreviousName
-		Clone.Branches = nil
-		NodesInfo[Node.Name] = Clone
-
-		if Node.Branches then
-			for _, Branch in Node.Branches do
-				AddNode(Branch, Node.Name)
-			end
-		end
-	end
-
-	for _, Tree in SkillTreesIndex do
-		if not Tree.Branches then
-			continue
-		end
-		for _, Node in Tree.Branches do
-			AddNode(Node, Tree.Name)
-		end
-	end
+	Folder.ChildRemoved:Connect(function()
+		SkillTreeController:RefreshNodes()
+	end)
+	SkillTreeController:RefreshPoints()
 end
 
 return SkillTreeController

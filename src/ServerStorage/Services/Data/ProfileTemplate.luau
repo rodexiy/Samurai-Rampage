@@ -5,7 +5,12 @@ local HorseConfig = require(ReplicatedStorage.Shared.HorseConfig)
 
 return {
 	FreePoints = 0,
+	SkillPoints = {},
+	SkillTreeVersion = 0,
+	SwordStyle = "Beginner",
+	FightingStyle = "",
 	UnlockedNodes = {},
+	RetiredSkillNodes = {},
 
 	OtherSkills = {},
 

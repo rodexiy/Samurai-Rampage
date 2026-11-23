@@ -1,11 +1,4 @@
-local SkillTrees = {}
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage.Shared.SkillTreeConfig)
 
-for index, module in pairs(script:GetDescendants()) do
-	if module:IsA("ModuleScript") then
-		local required = require(module)
-
-		SkillTrees[module.Name] = required
-	end
-end
-
-return SkillTrees
+return Config.Trees

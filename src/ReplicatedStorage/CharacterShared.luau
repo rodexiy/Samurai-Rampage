@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BowConfig = require(ReplicatedStorage.Shared.BowConfig)
 local CrouchConfig = require(ReplicatedStorage.Shared.CrouchConfig)
+local SkillTreeConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
 
 local Shared = {}
 
@@ -49,6 +50,9 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 	end
 
 	local Walkspeeds = {
+		Bandaging = function()
+			change("Bandaging", 4)
+		end,
 		Meditating = function()
 			change("Meditating", 0)
 		end,
@@ -78,7 +82,7 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 		end,
 
 		Blocking = function()
-			change("Blocking", 8)
+			change("Blocking", if Character:GetAttribute("TalentMobileGuard") then SkillTreeConfig.Effects.GuardWalkSpeed else 8)
 		end,
 
 		BeenDeflected = function()
