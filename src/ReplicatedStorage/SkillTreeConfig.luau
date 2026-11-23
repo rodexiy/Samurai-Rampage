@@ -63,7 +63,7 @@ Config.Trees.Strength = CreateTree("Strength", Color3.fromRGB(222, 117, 90), "Im
 })
 Config.Trees.Dexterity = CreateTree("Dexterity", Color3.fromRGB(227, 195, 105), "Improve precision, feints and parry responses.", {
 	Node("Deflect Stamina Recovery", "Successful parries restore more stamina.", 0, -1, {
-		Node("Feint", "Press X during a basic melee attack windup to cancel it. Costs 5 stamina; three second cooldown.", -1, -2, {
+		Node("Feint", "Right-click during a basic melee attack windup to cancel it. Costs 5 stamina; three second cooldown.", -1, -2, {
 			Node("Moving Feint", "A successful feint also steps forward up to 1.5 studs, respecting walls.", -1, -3),
 		}),
 		Node("Retake Initiative", "After a successful parry, return to attacking sooner.", 1, -2, {

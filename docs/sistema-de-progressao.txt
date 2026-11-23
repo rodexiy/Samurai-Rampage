@@ -176,7 +176,8 @@ Destreza -> Deflect Stamina Recovery
                      |-- Retake Initiative -> Firm Response OU Mobile Response
 
 - Deflect Stamina Recovery: melhora a recuperação de stamina após um parry bem-sucedido.
-- Feint: X cancela a preparação de um ataque básico corpo a corpo antes da hitbox, por 5 de stamina.
+- Feint: o botão direito do mouse cancela a preparação de um ataque básico corpo a corpo antes da
+  hitbox, por 5 de stamina.
   Intervalo de 3 segundos; não cancela um pesado nem permite escapar de um stun.
 - Moving Feint: a finta também avança até 1,5 stud, respeitando paredes.
 - Retake Initiative: permite voltar a atacar mais cedo após um parry.

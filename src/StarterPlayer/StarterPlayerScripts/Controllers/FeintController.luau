@@ -36,7 +36,7 @@ end
 
 function FeintController.KnitStart()
 	UserInputService.InputBegan:Connect(function(Input: InputObject, Processed: boolean)
-		if not Processed and Input.KeyCode == Enum.KeyCode.X then
+		if not Processed and Input.UserInputType == Enum.UserInputType.MouseButton2 then
 			Feint(Enum.UserInputState.Begin)
 		end
 	end)

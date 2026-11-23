@@ -67,7 +67,7 @@ Nenhum talento depende de consumíveis, inventário ou equipamento específico. 
 
 Os aumentos repetidos de dano, vida e stamina foram retirados das árvores. Up Slash, Barrage e Floating Passage pertencem ao conjunto inicial da espada, recebido gratuitamente e preservado por resets. A proficiência, os treinadores e os caminhos adicionais de combate ficam separados desta implementação de skill trees.
 
-A finta usa **X** durante a preparação de um ataque básico corpo a corpo, após comprar o talento. A versão mobile tem botão próprio. Bandagens têm aplicação interrompível de 2 segundos e curam 15 de vida, independentemente das árvores. Os rótulos `FightingStyle` e `SwordStyle` no menu `Meditate` são atualizados por `CombatStyleController`.
+A finta usa o **botão direito do mouse** durante a preparação de um ataque básico corpo a corpo, após comprar o talento. A versão mobile tem botão próprio. Bandagens têm aplicação interrompível de 2 segundos e curam 15 de vida, independentemente das árvores. Os rótulos `FightingStyle` e `SwordStyle` no menu `Meditate` são atualizados por `CombatStyleController`.
 
 `SwordStyle` é o caminho da espada e começa em `Beginner`. Espada não é um `FightingStyle`. O campo `FightingStyle` representa um estilo aprendido com treinador, como punhos, rifle ou arco, e começa vazio. As duas seleções coexistem; equipar uma arma não substitui o estilo aprendido exibido no menu.
 
