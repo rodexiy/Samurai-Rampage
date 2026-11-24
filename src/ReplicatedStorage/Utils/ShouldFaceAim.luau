@@ -1,5 +1,5 @@
 return function(Character: Model): boolean
-	if Character:GetAttribute("BowDrawing") == true then
+	if Character:GetAttribute("BowDrawing") == true or Character:GetAttribute("Kicking") == true then
 		return true
 	end
 

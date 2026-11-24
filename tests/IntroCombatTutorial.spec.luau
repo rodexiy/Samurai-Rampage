@@ -63,8 +63,8 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 		function O:FindFirstChild(Name: string): any
 			return self[Name]
 		end
-		function O:FindFirstChildWhichIsA(_Class: string): any
-			return nil
+		function O:FindFirstChildWhichIsA(Class: string): any
+			return if Class == "Humanoid" then self.Humanoid else nil
 		end
 		return O
 	end
@@ -85,6 +85,7 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 		local function Model(X: number): any
 			local O = Object()
 			O.PrimaryPart = { Anchored = false }
+			O.Humanoid = { Health = 120 }
 			O.Frame = { Position = V(X, 10, 0), LookVector = V(1, 0, 0) }
 			O:SetAttribute("Health", 120)
 			O:SetAttribute("MaxStamina", 100)
@@ -310,6 +311,7 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 	Check(F.Feedback.Defenders[2] == F.Boss and F:State()[5] == "EnemyParry", "Enemy parry appears before its reply")
 	F.Service:ResolveHit(F.Boss, F.Character, { By = "Weapon", Action = "Attack" })
 	Check(F.Feedback.Parry == 2, "Duplicate hit callbacks do not repeat the reaction")
+	F.Character:SetAttribute("Attack", false)
 	F:Advance(F.Config.EnemyParryRecovery)
 	Check(F:State()[4] == 3 and F:State()[5] == "Incoming", "Enemy immediately prepares the reply")
 	F:Explain()
@@ -345,9 +347,36 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 	F:Advance(0.3)
 	Check(F.Feedback.Completed == 0, "The lesson does not interrupt a dash still in progress")
 	F.Character:SetAttribute("Rolling", false)
-	Check(F.Feedback.Completed == 1 and F.Boss.Runner:GetAttribute("Enabled"), "Dash completion immediately resumes boss AI")
-	Check(F.Feedback.LastSwing.Destroyed, "Completing the dash releases the old tutorial animation")
-	Check(not F.Player:GetAttribute("CantAttack"), "Player can attack as soon as the dash finishes")
+	Check(F.Feedback.Completed == 0 and not F.Boss.Runner:GetAttribute("Enabled"), "Dash completion keeps the boss in the tutorial for kick practice")
+	Check(F.Feedback.LastSwing.Destroyed, "Starting the kick lesson releases the old tutorial animation")
+	Check(F:State()[4] == 4 and F:State()[5] == "Explain" and F.Character:GetAttribute("IntroTutorialAction") == "Kick",
+		"Kick is taught immediately after the successful dodge ends")
+	Check(F.Validate:CanKick(F.Character) and not F.Validate:CanAttack(F.Character) and not F.Validate:CanRoll(F.Character),
+		"The kick prompt enables the real kick and rejects other combat actions")
+	Check(not F.Character:GetAttribute("SkillLockMovement"), "The player can approach the opponent before kicking")
+	F:Advance(100)
+	Check(F:State()[5] == "Explain", "The kick prompt waits for the player's actual input")
+	F.Character:SetAttribute("Kicking", true)
+	Check(F:State()[5] == "Practice" and not F.Boss.PrimaryPart.Anchored,
+		"Native kick input releases the opponent so the impact can push them away")
+	F.Character:SetAttribute("Kicking", false)
+	F:Advance(F.Config.CounterattackTimeout + 0.01)
+	Check(F:State()[4] == 4 and F:State()[9] == false and F.Feedback.Completed == 0, "A kick that misses does not complete the tutorial")
+	F:Advance(F.Config.RecoveryTime)
+	Check(F.Character:GetAttribute("IntroTutorialAction") == "Kick", "A missed kick retries the kick lesson")
+	F.Character:SetAttribute("Kicking", true)
+	Check(F.Service:ResolveHit(F.Boss, Object(), { By = "Kick", Action = "Kick" }) == "TutorialBlocked",
+		"Another player cannot complete the kick lesson")
+	Check(F.Service:ResolveHit(F.Boss, F.Character, { By = "Weapon", Action = "Attack" }) == "TutorialBlocked",
+		"A sword hit cannot substitute for the required kick")
+	Check(F.Service:ResolveHit(F.Boss, F.Character, { By = "Kick", Action = "Kick" }) == "TutorialKick",
+		"The owner's actual kick hit completes the practice without damage")
+	Check(F.Service:ResolveHit(F.Boss, F.Character, { By = "Kick", Action = "Kick" }) == "TutorialBlocked",
+		"Duplicate kick contacts cannot repeat the completion")
+	Check(F.Feedback.Completed == 0, "The successful kick finishes its animation before normal combat resumes")
+	F.Character:SetAttribute("Kicking", false)
+	Check(F.Feedback.Completed == 1 and F.Boss.Runner:GetAttribute("Enabled"), "Completing the kick resumes boss AI exactly once")
+	Check(not F.Player:GetAttribute("CantAttack"), "Player can attack as soon as the kick finishes")
 	F.Character:SetAttribute("WeaponEquipped", true)
 	F.Character:SetAttribute("Weapon", "BasicKatana")
 	F.Character:SetAttribute("SwordStaminaCost", 1)
@@ -475,13 +504,18 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 			and not Inputs.Validate:CanAttack(Inputs.Character),
 		"Dodge prompt accepts the native roll button"
 	)
+	Check(not Inputs.Validate:CanKick(Inputs.Character), "Dodge prompt cannot be skipped using kick")
+	Inputs.Character:SetAttribute("IntroTutorialAction", "Kick")
+	Check(Inputs.Validate:CanKick(Inputs.Character) and not Inputs.Validate:CanAttack(Inputs.Character)
+		and not Inputs.Validate:CanBlock(Inputs.Character) and not Inputs.Validate:CanRoll(Inputs.Character),
+		"Kick prompt accepts the native kick button only")
 	Check(
 		not Inputs.Validate:CanEquipWeapon(Inputs.Character) and not Inputs.Validate:CanStrongAttack(Inputs.Character),
 		"Unrequested weapon changes cannot derail the lesson"
 	)
 	Inputs.Character:SetAttribute("IntroTutorialAction", "Wait")
 	Check(not Inputs.Validate:CanAttack(Inputs.Character) and not Inputs.Validate:CanBlock(Inputs.Character)
-		and not Inputs.Validate:CanRoll(Inputs.Character), "Result stages block input until the lesson advances")
+		and not Inputs.Validate:CanRoll(Inputs.Character) and not Inputs.Validate:CanKick(Inputs.Character), "Result stages block input until the lesson advances")
 	Inputs.Character:SetAttribute("IntroTutorialAction", nil)
 	Inputs.Player:SetAttribute("InIntroCutscene", false)
 	Check(

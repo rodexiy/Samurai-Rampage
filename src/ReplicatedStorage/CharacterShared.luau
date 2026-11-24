@@ -9,6 +9,10 @@ local Shared = {}
 
 local NO_WEAPON_SPEED_MULTIPLIER = 1.2
 
+local function GetBlockWalkSpeed(Character: Model): number
+	return if Character:GetAttribute("TalentMobileGuard") then SkillTreeConfig.Effects.GuardWalkSpeed else 8
+end
+
 local function HasInventoryWeaponEquipped(Character: Model): boolean
 	return Character:GetAttribute("Weapon") ~= nil or Character:GetAttribute("LeftWeapon") ~= nil
 end
@@ -31,6 +35,10 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 		return
 	end
 	local function SetWalkSpeed(Speed: number)
+		if Character:GetAttribute("Kicking") then
+			Speed = math.min(Speed, GetBlockWalkSpeed(Character))
+		end
+
 		if Character:GetAttribute("BowDrawing") then
 			Speed = math.min(Speed, BowConfig.DrawWalkSpeed)
 		end
@@ -50,6 +58,9 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 	end
 
 	local Walkspeeds = {
+		Kicking = function()
+			change("Kicking", GetBlockWalkSpeed(Character))
+		end,
 		Bandaging = function()
 			change("Bandaging", 4)
 		end,
@@ -82,7 +93,7 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 		end,
 
 		Blocking = function()
-			change("Blocking", if Character:GetAttribute("TalentMobileGuard") then SkillTreeConfig.Effects.GuardWalkSpeed else 8)
+			change("Blocking", GetBlockWalkSpeed(Character))
 		end,
 
 		BeenDeflected = function()
@@ -133,7 +144,7 @@ function Shared:ChangeJumpPower(Character: Model, amount: number?, overwrite: st
 	end
 	local Player = Players:GetPlayerFromCharacter(Character)
 	if (Player and Player:GetAttribute("InIntroCutscene"))
-		or Character:GetAttribute("BowDrawing") or Character:GetAttribute("Crouching") then
+		or Character:GetAttribute("BowDrawing") or Character:GetAttribute("Crouching") or Character:GetAttribute("Kicking") then
 		humanoid.Jump = false
 		humanoid.JumpPower = 0
 		return

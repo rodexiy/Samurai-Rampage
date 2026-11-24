@@ -10,7 +10,7 @@ local WeaponService = Knit.CreateService({
 
 local DebounceService
 local AnimationService
-local RagdollService
+local KnockbackService
 local RenderService
 local BloodService
 local SoundEffectService
@@ -573,8 +573,7 @@ function WeaponService:IncreaseComboCounter(Character: Model)
 end
 
 function WeaponService:Fling(Character: Model, Attacker: Model)
-	local Direction = CFrame.new(Attacker:GetPivot().Position, Character:GetPivot().Position).LookVector
-	RagdollService:Ragdoll(Character, 1.4, Direction, 1)
+	KnockbackService:Fling(Character, Attacker)
 end
 
 function WeaponService:IsLastAttack(Character: Model)
@@ -722,7 +721,7 @@ end
 function WeaponService.KnitInit()
 	DebounceService = Knit.GetService("DebounceService")
 	AnimationService = Knit.GetService("AnimationService")
-	RagdollService = Knit.GetService("RagdollService")
+	KnockbackService = Knit.GetService("KnockbackService")
 	RenderService = Knit.GetService("RenderService")
 	BloodService = Knit.GetService("BloodService")
 	SoundEffectService = Knit.GetService("SoundEffectService")

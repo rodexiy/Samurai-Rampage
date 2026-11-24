@@ -34,8 +34,9 @@ local PrisonService
 local KillStreakService
 local RugService
 local IntroCutsceneService
+local EntityPhysicsService
 
-local CachedParts = {}
+local CachedParts: { [BasePart]: { Massless: boolean } } = setmetatable({}, { __mode = "k" })
 local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 local ZERO_VECTOR = Vector3.new(0, 0, 0)
 
@@ -266,8 +267,9 @@ function CharacterService:BindEvents(Character: Model, Owner: Player)
 					v.CollisionGroup = "Entity"
 					if CachedParts[v] then
 						if CachedParts[v].Massless ~= nil then
-							v.Massless = not CachedParts[v].Massless
+							v.Massless = CachedParts[v].Massless
 						end
+						CachedParts[v] = nil
 					end
 				end
 			end
@@ -279,8 +281,9 @@ function CharacterService:BindEvents(Character: Model, Owner: Player)
 					v.CollisionGroup = "Entity"
 					if CachedParts[v] then
 						if CachedParts[v].Massless ~= nil then
-							v.Massless = not CachedParts[v].Massless
+							v.Massless = CachedParts[v].Massless
 						end
+						CachedParts[v] = nil
 					end
 				end
 			end
@@ -290,7 +293,7 @@ function CharacterService:BindEvents(Character: Model, Owner: Player)
 					v.CanCollide = false
 					v.CollisionGroup = "Carried"
 					CachedParts[v] = {
-						Massless = true,
+						Massless = v.Massless,
 					}
 					v.Massless = true
 				end
@@ -345,6 +348,8 @@ function CharacterService:SetStates(Character: Model)
 	if not Humanoid then
 		return
 	end
+
+	EntityPhysicsService:ConfigureCharacter(Character)
 
 	Character.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 
@@ -708,6 +713,7 @@ function CharacterService.KnitInit()
 	KillStreakService = Knit.GetService("KillStreakService")
 	RugService = Knit.GetService("RugService")
 	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
+	EntityPhysicsService = Knit.GetService("EntityPhysicsService")
 	local Entity = Instance.new("Folder")
 	Entity.Name = "Entity"
 	Entity.Parent = game.Workspace

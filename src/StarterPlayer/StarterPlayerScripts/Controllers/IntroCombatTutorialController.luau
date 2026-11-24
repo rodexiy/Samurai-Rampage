@@ -81,7 +81,8 @@ local function ShowAction(Scene: Scene)
 	local Message = if Scene.Step == 1
 		then (if Mobile then "Tap Block to parry." else "Press F to parry.")
 		elseif Scene.Step == 2 then (if Mobile then "Tap Attack." else "Left click to attack.")
-		else (if Mobile then "Move sideways and tap Roll." else "Press A or D + Q to dodge.")
+		elseif Scene.Step == 3 then (if Mobile then "Move sideways and tap Roll." else "Press A or D + Q to dodge.")
+		else (if Mobile then "Move close and tap Kick to push your opponent away." else "Move close and press G to kick your opponent away.")
 	CutsceneController:ShowInstruction("", Message)
 end
 
@@ -135,7 +136,7 @@ function IntroCombatTutorialController:Update(
 		CutsceneController:HideInstruction()
 		CaptureTrack(Scene)
 	elseif Stage == "Explain" then
-		if Step ~= 2 then
+		if Step == 1 or Step == 3 then
 			if not Scene.Attack then
 				CaptureTrack(Scene)
 			end

@@ -64,6 +64,15 @@ local Phases = {
 		TrainerAttacks = true,
 	},
 	{
+		Key = "Kick",
+		Button = "G",
+		Objective = "Kick Mikoto to create space",
+		TargetAmount = 1,
+		Mode = "PlayerHitTrainer",
+		Action = "Kick",
+		Result = "Hit",
+	},
+	{
 		Key = "BreakPosture",
 		Button = "M1/R",
 		Objective = "Break Mikoto's posture",
@@ -467,6 +476,10 @@ function CombatTutorialService:DefendAgainstPlayer(Session, Attacker: Model, Dat
 
 	self:KeepTrainerInRange(Session)
 
+	if Phase.Key == "Kick" then
+		return
+	end
+
 	if Phase.TrainerBlocks then
 		self:TrainerBlock(Trainer, false)
 		return
@@ -614,8 +627,8 @@ function CombatTutorialService:BindSession(Session)
 	end))
 
 	AddConnection(Session, ExecutionService.Executed.Event:Connect(function(Attacker: Model, Victim: Model)
-		local PlayerCharacter = GetCharacter(Session.Player)
-		if PlayerCharacter and Attacker == PlayerCharacter and Victim == Session.Trainer then
+		local CurrentCharacter = GetCharacter(Session.Player)
+		if CurrentCharacter and Attacker == CurrentCharacter and Victim == Session.Trainer then
 			local MissionData = GetMissionData(Session.Player)
 			local Phase = MissionData and GetPhase(MissionData)
 			if Phase and Phase.Mode == "TrainerExecuted" then

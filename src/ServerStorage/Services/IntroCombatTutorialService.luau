@@ -34,6 +34,7 @@ type Session = {
 	LastDodge: number?,
 	DodgeDirection: string?,
 	FinishingDodge: boolean?,
+	FinishingKick: boolean?,
 	Track: AnimationTrack?,
 	Animation: Animation?,
 	FreezeTime: number?,
@@ -96,9 +97,9 @@ end
 
 local function AllowLessonAction(Session: Session)
 	SetLock(Session.Character, false)
-	Session.Character:SetAttribute("SkillLockMovement", true)
-	Session.Character:SetAttribute("IntroTutorialAction", ({ "Parry", "Attack", "Dodge" })[Session.Step])
-	Session.Player:SetAttribute("CantAttack", Session.Step ~= 2)
+	Session.Character:SetAttribute("SkillLockMovement", Session.Step ~= 4)
+	Session.Character:SetAttribute("IntroTutorialAction", ({ "Parry", "Attack", "Dodge", "Kick" })[Session.Step])
+	Session.Player:SetAttribute("CantAttack", Session.Step ~= 2 and Session.Step ~= 4)
 end
 
 function IntroCombatTutorialService:Cancel(Player: Player)
@@ -144,6 +145,17 @@ function IntroCombatTutorialService:CompleteDodge(Session: Session)
 		return
 	end
 
+	Session.FinishingDodge = nil
+	Session.Step = 4
+	Session.PlayerFrame, Session.BossFrame = Session.Character:GetPivot(), Session.Boss:GetPivot()
+	self:BeginAttempt(Session)
+end
+
+function IntroCombatTutorialService:CompleteKick(Session: Session)
+	if not IsActive(Session) or not Session.FinishingKick or Session.Character:GetAttribute("Kicking") then
+		return
+	end
+
 	local Complete = Session.Complete
 	self:Cancel(Session.Player)
 	Complete()
@@ -154,6 +166,7 @@ function IntroCombatTutorialService:BeginAttempt(Session: Session)
 		return
 	end
 	StopSwing(Session)
+	Session.Animation, Session.FreezeTime, Session.HitTime = nil, nil, nil
 	Session.LastBlock, Session.LastDodge, Session.DodgeDirection = nil, nil, nil
 	PostureService:Block(Session.Character, false)
 	Session.Character:SetAttribute("Stamina", Session.Character:GetAttribute("MaxStamina"))
@@ -163,7 +176,7 @@ function IntroCombatTutorialService:BeginAttempt(Session: Session)
 		SetLock(Actor, true)
 	end
 	Session.Player:SetAttribute("CantAttack", true)
-	if Session.Step == 2 then
+	if Session.Step == 2 or Session.Step == 4 then
 		Session.Attempt += 1
 		AllowLessonAction(Session)
 		Publish(Session, "Explain")
@@ -234,7 +247,7 @@ function IntroCombatTutorialService:FinishAttempt(Session: Session)
 		if Success then
 			Session.Step += 1
 		end
-		if Session.Step > 3 then
+		if Session.Step > 4 then
 			local Complete = Session.Complete
 			self:Cancel(Session.Player)
 			Complete()
@@ -309,6 +322,22 @@ function IntroCombatTutorialService:ResolveHit(Target: Model, Attacker: Model, D
 	local Session = Actors[Target]
 	if not Session or not IsActive(Session) or not Session.Activated then
 		return nil
+	end
+	if
+		Target == Session.Boss
+		and Attacker == Session.Character
+		and Session.Step == 4
+		and (Session.Stage == "Practice" or Session.Stage == "Explain")
+		and Data.By == "Kick"
+		and Data.Action == "Kick"
+		and (Target:GetPivot().Position - Attacker:GetPivot().Position).Magnitude <= Config.MaximumDistance
+	then
+		Session.FinishingKick = true
+		Session.Character:SetAttribute("IntroTutorialAction", "Wait")
+		Session.Player:SetAttribute("CantAttack", true)
+		Publish(Session, "Result", true)
+		self:CompleteKick(Session)
+		return "TutorialKick"
 	end
 	if
 		Target == Session.Boss
@@ -418,6 +447,12 @@ function IntroCombatTutorialService:Arm(
 	table.insert(Session.Connections, Character:GetAttributeChangedSignal("Rolling"):Connect(function()
 		self:CompleteDodge(Session)
 	end))
+	table.insert(Session.Connections, Character:GetAttributeChangedSignal("Kicking"):Connect(function()
+		if IsActive(Session) and Session.Step == 4 and Session.Stage == "Explain" and Character:GetAttribute("Kicking") then
+			self:ReleaseAction(Session)
+		end
+		self:CompleteKick(Session)
+	end))
 	table.insert(
 		Session.Connections,
 		Character:GetAttributeChangedSignal("Attack"):Connect(function()
@@ -440,13 +475,16 @@ function IntroCombatTutorialService:ReleaseAction(Session: Session)
 	end
 	Session.Stage = "Practice"
 	SetLock(Session.Character, false)
-	Session.Player:SetAttribute("CantAttack", Session.Step ~= 2)
+	Session.Player:SetAttribute("CantAttack", Session.Step ~= 2 and Session.Step ~= 4)
+	if Session.Step == 4 then
+		SetLock(Session.Boss, false)
+	end
 	if Session.Track and Session.FreezeTime and Session.HitTime then
 		Session.Track:AdjustSpeed(math.max(0.01, (Session.HitTime - Session.FreezeTime) / Config.ReactionReleaseTime))
 	end
 	Publish(Session, "Practice")
 	local Attempt = Session.Attempt
-	task.delay(if Session.Step == 2 then Config.CounterattackTimeout else Config.ReactionReleaseTime, function()
+	task.delay(if Session.Step == 2 or Session.Step == 4 then Config.CounterattackTimeout else Config.ReactionReleaseTime, function()
 		if IsActive(Session) and Session.Attempt == Attempt then
 			self:FinishAttempt(Session)
 		end

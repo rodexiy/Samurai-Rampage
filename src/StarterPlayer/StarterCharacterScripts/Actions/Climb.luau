@@ -1,9 +1,11 @@
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local Character = Player.Character
 assert(Character, "[Climb] Character was not available.")
 
@@ -18,9 +20,7 @@ local SkillTreeController
 local AlertController
 local MoveVector
 
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
-
-local Camera = workspace.CurrentCamera
+local Validate = require(ReplicatedStorage.Shared.Validate)
 
 local AlignPosition
 local AlignOrientation
@@ -29,10 +29,10 @@ local ClimbSpeed = 10
 local MaxClimbNormalY = 0.75
 local MaxClimbAngle = math.rad(50)
 
-local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
+local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
 
 local MoveAnimation: AnimationTrack
-local SetAutoRotate = require(game.ReplicatedStorage.Shared.Utils.SetAutoRotate)
+local SetAutoRotate = require(ReplicatedStorage.Shared.Utils.SetAutoRotate)
 
 local function StopClimb(DontApplyForce)
 	RunService:UnbindFromRenderStep("Climbing")
@@ -160,11 +160,20 @@ local function isTerrain(ray)
 	return ray.Instance == workspace.Terrain or ray.Instance:IsA("Terrain")
 end
 
-local function filterPart(ray)
+local function filterPart(ray: RaycastResult): boolean
 	local Part = ray.Instance
 
 	if not Part or CollectionService:HasTag(Part, "Unclimbable") then
 		return false
+	end
+
+	local Surface: Instance? = Part
+	while Surface and Surface ~= workspace do
+		if Surface:HasTag("Door") or Surface:HasTag("Windows") then
+			return false
+		end
+
+		Surface = Surface.Parent
 	end
 
 	if isTerrain(ray) then
@@ -202,7 +211,7 @@ local function getSurfaceAngle(ray)
 end
 
 local Climb = {
-	callback = function(inputState, inputObject)
+	callback = function(inputState: Enum.UserInputState, _inputObject: InputObject?)
 		if inputState ~= Enum.UserInputState.Begin then
 			return
 		end

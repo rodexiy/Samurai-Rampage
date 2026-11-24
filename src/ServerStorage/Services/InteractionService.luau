@@ -22,9 +22,9 @@ local MissionBoardService
 local CarryService
 local DuelService
 local PickableService
+local DoorService
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
-local TweenService = game:GetService("TweenService")
 
 function InteractionService:EnablePromptForPlayer(Player: Player, ProximityPrompt: ProximityPrompt, state: boolean)
 	InteractionService.Client.EnablePrompt:Fire(Player, ProximityPrompt, state)
@@ -46,43 +46,8 @@ local callbacks = {
 
 	OpenDoor = function(_Player: Player, ProximityPrompt: ProximityPrompt)
 		local DoorParent = ProximityPrompt.Parent
-		local tInfo = TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-		for _, door in ipairs(DoorParent:GetChildren()) do
-			if not door:IsA("Model") then
-				continue
-			end
-
-			local doorOffset = door:GetAttribute("OpenOffset") :: CFrame
-			if not door:GetAttribute("Opening") then
-				door:SetAttribute("Opening", true)
-				if not door:GetAttribute("Open") then
-					TweenService:Create(door.PrimaryPart, tInfo, { CFrame = door.PrimaryPart.CFrame * doorOffset })
-						:Play()
-				else
-					TweenService:Create(door.PrimaryPart, tInfo, {
-						CFrame = door.PrimaryPart.CFrame * doorOffset:Inverse(),
-					}):Play()
-				end
-
-				local FirstBasePart = door:FindFirstChildWhichIsA("BasePart")
-
-				if FirstBasePart then
-					local doorSound: Sound = FirstBasePart:FindFirstChild("DoorSound") or Instance.new("Sound")
-					doorSound.Name = "DoorSound"
-					doorSound.RollOffMaxDistance = 100
-					doorSound.Volume = 0.3
-					doorSound.SoundId = "rbxassetid://115359467353541"
-					doorSound.Parent = FirstBasePart
-
-					doorSound:Play()
-				end
-
-				door:SetAttribute("Open", not door:GetAttribute("Open"))
-
-				task.delay(1, function()
-					door:SetAttribute("Opening", false)
-				end)
-			end
+		if DoorParent then
+			DoorService:ToggleDoors(DoorParent)
 		end
 	end,
 
@@ -186,6 +151,7 @@ function InteractionService.KnitInit()
 	CarryService = Knit.GetService("CarryService")
 	DuelService = Knit.GetService("DuelService")
 	PickableService = Knit.GetService("PickableService")
+	DoorService = Knit.GetService("DoorService")
 end
 
 function InteractionService.KnitStart()

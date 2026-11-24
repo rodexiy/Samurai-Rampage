@@ -73,7 +73,7 @@ local BowConfig = {
 		"Died", "Downed", "Ragdoll", "BeenHitted", "PostureBreak", "HeavyDeflect",
 		"BeenDeflected", "Meditating", "Rolling", "RollClientDebounce", "Climbing",
 		"Vaulting", "WallRunning", "CameraCutscene", "RealmTeleporting", "RealmEditing", "SkillLockMovement",
-		"InCell", "InLabor", "Attacking", "Blocking", "UsingSkillCantAttack",
+		"InCell", "InLabor", "Attacking", "Blocking", "UsingSkillCantAttack", "Kicking",
 	},
 }
 

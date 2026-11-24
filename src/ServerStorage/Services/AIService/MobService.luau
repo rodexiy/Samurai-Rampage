@@ -1,6 +1,9 @@
 local HttpService = game:GetService("HttpService")
-local ProximityPromptService = game:GetService("ProximityPromptService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
+
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local DummyTemplate = require(ServerStorage.Services.Services.AIService.DummyTemplate)
 
 local MobService = Knit.CreateService({
 	Name = "MobService",
@@ -12,9 +15,7 @@ local ValuesService
 local WeaponService
 local EquipmentService
 local HitboxService
-local StatusDisplayManager = require(game.ReplicatedStorage.Shared.Utils.StatusDisplayManager)
-
-local MobData = require(game.ReplicatedStorage.Shared.Index.Mobs)
+local MobData = require(ReplicatedStorage.Shared.Index.Mobs)
 
 local function ScaleModel(Model: Model, Scale: number)
 	-- Native scaling preserves built-in Head meshes instead of enlarging them twice.
@@ -23,10 +24,9 @@ local function ScaleModel(Model: Model, Scale: number)
 end
 
 function MobService:SetNetworkOwner(Mob: Model)
-	local HumanoidRootPart = Mob:FindFirstChild("HumanoidRootPart")
-	if HumanoidRootPart and HumanoidRootPart:CanSetNetworkOwnership() then
-		HumanoidRootPart:SetNetworkOwnershipAuto(false)
-		HumanoidRootPart:SetNetworkOwner(nil)
+	local Root = Mob.PrimaryPart
+	if Root and Root:CanSetNetworkOwnership() then
+		Root:SetNetworkOwner(nil)
 	end
 end
 
@@ -79,13 +79,14 @@ function MobService:LoadRandomFace(Character: Model, Gender: string)
 	FaceHolder:Destroy()
 end
 
-function MobService:CreateMob(MobName: string, Equipment: string)
-	if not game.ServerStorage.ServerAssets:FindFirstChild("Mobs") then
-		return
+function MobService:CreateMob(MobName: string, Equipment: string?): Model?
+	local Mobs = ServerStorage.ServerAssets:FindFirstChild("Mobs") :: Folder?
+	if not Mobs then
+		return nil
 	end
-	local Mob = game.ServerStorage.ServerAssets.Mobs:FindFirstChild(MobName)
-	if not Mob then
-		return
+	local Mob = if MobName == "Dummy" then DummyTemplate.Ensure(Mobs) else Mobs:FindFirstChild(MobName)
+	if not Mob or not Mob:IsA("Model") then
+		return nil
 	end
 
 	local MobClone: Model = Mob:Clone()
@@ -94,18 +95,20 @@ function MobService:CreateMob(MobName: string, Equipment: string)
 
 	local Config
 	if Equipment then
-		local ConfigModule = script.Parent.Configs:WaitForChild(Equipment)
+		local ConfigModule = ServerStorage.Services.Services.AIService.Configs:FindFirstChild(Equipment)
 
-		if not ConfigModule then
-			return
+		if not ConfigModule or not ConfigModule:IsA("ModuleScript") then
+			MobClone:Destroy()
+			return nil
 		end
 
-		Config = require(ConfigModule)
+		Config = require(ServerStorage.Services.Services.AIService.Configs[Equipment])
 	end
 
-	local RootPart: BasePart = MobClone:FindFirstChild("HumanoidRootPart")
-	if RootPart then
-		MobClone.PrimaryPart = RootPart
+	local RootPart = MobClone.PrimaryPart
+	if not RootPart then
+		MobClone:Destroy()
+		return nil
 	end
 
 	MobClone.Parent = workspace
@@ -128,13 +131,13 @@ function MobService:CreateMob(MobName: string, Equipment: string)
 
 	if Config then
 		for Attribute, Equipments in Config.Equipment or {} do
-			local Equipment = Equipments[math.random(1, #Equipments)]
+			local SelectedEquipment = Equipments[math.random(1, #Equipments)]
 
-			if Equipment == "None" then
-				Equipment = nil
+			if SelectedEquipment == "None" then
+				SelectedEquipment = nil
 			end
 
-			MobClone:SetAttribute(Attribute, Equipment)
+			MobClone:SetAttribute(Attribute, SelectedEquipment)
 		end
 	end
 
@@ -160,8 +163,8 @@ function MobService:CreateMob(MobName: string, Equipment: string)
 		end
 	end)
 
-	Mob.HumanoidRootPart:GetPropertyChangedSignal("Anchored"):Connect(function()
-		if not Mob.HumanoidRootPart.Anchored then
+	RootPart:GetPropertyChangedSignal("Anchored"):Connect(function()
+		if not RootPart.Anchored then
 			MobService:SetNetworkOwner(MobClone)
 		end
 	end)
@@ -179,8 +182,11 @@ function MobService:CreateMob(MobName: string, Equipment: string)
 	return MobClone
 end
 
-function MobService:SpawnMob(MobName: string, Location: CFrame, Equipment: string?)
+function MobService:SpawnMob(MobName: string, Location: CFrame, Equipment: string?): Model?
 	local MobClone = MobService:CreateMob(MobName, Equipment)
+	if not MobClone then
+		return nil
+	end
 
 	MobClone:PivotTo(Location)
 	MobClone.Parent = workspace.Entity

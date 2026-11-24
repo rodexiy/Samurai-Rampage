@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 
 local GeneralCantAttributes = {
+	"Kicking",
 	"Bandaging",
 	"IntroOpening",
 	"Mounted",
@@ -40,8 +41,8 @@ end
 
 local Validate = {}
 
-local LessonActions = { Parry = "Block", Attack = "Attack", Dodge = "Roll" }
-local IntroCombatActions = { Attack = true, Block = true, Roll = true }
+local LessonActions = { Parry = "Block", Attack = "Attack", Dodge = "Roll", Kick = "Kick" }
+local IntroCombatActions = { Attack = true, Block = true, Roll = true, Kick = true }
 
 function Validate:CanPerformIntroAction(Character: Model, Action: string): boolean
 	local Player = Players:GetPlayerFromCharacter(Character)
@@ -231,12 +232,36 @@ function Validate:CanStrongAttack(Character: Model)
 		and (Character:GetAttribute("Stunless") or isFalse(Character, { "BeenHitted" }))
 end
 
+function Validate:CanKick(Character: Model): boolean
+	if not self:CanPerformIntroAction(Character, "Kick") then
+		return false
+	end
+
+	local Player = Players:GetPlayerFromCharacter(Character)
+	local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
+	local Lesson = Character:GetAttribute("IntroTutorialAction")
+
+	return Humanoid ~= nil and Humanoid.Health > 0 and Character.PrimaryPart ~= nil
+		and not (Player and Player:GetAttribute("CantAttack"))
+		and not Character:FindFirstChildWhichIsA("Tool")
+		and isFalse(Character, GeneralCantAttributes)
+		and isFalse(Character, {
+			"Downed", "IntroWakeUp", "KickDebounce", "Blocking", "ClientBlocking",
+			"Rolling", "Attack", "Attacking", "ClientAttacking", "StrongAttack", "ClientStrongAttack",
+			"BeenHitted", "UsingSkillCantAttack", "Climbing", "Vaulting", "WallRunning",
+			"Equipping", "Unequipping", "BowDrawing", "HasBlocked", "HasDeflected",
+		})
+		and (Lesson == nil or Lesson == "Kick")
+		and IsSkillStateValid(Character)
+end
+
 function Validate:CanUseSkill(Character: Model, StaminaCost: number)
 	if not self:CanPerformIntroAction(Character, "Skill") then
 		return false
 	end
 
-	if Character:GetAttribute("RealmEditing") or Character:GetAttribute("BowEquipped") or Character:GetAttribute("Mounted") then
+	if Character:GetAttribute("RealmEditing") or Character:GetAttribute("BowEquipped") or Character:GetAttribute("Mounted")
+		or Character:GetAttribute("Kicking") then
 		return false
 	end
 

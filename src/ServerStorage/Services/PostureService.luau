@@ -49,7 +49,7 @@ function PostureService:Deflected(Character: Model, Attacker: Model, Damage: num
 
 	local IsCounter = false
 
-	if not Data.Ranged then
+	if not Data.Ranged and Data.By ~= "Kick" then
 		PostureService:LastHitReset(Attacker, Data)
 
 		DebounceService:RemoveDebounce(Attacker, "BlockDebounce")
@@ -95,7 +95,7 @@ function PostureService:Deflected(Character: Model, Attacker: Model, Damage: num
 		Debris:AddItem(BodyVelocity, 0.2)
 	end
 
-	if not Data.Ranged then
+	if not Data.Ranged and Data.By ~= "Kick" then
 		AnimationService:StopAnimationFind(Attacker, "Deflected")
 		AnimationService:StopAttackAnimations(Attacker)
 		local AttackerAnimations = WeaponService:GetCombatAnimationFolder(Attacker)
@@ -153,7 +153,7 @@ function PostureService:Blocked(Character: Model, Attacker: Model, Damage: numbe
 		TalentService:OnBlock(Character)
 	end
 
-	if not Data.Ranged then
+	if not Data.Ranged and Data.By ~= "Kick" then
 		AnimationService:StopAttackAnimations(Attacker)
 		PostureService:LastHitReset(Attacker, Data)
 		AnimationService:PlayAnimation(Attacker, CombatAnimations.BlockHit)

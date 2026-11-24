@@ -87,7 +87,7 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 		HitService:ApplyWeaponHitBuffs(Character, Attacker, Data)
 	end
 
-	if not Data.Ranged then
+	if not Data.Ranged and Data.By ~= "Kick" then
 		if not Attacker:GetAttribute("AttackedBeforeUnequip") or not BloodService:HasBloodOnBlade(Attacker) then
 			BloodService:ApplyBloodOnBlade(Attacker)
 		end
@@ -95,7 +95,9 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 	end
 	--PostureService:DealPostureDamage(Character, Damage / 3, false, Attacker)
 
-	RenderService:RenderForAllPlayers("Combat", "Blood", { Character = Character, Attacker = Attacker, Ranged = Data.Ranged })
+	if Data.By ~= "Kick" then
+		RenderService:RenderForAllPlayers("Combat", "Blood", { Character = Character, Attacker = Attacker, Ranged = Data.Ranged })
+	end
 	if Data.FlingOnLast then
 		WeaponService:TryFling(Character, Attacker)
 	end
@@ -118,6 +120,10 @@ function HitService:NormalHit(Character: Model, Attacker: Model, Damage: number,
 
 	if not DamageService:CanDamage(Character, Attacker) then
 		return
+	end
+
+	if Data.By == "Kick" and Character:GetAttribute("RollIFrame") then
+		return self:ResolveHitResult(Character, Attacker, Damage, Data, PostureService:Dodged(Character, Attacker))
 	end
 
 	local Result
