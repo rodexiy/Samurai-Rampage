@@ -345,6 +345,28 @@ return function(Sources: { [string]: string }): string
 	Trees:LoadAttributes(Specialist)
 	Check(Specialist:GetAttribute("FightingStyle") == nil and Specialist:GetAttribute("SwordStyle") == "Beginner",
 		"Sword cannot be restored into the fighting style slot")
+	Trees:LearnOtherSkill(Specialist, "WallRun")
+	Check(Trees:IsSkillUnlocked(Specialist, "WallRun") and Specialist.UnlockedNodes.WallRun:GetAttribute("OtherSkill") == true,
+		"The wall run trainer still grants permanent knowledge with a replicated source marker")
+	Check(SpecialData.SkillPoints.Agility == 10 and not Trees:UnlockNode(Specialist, "WallRun"),
+		"Trainer unlocks spend no agility points and cannot be bought twice")
+	Trees:LearnOtherSkill(Specialist, "Vault")
+	Check(not Trees:IsSkillUnlocked(Specialist, "Vault"), "Other skill grants cannot bypass normal tree purchases")
+	Trees:LoadAttributes(Specialist)
+	Check(Trees:IsSkillUnlocked(Specialist, "WallRun") and Specialist.UnlockedNodes.WallRun:GetAttribute("OtherSkill") == true,
+		"Existing trainer unlocks remain replicated after reload")
+	Trees:ResetSkillTree(Specialist)
+	Check(Trees:IsSkillUnlocked(Specialist, "WallRun") and SpecialData.SkillPoints.Agility == 10,
+		"Tree resets preserve wall run learned from the trainer")
+	for _, Name in { "Climb", "WallRun", "Vault" } do
+		if Name ~= "WallRun" then
+			Check(Trees:UnlockNode(Specialist, Name), "Optional traversal talents can be purchased: " .. Name)
+		end
+	end
+	Check(SpecialData.SkillPoints.Agility == 6, "Purchased traversal talents debit agility points")
+	Trees:ResetSpecificSkillTree(Specialist, "Agility")
+	Check(not Trees:IsSkillUnlocked(Specialist, "Vault") and Trees:IsSkillUnlocked(Specialist, "WallRun"),
+		"Agility resets remove purchases and preserve trainer knowledge")
 	local Trainee = NewPlayer()
 	local AttackingPlayer = NewPlayer()
 	local Defender = Character(Trainee)
@@ -393,6 +415,12 @@ return function(Sources: { [string]: string }): string
 	Check(not Defender:GetAttribute("Meditating") and Training.Spirit.XP == 0 and WeaponStows == 0 and BowStows == 0,
 		"Realm editing blocks meditation and XP even with MeditateAnywhere")
 	Defender:SetAttribute("RealmEditing", false)
+	Trainee:SetAttribute("InIntroCutscene", true)
+	Stats:SetMeditating(Trainee, true)
+	Stats:SampleTraining(1)
+	Check(not Defender:GetAttribute("Meditating") and Training.Spirit.XP == 0 and WeaponStows == 0 and BowStows == 0,
+		"Introduction blocks meditation even with MeditateAnywhere")
+	Trainee:SetAttribute("InIntroCutscene", false)
 	Trainee:SetAttribute("MeditateAnywhere", false)
 	Stats:SetMeditating(Trainee, true)
 	Check(WeaponStows == 1 and BowStows == 1 and not Defender:GetAttribute("WeaponEquipped")

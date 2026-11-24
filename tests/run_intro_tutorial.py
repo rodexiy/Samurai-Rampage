@@ -29,6 +29,9 @@ def main() -> None:
     pause = (ROOT / "src/StarterPlayer/StarterPlayerScripts/Controllers/IntroScenePauseController.luau").read_text(encoding="utf-8")
     pause_test = (ROOT / "tests/IntroScenePause.spec.luau").read_text(encoding="utf-8")
     bundle += f"local Pause = assert(loadstring({literal(pause_test)}))()\nprint(Pause({literal(pause)}))\n"
+    sword = (ROOT / "src/ServerStorage/Services/WeaponService/Weapons/init.luau").read_text(encoding="utf-8")
+    sword_test = (ROOT / "tests/IntroSwordHit.spec.luau").read_text(encoding="utf-8")
+    bundle += f"local Sword = assert(loadstring({literal(sword_test)}))()\nprint(Sword({literal(sword)}))\n"
     with tempfile.TemporaryDirectory(prefix="samurai-intro-lessons-") as directory:
         script = Path(directory) / "run.luau"
         script.write_text(bundle, encoding="utf-8")

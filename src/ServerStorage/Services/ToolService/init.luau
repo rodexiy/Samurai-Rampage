@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local ToolService = Knit.CreateService({
@@ -13,6 +14,11 @@ local DataService
 local Tools = {}
 
 function ToolService:ToolInput(Character: Model, Input: string, Data: { any })
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if Player and Player:GetAttribute("InIntroCutscene") and (Input == "Equipped" or Input == "Activated") then
+		return
+	end
+
 	local CharacterTool = Character:FindFirstChildWhichIsA("Tool")
 	if not CharacterTool then
 		return

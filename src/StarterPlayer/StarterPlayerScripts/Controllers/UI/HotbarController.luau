@@ -457,7 +457,7 @@ function HotbarController:LoadHotbar(ShowEmpty: boolean, Selected: boolean?)
 end
 
 function HotbarController:HandleEquip()
-	if not Character or Character:GetAttribute("RealmEditing") then
+	if not Character or Character:GetAttribute("RealmEditing") or Player:GetAttribute("InIntroCutscene") then
 		return
 	end
 
@@ -509,7 +509,8 @@ local Validate = require(ReplicatedStorage.Shared.Validate)
 
 local Released = false
 function HotbarController.OnKeyPress(value: number?, state: Enum.UserInputState)
-	if not value or not Character or Character:GetAttribute("RealmEditing") then
+	if not value or not Character or Character:GetAttribute("RealmEditing")
+		or (state == Enum.UserInputState.Begin and Player:GetAttribute("InIntroCutscene")) then
 		return
 	end
 

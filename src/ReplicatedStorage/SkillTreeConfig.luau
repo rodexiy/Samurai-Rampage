@@ -50,7 +50,7 @@ local function CreateTree(Name: string, Color: Color3, Description: string, Bran
 	return { Name = Name, Stat = Name, Color = Color, Description = Description, Layout = { X = 0, Y = 0 }, Branches = Branches }
 end
 
-Config.Trees.Strength = CreateTree("Strength", Color3.fromRGB(222, 117, 90), "Improve melee impact and exploit openings.", {
+Config.Trees.Strength = CreateTree("Strength", Color3.fromRGB(163, 0, 0), "Improve melee impact and exploit openings.", {
 	Node("Committed Attack", "Heavy attacks deal 20% more posture damage against a guard.", -1, 0, {
 		Node("Continuity", "After landing a heavy attack, your next basic attack starts 12% faster within two seconds.", -2, 0, {
 			Node("Make Room", "Heavy attacks can hit up to three nearby targets instead of one.", -2, -1, {
@@ -61,7 +61,7 @@ Config.Trees.Strength = CreateTree("Strength", Color3.fromRGB(222, 117, 90), "Im
 		}),
 	}),
 })
-Config.Trees.Dexterity = CreateTree("Dexterity", Color3.fromRGB(227, 195, 105), "Improve precision, feints and parry responses.", {
+Config.Trees.Dexterity = CreateTree("Dexterity", Color3.fromRGB(144, 146, 156), "Improve precision, feints and parry responses.", {
 	Node("Deflect Stamina Recovery", "Successful parries restore more stamina.", 0, -1, {
 		Node("Feint", "Right-click during a basic melee attack windup to cancel it. Costs 5 stamina; three second cooldown.", -1, -2, {
 			Node("Moving Feint", "A successful feint also steps forward up to 1.5 studs, respecting walls.", -1, -3),
@@ -72,19 +72,20 @@ Config.Trees.Dexterity = CreateTree("Dexterity", Color3.fromRGB(227, 195, 105), 
 		}),
 	}),
 })
-Config.Trees.Agility = CreateTree("Agility", Color3.fromRGB(103, 149, 255), "Improve traversal and choose your roll preference.", {
+Config.Trees.Agility = CreateTree("Agility", Color3.fromRGB(172, 142, 85), "Improve traversal and choose your roll preference.", {
 	Node("Climb", "Climb walls by pressing G.", 1, 0, {
-		Node("Climb Speed", "Climb walls faster.", 1, -1, {
-			Node("Travel Breath", "Running and climbing no longer drain stamina outside combat.", 2, -1, {
-				Node("Controlled Landing", "Take 40% less damage from moderate falls. Extreme falls remain dangerous.", 2, -2, {
-					Node("Long Roll", "Roll farther, but return to attacking later. Invulnerability is unchanged. Exclusive with Short Roll.", 1.5, -3, nil, { ChoiceGroup = "AgilityPreference" }),
-					Node("Short Roll", "Roll a shorter distance, but return to attacking sooner. Invulnerability is unchanged. Exclusive with Long Roll.", 2.5, -3, nil, { ChoiceGroup = "AgilityPreference" }),
-				}),
+		Node("Climb Speed", "Climb walls faster.", 0, -1),
+		Node("WallRun", "Run along walls by jumping again beside a wall while airborne.", 1, 1, nil, { TrainerUnlock = true }),
+		Node("Vault", "Jump over low obstacles.", 2, 1),
+		Node("Travel Breath", "Running and climbing no longer drain stamina outside combat.", 2, -1, {
+			Node("Controlled Landing", "Take 40% less damage from moderate falls. Extreme falls remain dangerous.", 2, -2, {
+				Node("Long Roll", "Roll farther, but return to attacking later. Invulnerability is unchanged. Exclusive with Short Roll.", 1.5, -3, nil, { ChoiceGroup = "AgilityPreference" }),
+				Node("Short Roll", "Roll a shorter distance, but return to attacking sooner. Invulnerability is unchanged. Exclusive with Long Roll.", 2.5, -3, nil, { ChoiceGroup = "AgilityPreference" }),
 			}),
 		}),
 	}),
 })
-Config.Trees.Resistance = CreateTree("Resistance", Color3.fromRGB(123, 143, 71), "Manage blocking, pressure and posture recovery.", {
+Config.Trees.Resistance = CreateTree("Resistance", Color3.fromRGB(189, 83, 22), "Manage blocking, pressure and posture recovery.", {
 	Node("Recompose Guard", "Recover posture faster after lowering your guard while neither attacking nor taking hits.", 0, -1, {
 		Node("Firm Footing", "Reduce defensive knockback by 30%. Does not prevent guard breaks.", -1, -2, {
 			Node("Economical Guard", "Three blocks within two seconds restore 8 stamina. Five second cooldown. Exclusive with Mobile Guard.", -1, -3, nil, { ChoiceGroup = "ResistancePreference" }),
@@ -97,7 +98,7 @@ Config.Trees.Resistance = CreateTree("Resistance", Color3.fromRGB(123, 143, 71),
 		}),
 	}),
 })
-Config.Trees.Vitality = CreateTree("Vitality", Color3.fromRGB(193, 104, 138), "Recover naturally, resist burns and survive combat.", {
+Config.Trees.Vitality = CreateTree("Vitality", Color3.fromRGB(62, 159, 32), "Recover naturally, resist burns and survive combat.", {
 	Node("Rest Recovery", "Regenerate an additional 1% maximum health per second outside combat while not downed.", 0, -1, {
 		Node("Burn Resistance", "Burns expire 40% sooner. Does not grant immunity.", -1, -2),
 		Node("Health Recovery", "Executing a valid enemy restores 15% maximum health. Does not stack with Oni recovery.", 0, -2),

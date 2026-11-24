@@ -208,7 +208,7 @@ end
 
 local function CanMeditate(Player: Player, Character: Model): boolean
 	local Root = Character.PrimaryPart
-	if not Root or Character:GetAttribute("Died") or Character:GetAttribute("Downed") or Player:GetAttribute("InCombat")
+	if not Root or Player:GetAttribute("InIntroCutscene") or Character:GetAttribute("Died") or Character:GetAttribute("Downed") or Player:GetAttribute("InCombat")
 		or Character:GetAttribute("InCombat") or Player:GetAttribute("InWisdomWorld") or Character:GetAttribute("RealmEditing") then
 		return false
 	end

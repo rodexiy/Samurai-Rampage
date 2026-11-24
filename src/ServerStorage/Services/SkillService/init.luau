@@ -64,6 +64,11 @@ function SkillService:WaitForRelease(Character: Model, Skill: string)
 end
 
 function SkillService:UseSkill(Character: Model, SkillName: string, Data: { any })
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if Player and Player:GetAttribute("InIntroCutscene") then
+		return
+	end
+
 	if Character:GetAttribute("RealmEditing") or not Skills[SkillName] then
 		return
 	end

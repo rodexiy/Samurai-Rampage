@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
@@ -347,6 +348,11 @@ function WeaponService:SetEquippedState(Character: Model, State: boolean)
 end
 
 function WeaponService:Equip(Character: Model, State: boolean, _UnequipDelay: number)
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if not State and Player and Player:GetAttribute("InIntroCutscene") then
+		return
+	end
+
 	if State and not Validate:CanEquipWeapon(Character) then
 		return
 	end
@@ -421,6 +427,10 @@ function WeaponService:Equip(Character: Model, State: boolean, _UnequipDelay: nu
 	self:SetEquippedState(Character, State)
 end
 function WeaponService.Client:Equip(Player: Player, State: boolean)
+	if Player:GetAttribute("InIntroCutscene") then
+		return
+	end
+
 	self.Server:Equip(Player.Character, State)
 end
 

@@ -131,7 +131,9 @@ function Shared:ChangeJumpPower(Character: Model, amount: number?, overwrite: st
 	if not humanoid then
 		return
 	end
-	if Character:GetAttribute("BowDrawing") or Character:GetAttribute("Crouching") then
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if (Player and Player:GetAttribute("InIntroCutscene"))
+		or Character:GetAttribute("BowDrawing") or Character:GetAttribute("Crouching") then
 		humanoid.Jump = false
 		humanoid.JumpPower = 0
 		return

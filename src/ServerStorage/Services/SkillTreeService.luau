@@ -29,10 +29,11 @@ local function GetFolder(Player: Player): Folder
 	return Folder
 end
 
-function SkillTreeService:Instantiate(NodeName: string): BoolValue
+function SkillTreeService:Instantiate(NodeName: string, OtherSkill: boolean?): BoolValue
 	local Node = Instance.new("BoolValue")
 	Node.Name = NodeName
 	Node.Value = true
+	Node:SetAttribute("OtherSkill", OtherSkill == true)
 	return Node
 end
 
@@ -154,9 +155,9 @@ function SkillTreeService:LoadAttributes(Player: Player)
 
 	local Folder = GetFolder(Player)
 	Folder:ClearAllChildren()
-	local function Add(Name: string)
+	local function Add(Name: string, OtherSkill: boolean?)
 		if not Folder:FindFirstChild(Name) then
-			self:Instantiate(Name).Parent = Folder
+			self:Instantiate(Name, OtherSkill).Parent = Folder
 		end
 	end
 
@@ -164,9 +165,7 @@ function SkillTreeService:LoadAttributes(Player: Player)
 		Add(Name)
 	end
 	for _, Name in Data.OtherSkills do
-		if not AllNodes[Name] then
-			Add(Name)
-		end
+		Add(Name, true)
 	end
 	for _, Name in Config.Names do
 		Add(Name)
@@ -195,7 +194,11 @@ end
 
 function SkillTreeService:LearnOtherSkill(Player: Player, SkillName: string)
 	local Data = DataService:GetData(Player)
-	if not Data or typeof(SkillName) ~= "string" or AllNodes[SkillName] then
+	if not Data or typeof(SkillName) ~= "string" then
+		return
+	end
+	local Node = AllNodes[SkillName]
+	if Node and not Node.TrainerUnlock then
 		return
 	end
 	if self:IsSkillUnlocked(Player, SkillName) then
@@ -204,7 +207,11 @@ function SkillTreeService:LearnOtherSkill(Player: Player, SkillName: string)
 	end
 
 	table.insert(Data.OtherSkills, SkillName)
-	self:Instantiate(SkillName).Parent = GetFolder(Player)
+	self:Instantiate(SkillName, true).Parent = GetFolder(Player)
+	if Node then
+		self:ApplyCharacterTalents(Player)
+		self:UpdateUI(Player)
+	end
 end
 
 function SkillTreeService:UnlockNode(Player: Player, NodeName: string): boolean
@@ -248,7 +255,7 @@ function SkillTreeService:IsSkillUnlocked(Subject: Player | Model, SkillName: st
 		SkillName = "Travel Breath"
 	end
 	if AllNodes[SkillName] then
-		return table.find(Data.UnlockedNodes or {}, SkillName) ~= nil
+		return table.find(Data.UnlockedNodes or {}, SkillName) ~= nil or table.find(Data.OtherSkills or {}, SkillName) ~= nil
 	end
 
 	return table.find(Data.OtherSkills or {}, SkillName) ~= nil

@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
+local Validate = require(ReplicatedStorage.Shared.Validate)
 
 local DeviceController = Knit.CreateController({
 	Name = "DeviceController",
@@ -67,7 +68,7 @@ function DeviceController:BindAction(ActionName: string, callback: any, Name: st
 		Action:GetPropertyChangedSignal("GuiState"):Connect(function()
 			if Action.GuiState == Enum.GuiState.Press then
 				local Character = Player.Character
-				if Character and Character:GetAttribute("RealmEditing") then
+				if Character and (Character:GetAttribute("RealmEditing") or not Validate:CanPerformIntroAction(Character, ActionName)) then
 					return
 				end
 

@@ -1,13 +1,13 @@
 local CollectionService = game:GetService("CollectionService")
-local ProximityPromptService = game:GetService("ProximityPromptService")
-local RunService = game:GetService("RunService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
-local Player = game.Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local Player = Players.LocalPlayer
 local Character = Player.Character
 local Humanoid = Character:WaitForChild("Humanoid")
-local DeviceController = Knit.GetController("DeviceController")
 local AnimationController = Knit.GetController("AnimationController")
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
+local SkillTreeController = Knit.GetController("SkillTreeController")
+local Validate = require(ReplicatedStorage.Shared.Validate)
 local Animator = AnimationController:GetAnimator(Character)
 
 local VaultAnimLeft: AnimationTrack =
@@ -15,8 +15,8 @@ local VaultAnimLeft: AnimationTrack =
 local VaultAnimRight: AnimationTrack =
 	Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Misc.Vault.VaultRight)
 
-local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
-local SetAutoRotate = require(game.ReplicatedStorage.Shared.Utils.SetAutoRotate)
+local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
+local SetAutoRotate = require(ReplicatedStorage.Shared.Utils.SetAutoRotate)
 
 local Vaulting = false
 local ForwardCheckDistance = 6
@@ -133,7 +133,7 @@ local vault = {
 		if inputState ~= Enum.UserInputState.Begin then
 			return
 		end
-		if Vaulting then
+		if Vaulting or not Validate:CanVault(Character) or not SkillTreeController:IsSkillUnlocked("Vault") then
 			return
 		end
 	

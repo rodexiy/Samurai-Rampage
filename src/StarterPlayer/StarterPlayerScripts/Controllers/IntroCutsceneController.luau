@@ -5,6 +5,7 @@ local SoundService = game:GetService("SoundService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local IntroCutsceneConfig = require(ReplicatedStorage.Shared.IntroCutsceneConfig)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
 local IntroCutsceneController = Knit.CreateController({
 	Name = "IntroCutsceneController",
@@ -225,6 +226,10 @@ local function UpdateIntroEnvironment()
 end
 
 local function UpdateIntroEffects()
+	if Player.Character then
+		CharacterShared:UpdateBoth(Player.Character)
+	end
+
 	if Player:GetAttribute("InIntroCutscene") then
 		CutsceneUIController:Prepare()
 	else

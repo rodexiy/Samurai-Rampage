@@ -9,7 +9,7 @@ return function(Config: any, Progression: any): number
 	for _ in Nodes do
 		Count += 1
 	end
-	Check(Count == 29 and #Config.Names == 5, "Five attribute trees contain twenty-nine talents")
+	Check(Count == 31 and #Config.Names == 5, "Five attribute trees contain thirty-one talents")
 
 	local Layouts = {}
 	for _, Stat in Config.Names do
@@ -62,12 +62,29 @@ return function(Config: any, Progression: any): number
 			end
 		end
 		Explore({})
-		Check(Routes == (if Stat == "Vitality" then 1 else 2), "All intended preferences produce a complete route")
+		Check(if Stat == "Agility" then Routes > 2 else Routes == (if Stat == "Vitality" then 1 else 2),
+			"Preferences and optional traversal talents produce complete routes")
 		for _, Name in Names do
 			Check(Reachable[Name], "Every talent is reachable: " .. Name)
 		end
 		Check(Tree.Branches[1].Stat == Stat, "Tree talents use their own attribute points")
 	end
+	local Agility = { Stats = { Agility = { Level = 10 } }, UnlockedNodes = {} }
+	for _, Name in { "Climb Speed", "WallRun", "Vault" } do
+		Check(not Progression.CanUnlock(Agility, Name, Nodes), "Optional traversal talents still require Climb: " .. Name)
+	end
+	table.insert(Agility.UnlockedNodes, "Climb")
+	for _, Name in { "Climb Speed", "WallRun", "Vault" } do
+		Check(Progression.CanUnlock(Agility, Name, Nodes), "Traversal talents unlock independently after Climb: " .. Name)
+	end
+	for _, Name in { "Travel Breath", "Controlled Landing", "Long Roll" } do
+		Check(Progression.CanUnlock(Agility, Name, Nodes), "The main route does not require optional traversal talents: " .. Name)
+		table.insert(Agility.UnlockedNodes, Name)
+	end
+	Check(Progression.GetPoints(Agility, "Agility", Nodes) == 2, "Skipping optional talents leaves two points after a roll preference")
+	Agility.OtherSkills = { "WallRun" }
+	Check(not Progression.CanUnlock(Agility, "WallRun", Nodes), "Trainer unlocks cannot be purchased again")
+	Check(Progression.GetPoints(Agility, "Agility", Nodes) == 2, "Trainer unlocks do not spend attribute points")
 	local Convergence = { Stats = { Vitality = { Level = 10 } }, UnlockedNodes = { "Rest Recovery", "Burn Resistance", "Second Wind" } }
 	Check(not Progression.CanUnlock(Convergence, "Recovery Reserve", Nodes), "Converging branches require every prerequisite")
 	table.insert(Convergence.UnlockedNodes, "Health Recovery")

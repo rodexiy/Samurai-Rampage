@@ -18,6 +18,10 @@ local SwitchingFromRanged = false
 
 local EquipWeapon = {
 	callback = function(inputState: Enum.UserInputState)
+		if Player:GetAttribute("InIntroCutscene") then
+			return
+		end
+
 		if SwitchingFromRanged and (inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel) then
 			SwitchingFromRanged = false
 			return

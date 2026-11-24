@@ -33,6 +33,7 @@ type Session = {
 	LastBlock: number?,
 	LastDodge: number?,
 	DodgeDirection: string?,
+	FinishingDodge: boolean?,
 	Track: AnimationTrack?,
 	Animation: Animation?,
 	FreezeTime: number?,
@@ -138,6 +139,16 @@ function IntroCombatTutorialService:Cancel(Player: Player)
 	self.Client.Ended:Fire(Player, Session.Token)
 end
 
+function IntroCombatTutorialService:CompleteDodge(Session: Session)
+	if not IsActive(Session) or not Session.FinishingDodge or Session.Character:GetAttribute("Rolling") then
+		return
+	end
+
+	local Complete = Session.Complete
+	self:Cancel(Session.Player)
+	Complete()
+end
+
 function IntroCombatTutorialService:BeginAttempt(Session: Session)
 	if not IsActive(Session) then
 		return
@@ -202,11 +213,17 @@ function IntroCombatTutorialService:FinishAttempt(Session: Session)
 		StopSwing(Session)
 	end
 	PostureService:Block(Character, false)
-	Character:SetAttribute("IntroTutorialAction", nil)
+	Character:SetAttribute("IntroTutorialAction", "Wait")
 	if Session.Step ~= 3 then
 		SetLock(Character, true)
 	end
 	Publish(Session, "Result", Success)
+	if Session.Step == 3 and Success then
+		Session.FinishingDodge = true
+		self:CompleteDodge(Session)
+		return
+	end
+
 	local Attempt = Session.Attempt
 	local Delay = if Success and Session.Step == 1 then Config.ParryRecoveryTime else Config.RecoveryTime
 	Delay = math.max(Delay, FollowThrough)
@@ -398,6 +415,9 @@ function IntroCombatTutorialService:Arm(
 			end
 		end)
 	)
+	table.insert(Session.Connections, Character:GetAttributeChangedSignal("Rolling"):Connect(function()
+		self:CompleteDodge(Session)
+	end))
 	table.insert(
 		Session.Connections,
 		Character:GetAttributeChangedSignal("Attack"):Connect(function()

@@ -152,6 +152,15 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 		end)
 
 		local function HitCharacter(Character: Model, RayCFrame: CFrame?)
+			if Character:GetAttribute("IntroTutorialProtected") then
+				HitService:NormalHit(Character, Attacker, 0, {
+					RayCFrame = RayCFrame,
+					By = "Weapon",
+					Action = "Attack",
+				})
+				return
+			end
+
 			if not DamageService:CanDamage(Character, Attacker) or not TalentService:AcceptTarget(Attacker, TalentAttack, Character) then
 				return
 			end

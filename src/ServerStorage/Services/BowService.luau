@@ -92,6 +92,10 @@ function BowService:CancelDraw(Player: Player)
 end
 
 function BowService:SetInHand(Player: Player, InHand: boolean)
+	if InHand and Player:GetAttribute("InIntroCutscene") then
+		return
+	end
+
 	local State = GetState(Player)
 	if not State or not State.Grip then
 		return

@@ -83,6 +83,10 @@ function Meditate.callback(inputState: Enum.UserInputState)
 		return
 	end
 
+	if Player:GetAttribute("InIntroCutscene") then
+		return
+	end
+
 	local ray: RaycastResult = workspace:Raycast(Character.PrimaryPart.Position, Vector3.new(0, -3, 0), Params)
 	local IsInWisdomWorld = Character:GetAttribute("InWisdomWorld") or Player:GetAttribute("InWisdomWorld")
 

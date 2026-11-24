@@ -1,5 +1,8 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Validate = require(ReplicatedStorage.Shared.Validate)
 
 local InputController = {}
 local Actions = {}
@@ -10,6 +13,9 @@ local Mouse = Player:GetMouse()
 
 function InputController.Caller(actionName: string, inputState: Enum.UserInputState, inputObject: (InputObject | Enum.UserInputType)?)
 	local Character = Player.Character
+	if Character and inputState == Enum.UserInputState.Begin and not Validate:CanPerformIntroAction(Character, actionName) then
+		return
+	end
 	if Character and Character:GetAttribute("RealmEditing") and inputState ~= Enum.UserInputState.End
 		and inputState ~= Enum.UserInputState.Cancel then
 		return

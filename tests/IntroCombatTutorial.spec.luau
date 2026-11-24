@@ -333,6 +333,7 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 	F.Character:SetAttribute("RollIFrame", false)
 	F.Character:SetAttribute("RollDirection", "Right")
 	F.Feedback.LastSwing.Length = 3
+	F.Character:SetAttribute("Rolling", true)
 	F.Character:SetAttribute("RollIFrame", true)
 	F:Advance(0.13)
 	Check(F:State()[9] == true and F.Feedback.Dodge == 1, "The actual sideways dodge completes the lesson")
@@ -340,11 +341,17 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 		F.Feedback.LastSwing.IsPlaying and F.Feedback.LastSwing.Speed == 1 and not F.Feedback.LastSwing.Destroyed,
 		"Successful dodge preserves the enemy follow-through at normal speed"
 	)
-	F:Advance(F.Config.RecoveryTime)
-	Check(F.Feedback.Completed == 0, "AI stays paused until a longer sword swing has finished")
-	F:Advance(1)
-	Check(F.Feedback.LastSwing.Destroyed, "Finishing cleans up the completed sword animation")
-	Check(F.Feedback.Completed == 1 and F.Boss.Runner:GetAttribute("Enabled"), "Boss AI resumes once")
+	Check(F.Feedback.Completed == 0, "Combat stays paused until the successful dash ends")
+	F:Advance(0.3)
+	Check(F.Feedback.Completed == 0, "The lesson does not interrupt a dash still in progress")
+	F.Character:SetAttribute("Rolling", false)
+	Check(F.Feedback.Completed == 1 and F.Boss.Runner:GetAttribute("Enabled"), "Dash completion immediately resumes boss AI")
+	Check(F.Feedback.LastSwing.Destroyed, "Completing the dash releases the old tutorial animation")
+	Check(not F.Player:GetAttribute("CantAttack"), "Player can attack as soon as the dash finishes")
+	F.Character:SetAttribute("WeaponEquipped", true)
+	F.Character:SetAttribute("Weapon", "BasicKatana")
+	F.Character:SetAttribute("SwordStaminaCost", 1)
+	Check(F.Validate:CanAttack(F.Character), "The native attack validator accepts the post-dash attack")
 	Check(
 		F.Character:GetAttribute("IntroTutorialAction") == nil
 			and F.Character:GetAttribute("IntroTutorialProtected") == nil,
@@ -439,6 +446,14 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 		Inputs.Validate:CanAttack(Inputs.Character) and Inputs.Validate:CanRoll(Inputs.Character),
 		"Normal input stays available outside the lesson"
 	)
+	Inputs.Player:SetAttribute("InIntroCutscene", true)
+	for _, Action in { "Meditate", "Climb", "WallRun", "Vault", "Run", "StrongAttack", "Skill", "Tool", "Crouch", "Jump", "LockOn" } do
+		Check(not Inputs.Validate:CanPerformIntroAction(Inputs.Character, Action), "Intro rejects unnecessary action: " .. Action)
+	end
+	Check(not Inputs.Validate:CanUseSkill(Inputs.Character, 0), "Intro blocks skill use before lesson prompts")
+	Inputs.Character:SetAttribute("IntroOpening", true)
+	Check(not Inputs.Validate:CanPerformIntroAction(Inputs.Character, "Attack"), "Opening blocks manual combat input")
+	Inputs.Character:SetAttribute("IntroOpening", false)
 	Inputs.Character:SetAttribute("IntroTutorialAction", "Parry")
 	Check(
 		Inputs.Validate:CanBlock(Inputs.Character)
@@ -464,12 +479,17 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 		not Inputs.Validate:CanEquipWeapon(Inputs.Character) and not Inputs.Validate:CanStrongAttack(Inputs.Character),
 		"Unrequested weapon changes cannot derail the lesson"
 	)
+	Inputs.Character:SetAttribute("IntroTutorialAction", "Wait")
+	Check(not Inputs.Validate:CanAttack(Inputs.Character) and not Inputs.Validate:CanBlock(Inputs.Character)
+		and not Inputs.Validate:CanRoll(Inputs.Character), "Result stages block input until the lesson advances")
 	Inputs.Character:SetAttribute("IntroTutorialAction", nil)
+	Inputs.Player:SetAttribute("InIntroCutscene", false)
 	Check(
 		Inputs.Validate:CanAttack(Inputs.Character)
 			and Inputs.Validate:CanBlock(Inputs.Character)
 			and Inputs.Validate:CanRoll(Inputs.Character),
 		"Finishing restores all normal input"
 	)
+	Check(Inputs.Validate:CanPerformIntroAction(Inputs.Character, "Meditate"), "Finishing the introduction restores other actions")
 	return string.format("IntroCombatTutorial: %d checks passed", Checks)
 end

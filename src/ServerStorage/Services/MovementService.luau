@@ -81,6 +81,10 @@ function MovementService:Roll(Character: Model, Direction: string, StartCFrame: 
 end
 
 function MovementService:Climb(Character: Model, State: boolean)
+	if State and not Validate:CanPerformIntroAction(Character, "Climb") then
+		return
+	end
+
 	Character:SetAttribute("Climbing", State)
 end
 function MovementService.Client:Climb(Player: Player, State: boolean)

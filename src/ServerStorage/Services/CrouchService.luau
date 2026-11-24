@@ -22,6 +22,11 @@ local Records: { [Model]: Record } = {}
 local HitService
 
 function CrouchService:SetCrouching(Character: Model, Active: boolean): boolean
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if Active and Player and Player:GetAttribute("InIntroCutscene") then
+		return false
+	end
+
 	local Record = Records[Character]
 	if not Record or (Active and not CrouchConfig.CanCrouch(Character)) then
 		return false

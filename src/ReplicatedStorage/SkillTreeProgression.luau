@@ -61,7 +61,7 @@ function Progression.CanUnlock(Data: Profile, Name: any, Nodes: { [string]: Node
 	end
 
 	local Unlocked = Data.UnlockedNodes or {}
-	if table.find(Unlocked, Name) then
+	if table.find(Unlocked, Name) or table.find(Data.OtherSkills or {}, Name) then
 		return false, "Skill already unlocked."
 	end
 	if Node.Previous ~= Node.Stat and not table.find(Unlocked, Node.Previous) then

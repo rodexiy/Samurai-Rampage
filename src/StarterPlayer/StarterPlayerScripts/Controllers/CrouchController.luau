@@ -97,6 +97,10 @@ local function TrackCharacter(Character: Model)
 end
 
 local function InputBlocked(): boolean
+	if Player:GetAttribute("InIntroCutscene") then
+		return true
+	end
+
 	if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() or workspace:GetAttribute("InMainMenu") then
 		return true
 	end

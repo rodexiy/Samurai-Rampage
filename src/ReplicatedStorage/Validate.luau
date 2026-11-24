@@ -1,3 +1,5 @@
+local Players = game:GetService("Players")
+
 local GeneralCantAttributes = {
 	"Bandaging",
 	"IntroOpening",
@@ -38,6 +40,26 @@ end
 
 local Validate = {}
 
+local LessonActions = { Parry = "Block", Attack = "Attack", Dodge = "Roll" }
+local IntroCombatActions = { Attack = true, Block = true, Roll = true }
+
+function Validate:CanPerformIntroAction(Character: Model, Action: string): boolean
+	local Player = Players:GetPlayerFromCharacter(Character)
+	if not Player or not Player:GetAttribute("InIntroCutscene") then
+		return true
+	end
+	if Character:GetAttribute("IntroOpening") or Character:GetAttribute("IntroWakeUp") then
+		return false
+	end
+
+	local Lesson = Character:GetAttribute("IntroTutorialAction")
+	if Lesson then
+		return LessonActions[Lesson] == Action
+	end
+
+	return IntroCombatActions[Action] == true
+end
+
 function Validate:CanEquipWeapon(Character: Model, AllowRangedSwitch: boolean?): boolean
 	if Character:GetAttribute("IntroTutorialAction") then return false end
 	if Character:GetAttribute("BowEquipped") and not AllowRangedSwitch then
@@ -63,6 +85,10 @@ function Validate:CanEquipWeapon(Character: Model, AllowRangedSwitch: boolean?):
 end
 
 function Validate:CanRun(Character: Model)
+	if not self:CanPerformIntroAction(Character, "Run") then
+		return false
+	end
+
 	if Character:GetAttribute("IntroTutorialAction") then return false end
 	local Humanoid = Character:FindFirstChild("Humanoid")
 	return isFalse(Character, GeneralCantAttributes)
@@ -82,6 +108,10 @@ function Validate:CanRun(Character: Model)
 end
 
 function Validate:CanRoll(Character: Model)
+	if not self:CanPerformIntroAction(Character, "Roll") then
+		return false
+	end
+
 	local Action = Character:GetAttribute("IntroTutorialAction")
 	if Action and Action ~= "Dodge" then return false end
 	return isFalse(Character, GeneralCantAttributes)
@@ -101,6 +131,10 @@ function Validate:CanRoll(Character: Model)
 end
 
 function Validate:CanBlock(Character: Model)
+	if not self:CanPerformIntroAction(Character, "Block") then
+		return false
+	end
+
 	local Action = Character:GetAttribute("IntroTutorialAction")
 	if Action and Action ~= "Parry" then return false end
 	if Character:GetAttribute("BowEquipped") then
@@ -122,6 +156,10 @@ function Validate:CanBlock(Character: Model)
 end
 
 function Validate:CanAttack(Character: Model)
+	if not self:CanPerformIntroAction(Character, "Attack") then
+		return false
+	end
+
 	local Action = Character:GetAttribute("IntroTutorialAction")
 	if Action and Action ~= "Attack" then return false end
 	if Character:GetAttribute("BowEquipped") then
@@ -157,6 +195,10 @@ function Validate:CanAttack(Character: Model)
 end
 
 function Validate:CanStrongAttack(Character: Model)
+	if not self:CanPerformIntroAction(Character, "StrongAttack") then
+		return false
+	end
+
 	if Character:GetAttribute("IntroTutorialAction") then return false end
 	if Character:GetAttribute("BowEquipped") then
 		return false
@@ -190,6 +232,10 @@ function Validate:CanStrongAttack(Character: Model)
 end
 
 function Validate:CanUseSkill(Character: Model, StaminaCost: number)
+	if not self:CanPerformIntroAction(Character, "Skill") then
+		return false
+	end
+
 	if Character:GetAttribute("RealmEditing") or Character:GetAttribute("BowEquipped") or Character:GetAttribute("Mounted") then
 		return false
 	end
@@ -219,6 +265,10 @@ function Validate:CanUseSkill(Character: Model, StaminaCost: number)
 end
 
 function Validate:CanClimb(Character: Model)
+	if not self:CanPerformIntroAction(Character, "Climb") then
+		return false
+	end
+
 	return isFalse(Character, GeneralCantAttributes)
 		and isFalse(Character, {
 			"Climbing",
@@ -234,6 +284,10 @@ function Validate:CanClimb(Character: Model)
 end
 
 function Validate:CanWallRun(Character: Model)
+	if not self:CanPerformIntroAction(Character, "WallRun") then
+		return false
+	end
+
 	return isFalse(Character, GeneralCantAttributes)
 		and isFalse(Character, {
 			"Attacking",
@@ -246,6 +300,10 @@ function Validate:CanWallRun(Character: Model)
 end
 
 function Validate:CanVault(Character: Model)
+	if not self:CanPerformIntroAction(Character, "Vault") then
+		return false
+	end
+
 	return isFalse(Character, GeneralCantAttributes)
 		and isFalse(Character, {
 			"Attacking",

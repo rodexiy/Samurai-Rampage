@@ -148,7 +148,7 @@ end
 
 function MenuController:OpenMenu(MenuName: string, Force: boolean?)
 	local Character = Player.Character
-	if not Character or Character:GetAttribute("Died") then
+	if not Character or Character:GetAttribute("Died") or Player:GetAttribute("InIntroCutscene") then
 		return
 	end
 	if Character:GetAttribute("RealmEditing") and (MenuName == "MainMenu" or MenuName == "Inventory" or MenuName == "Meditate") then
@@ -219,6 +219,18 @@ function MenuController.KnitStart()
 	PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
 	Menus = PlayerGui:WaitForChild("Menu") :: ScreenGui
 	Hud = PlayerGui:WaitForChild("Hud") :: ScreenGui
+
+	local Meditate = Menus:WaitForChild("Meditate") :: ScreenGui
+	local CloseMeditate = Meditate:WaitForChild("Close") :: GuiButton
+	CloseMeditate.Activated:Connect(function()
+		local Character = Player.Character
+		if Character and Character:GetAttribute("Meditating") then
+			local MeditateAction = require(Players.LocalPlayer.Character.Client.Actions.Meditate)
+			MeditateAction.Stop()
+		end
+
+		Meditate.Enabled = false
+	end)
 
 	for _, Menu in Menus:GetChildren() do
 		BindPromptMenu(Menu)

@@ -631,6 +631,10 @@ function InventoryService:EquipUnequipItem(Player: Player, ItemName: string): (b
 	return true
 end
 function InventoryService.Client:EquipUnequipItem(Player: Player, ItemName: string)
+	if Player:GetAttribute("InIntroCutscene") then
+		return
+	end
+
 	self.Server:EquipUnequipItem(Player, ItemName)
 end
 
@@ -953,7 +957,11 @@ function InventoryService:HandleInventoryAction(Player: Player, Request: any)
 
 	local Layout = self:GetInventoryLayout(Player)
 	local Success, Reason = false, "Inventory changed. Try again."
-	if Request.Kind == "MoveHotbar" then
+	if Player:GetAttribute("InIntroCutscene")
+		and (Request.Kind == "Equip" or Request.Kind == "Unequip")
+		and InventoryEquipmentSlots.IsWeaponSlot(Request.Slot) then
+		Reason = "You cannot change weapons during the introduction."
+	elseif Request.Kind == "MoveHotbar" then
 		Success, Reason = self:MoveHotbarSlot(Player, Request.SourceIndex, Request.Index, Request.Name)
 	elseif Request.Revision == Layout.Revision then
 		if Request.Kind == "Move" then
