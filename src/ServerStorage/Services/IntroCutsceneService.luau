@@ -396,7 +396,8 @@ function IntroCutsceneService:StageTsunami(Player: Player, Token: string)
 		end
 		SetOpeningLock(Actor, true)
 	end
-	Session.EarliestFinish = os.clock() + IntroCutsceneConfig.Tsunami.ApproachTime
+	local Tsunami = IntroCutsceneConfig.Tsunami
+	Session.EarliestFinish = os.clock() + Tsunami.Umibozu.RiseTime + Tsunami.Umibozu.HoldTime + Tsunami.ApproachTime
 	self.Client.TsunamiRevealed:Fire(Player, Token, Character, Boss, Session.Ship.Name)
 end
 

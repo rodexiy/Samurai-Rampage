@@ -14,6 +14,7 @@ type NodeVisual = {
 	Position: Vector3,
 	Button: TextButton,
 	Labels: { TextLabel },
+	PointsLabels: { TextLabel },
 	Stroke: UIStroke,
 	Color: Color3,
 	Root: boolean,
@@ -615,16 +616,23 @@ function SkillTreeSceneController:AddNode(Name: string, Position: Vector3, Color
 	Stroke.Transparency = 0.55
 	Stroke.Parent = Button
 	local Labels: { TextLabel } = {}
+	local PointsLabels: { TextLabel } = {}
 	for _, Billboard in Object:QueryDescendants("BillboardGui") do
 		Billboard.Enabled = true
 		if not Billboard.Adornee and Billboard.Parent and Billboard.Parent:IsA("BasePart") then
 			Billboard.Adornee = Billboard.Parent
 		end
 		for _, Label: TextLabel in Billboard:QueryDescendants("TextLabel") do
-			Label.Text = Name
 			Label.TextColor3 = Color
-			Label.Visible = true
-			table.insert(Labels, Label)
+			if Label.Name == "Points" then
+				Label.Text = "0 points"
+				Label.Visible = Root
+				table.insert(PointsLabels, Label)
+			else
+				Label.Text = Name
+				Label.Visible = true
+				table.insert(Labels, Label)
+			end
 		end
 	end
 	Button.InputBegan:Connect(function(Input: InputObject)
@@ -644,6 +652,7 @@ function SkillTreeSceneController:AddNode(Name: string, Position: Vector3, Color
 		Position = Center,
 		Button = Button,
 		Labels = Labels,
+		PointsLabels = PointsLabels,
 		Stroke = Stroke,
 		Color = Color,
 		Root = Root,
@@ -721,6 +730,13 @@ function SkillTreeSceneController:SetNodeState(Name: string, Learned: boolean, A
 		Label.TextColor3 = Color
 		Label.Text = Name
 	end
+
+	for _, Label in Node.PointsLabels do
+		Label.TextColor3 = Color
+		Label.Text = tostring(Points or 0) .. " points"
+		Label.Visible = Node.Root
+	end
+
 	Node.Button:SetAttribute("Points", Points)
 end
 

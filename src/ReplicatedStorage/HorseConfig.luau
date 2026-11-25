@@ -17,8 +17,8 @@ local HorseConfig = {
 	MinimumGroundNormal = 0.55,
 	Braking = 65,
 	HitDismount = {
-		KnockbackSpeed = 55,
-		UpwardSpeed = 28,
+		KnockbackSpeed = 25,
+		UpwardSpeed = 5,
 		CoastingDeceleration = 12,
 	},
 	PhysicsAcceleration = 180,

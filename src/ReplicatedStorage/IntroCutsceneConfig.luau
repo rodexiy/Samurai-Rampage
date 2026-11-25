@@ -40,6 +40,16 @@ local IntroCutsceneConfig = {
         CameraLookHeight = 30,
         InitialFov = 75,
         ImpactFov = 90,
+        Umibozu = {
+            ModelName = "Umibozu",
+            Scale = 3,
+            YawDegrees = 0,
+            ForwardTiltDegrees = 25,
+            BehindWaveGap = 0,
+            VerticalOffset = 40,
+            RiseTime = 3,
+            HoldTime = 2,
+        },
         CameraShake = {
             Enabled = true,
             PositionAmplitude = 0.45,

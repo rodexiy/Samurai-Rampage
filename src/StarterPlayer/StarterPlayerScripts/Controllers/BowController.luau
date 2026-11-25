@@ -639,7 +639,10 @@ local function Render()
 		and Camera and Camera.CameraType == Enum.CameraType.Custom and not IsBlocked()
 	local Focusing = UpdateFocusZoom(Active == true)
 	CameraController:SetBowFocusZoom(Focusing)
-	FocusController:SetActive(Focusing and Player:GetAttribute("FovEffects") == true)
+
+	local Crouching = Character ~= nil and Character:GetAttribute("Crouching") == true
+	FocusController:SetActive((Focusing or Crouching) and Player:GetAttribute("FovEffects") == true)
+
 	CameraController:SetForcedShiftLock("Bow", Active == true)
 	CursorController:SetVisible(Active == true)
 	if not Active or not Character then

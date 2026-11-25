@@ -1,18 +1,29 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local StatusDisplay = {}
 
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
+local Collector = require(ReplicatedStorage.Shared.Collector)
 
 function StatusDisplay:AddTopDisplay(Character: Model)
 	local Connections = Collector.new()
 
-	local TopDisplay: BillboardGui = game.ReplicatedStorage.Assets.Billboards.TopStatusDisplay:Clone()
+	local TopDisplay: BillboardGui = ReplicatedStorage.Assets.Billboards.TopStatusDisplay:Clone()
 
 	local Player = Players:GetPlayerFromCharacter(Character)
 
 	TopDisplay.PlayerToHideFrom = Player
+
+	local function UpdateBillboardVisibility()
+		TopDisplay.Enabled = not Player or not Character:GetAttribute("Crouching")
+	end
+
+	if Player then
+		Connections:Add(Character:GetAttributeChangedSignal("Crouching"):Connect(UpdateBillboardVisibility))
+	end
+	UpdateBillboardVisibility()
+
 	TopDisplay.Parent = Character.PrimaryPart
 
 	local Name = if Player then Player.DisplayName else Character.Name
@@ -35,7 +46,6 @@ function StatusDisplay:AddTopDisplay(Character: Model)
 	end
 
 	if not Character:HasTag("Boss") then
-		local oldHealth = Character:GetAttribute("Health")
 		Connections:Add(Character:GetAttributeChangedSignal("Health"):Connect(function()
 			local HealthGui = TopDisplay.HealthBackground
 
@@ -49,7 +59,6 @@ function StatusDisplay:AddTopDisplay(Character: Model)
 			TweenService:Create(HealthGui.HealthBar, info, { Size = UDim2.fromScale(health, 1) }):Play()
 			TweenService:Create(HealthGui.WhiteBar, whiteInfo, { Size = UDim2.fromScale(health, 1) }):Play()
 
-			oldHealth = if Character:GetAttribute("Health") == 0 then 1 else Character:GetAttribute("Health")
 			UpdateVisibility()
 		end))
 

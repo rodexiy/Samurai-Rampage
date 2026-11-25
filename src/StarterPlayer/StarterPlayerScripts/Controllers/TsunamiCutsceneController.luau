@@ -18,6 +18,7 @@ type Sequence = {
 	Revealed: boolean,
 	WakingUp: boolean?,
 	Wave: Model?,
+	Umibozu: Model?,
 	WaveStartPosition: Vector3?,
 	WaveTravelDistance: number?,
 	Sound: Sound?,
@@ -111,6 +112,10 @@ local function ClearVisuals(Sequence: Sequence)
 		Sequence.Wave:Destroy()
 		Sequence.Wave = nil
 	end
+	if Sequence.Umibozu then
+		Sequence.Umibozu:Destroy()
+		Sequence.Umibozu = nil
+	end
 	Sequence.WaveStartPosition = nil
 	Sequence.WaveTravelDistance = nil
 	Sequence.Tweens = {}
@@ -193,19 +198,25 @@ local function PlayIdle(Sequence: Sequence, Actor: Model)
 	end
 end
 
-local function CreateWave(Sequence: Sequence, Ship: Model, Center: Vector3, Direction: Vector3, CameraPosition: Vector3): CFrame
-	local Template = ReplicatedStorage.Assets.Models.TutorialCutscene:FindFirstChild(Config.ModelName) :: Model?
-	assert(Template and Template:IsA("Model"), "Intro tsunami template is missing")
-	local Wave = Template:Clone()
-	Sequence.Wave = Wave
-	Wave.Name = "IntroTsunami"
-	for _, Instance in Wave:QueryDescendants("BasePart") do
+local function CloneVisualModel(ModelName: string, Name: string): Model
+	local Template = ReplicatedStorage.Assets.Models.TutorialCutscene:FindFirstChild(ModelName) :: Model?
+	assert(Template and Template:IsA("Model"), "Intro cutscene template is missing: " .. ModelName)
+	local Model = Template:Clone()
+	Model.Name = Name
+	for _, Instance in Model:QueryDescendants("BasePart") do
 		local Part = Instance :: BasePart
 		Part.Anchored = true
 		Part.CanCollide = false
 		Part.CanTouch = false
 		Part.CanQuery = false
 	end
+
+	return Model
+end
+
+local function CreateWave(Sequence: Sequence, Ship: Model, Center: Vector3, Direction: Vector3, CameraPosition: Vector3): CFrame
+	local Wave = CloneVisualModel(Config.ModelName, "IntroTsunami")
+	Sequence.Wave = Wave
 
 	local Bounds, Size = Wave:GetBoundingBox()
 	local LocalCenter = Wave:GetPivot():PointToObjectSpace(Bounds.Position)
@@ -224,8 +235,36 @@ local function CreateWave(Sequence: Sequence, Ship: Model, Center: Vector3, Dire
 	Wave:PivotTo(AtCenter(Start))
 	Sequence.WaveStartPosition = Wave:GetPivot().Position
 	Sequence.WaveTravelDistance = (AtCenter(Finish).Position - Wave:GetPivot().Position).Magnitude
-	Wave.Parent = workspace
 	return AtCenter(Finish)
+end
+
+local function RevealUmibozu(Sequence: Sequence, Direction: Vector3): boolean
+	local Settings = Config.Umibozu
+	local Wave = assert(Sequence.Wave, "Intro tsunami was removed")
+	local Umibozu = CloneVisualModel(Settings.ModelName, "IntroUmibozu")
+	Sequence.Umibozu = Umibozu
+	Umibozu:ScaleTo(Umibozu:GetScale() * Settings.Scale)
+
+	local Bounds, Size = Umibozu:GetBoundingBox()
+	local LocalCenter = Umibozu:GetPivot():PointToObjectSpace(Bounds.Position)
+	local WaveBounds, WaveSize = Wave:GetBoundingBox()
+	local Position = WaveBounds.Position + Direction * (WaveSize.X * 0.5 + Size.Z * 0.5 + Settings.BehindWaveGap)
+	local Height = IntroCutsceneConfig.Lightning.SurfaceY + Size.Y * 0.5 + Settings.VerticalOffset
+	local Rotation = CFrame.lookAt(Vector3.zero, Direction)
+		* CFrame.Angles(math.rad(Settings.ForwardTiltDegrees), math.rad(Settings.YawDegrees), 0)
+	local Target = CFrame.new(Position.X, Height, Position.Z) * Rotation * CFrame.new(-LocalCenter)
+	local VerticalSize = math.abs(Rotation.RightVector.Y) * Size.X + math.abs(Rotation.UpVector.Y) * Size.Y
+		+ math.abs(Rotation.LookVector.Y) * Size.Z
+	Umibozu:PivotTo(Target - Vector3.yAxis * (VerticalSize + math.abs(Settings.VerticalOffset)))
+	Umibozu.Parent = workspace
+
+	local Rise = TweenModel(Sequence, Umibozu, Target, Settings.RiseTime)
+	if Rise.Completed:Wait() ~= Enum.PlaybackState.Completed or not IsActive(Sequence) then
+		return false
+	end
+
+	task.wait(Settings.HoldTime)
+	return IsActive(Sequence)
 end
 
 function TsunamiCutsceneController:PlayHeavyParry(Token: string, Character: Model, Boss: Model)
@@ -295,6 +334,13 @@ function TsunamiCutsceneController:Reveal(Token: string, Character: Model, Boss:
 	CutsceneController:SetView(Frame, Target, Config.InitialFov)
 	local WaveTarget = CreateWave(Sequence, Ship, Center, Direction, Position)
 
+	if not RevealUmibozu(Sequence, Direction) then
+		return
+	end
+
+	local Wave = assert(Sequence.Wave, "Intro tsunami was removed")
+	Wave.Parent = workspace
+
 	local Sound = Instance.new("Sound")
 	Sound.Name = "IntroTsunami"
 	Sound.SoundId = Config.SoundId
@@ -307,7 +353,7 @@ function TsunamiCutsceneController:Reveal(Token: string, Character: Model, Boss:
 	Debris:AddItem(Sound, 60)
 	Sound:Play()
 
-	local WaveTween = TweenModel(Sequence, assert(Sequence.Wave, "Intro tsunami was removed"), WaveTarget,
+	local WaveTween = TweenModel(Sequence, Wave, WaveTarget,
 		Config.ApproachTime, Enum.EasingStyle.Linear)
 	task.spawn(function()
 		CutsceneController:MoveTo(Frame, Target, Config.ImpactFov, Config.ApproachTime)

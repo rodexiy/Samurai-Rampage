@@ -29,6 +29,8 @@ type BowState = {
 	LastToggle: number,
 	LastBegin: number,
 	Grip: Motor6D?,
+	EquipVersion: number,
+	SwitchingToRanged: boolean,
 }
 
 local DataService
@@ -101,7 +103,30 @@ function BowService:SetInHand(Player: Player, InHand: boolean)
 		return
 	end
 
+	if InHand and State.SwitchingToRanged then
+		return
+	end
+
+	State.EquipVersion += 1
+	local EquipVersion = State.EquipVersion
 	local Character = State.Character
+	local Grip = State.Grip
+	if InHand and Character:GetAttribute("WeaponEquipped") then
+		if not CanUse(Player, State) or not Validate:CanEquipWeapon(Character) then
+			return
+		end
+
+		State.SwitchingToRanged = true
+		WeaponService:Equip(Character, false)
+		State.SwitchingToRanged = false
+
+		if GetState(Player) ~= State or State.EquipVersion ~= EquipVersion or State.Grip ~= Grip
+			or Character:GetAttribute("WeaponEquipped") or not CanUse(Player, State)
+			or Player:GetAttribute("InIntroCutscene") then
+			return
+		end
+	end
+
 	local Config = RangedWeaponConfig.GetForCharacter(Character)
 	local PartName = if InHand then Config.HandPart else Config.BackPart
 	local BodyPart = if PartName == "PrimaryPart"
@@ -121,10 +146,6 @@ function BowService:SetInHand(Player: Player, InHand: boolean)
 	State.Grip.C1 = CFrame.identity
 	State.Grip.Parent = BodyPart
 	Character:SetAttribute("BowEquipped", InHand)
-
-	if InHand and Character:GetAttribute("WeaponEquipped") then
-		WeaponService:Equip(Character, false, 0)
-	end
 end
 
 function BowService:Unload(Player: Player)
@@ -550,6 +571,8 @@ local function BindCharacter(Player: Player, Character: Model)
 		LastAim = 0,
 		LastToggle = 0,
 		LastBegin = 0,
+		EquipVersion = 0,
+		SwitchingToRanged = false,
 	}
 	Character:SetAttribute("BowEquipped", false)
 	Character:SetAttribute("BowDrawing", false)
