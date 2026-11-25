@@ -16,6 +16,11 @@ local HorseConfig = {
 	GroundProbeDepth = 64,
 	MinimumGroundNormal = 0.55,
 	Braking = 65,
+	HitDismount = {
+		KnockbackSpeed = 55,
+		UpwardSpeed = 28,
+		CoastingDeceleration = 12,
+	},
 	PhysicsAcceleration = 180,
 	Gaits = {
 		TrotSpeed = 17.6,

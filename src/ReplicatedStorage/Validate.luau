@@ -1,4 +1,7 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local KickConfig = require(ReplicatedStorage.Shared.KickConfig)
 
 local GeneralCantAttributes = {
 	"Kicking",
@@ -242,6 +245,7 @@ function Validate:CanKick(Character: Model): boolean
 	local Lesson = Character:GetAttribute("IntroTutorialAction")
 
 	return Humanoid ~= nil and Humanoid.Health > 0 and Character.PrimaryPart ~= nil
+		and (Character:GetAttribute("Stamina") or 0) >= KickConfig.StaminaCost
 		and not (Player and Player:GetAttribute("CantAttack"))
 		and not Character:FindFirstChildWhichIsA("Tool")
 		and isFalse(Character, GeneralCantAttributes)

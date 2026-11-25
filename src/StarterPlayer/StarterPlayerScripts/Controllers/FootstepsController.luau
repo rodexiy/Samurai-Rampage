@@ -103,7 +103,7 @@ local function ConnectTrack(Record: Record, Track: AnimationTrack)
 	end))
 end
 
-local function RestoreRunningSounds(Record: Record)
+local function RestoreDefaultSounds(Record: Record)
 	for Sound, Entry in Record.Muted do
 		Entry.Connection:Disconnect()
 		if Sound.Parent then
@@ -113,9 +113,9 @@ local function RestoreRunningSounds(Record: Record)
 	table.clear(Record.Muted)
 end
 
-local function MuteRunningSound(Record: Record, Object: Instance)
+local function MuteDefaultSound(Record: Record, Object: Instance)
 	local Root = Record.Character.PrimaryPart
-	if not Object:IsA("Sound") or Object.Name ~= "Running" or Object.Parent ~= Root or Record.Muted[Object] then
+	if not Object:IsA("Sound") or (Object.Name ~= "Running" and Object.Name ~= "Jumping") or Object.Parent ~= Root or Record.Muted[Object] then
 		return
 	end
 
@@ -144,7 +144,7 @@ local function Detach(Record: Record)
 		Record.State = nil
 	end
 	Record.Animator = nil
-	RestoreRunningSounds(Record)
+	RestoreDefaultSounds(Record)
 end
 
 local function Attach(Record: Record)
@@ -158,9 +158,11 @@ local function Attach(Record: Record)
 	end
 	local Root = Record.Character.PrimaryPart
 	if Root then
-		local Running = Root:FindFirstChild("Running")
-		if Running then
-			MuteRunningSound(Record, Running)
+		for _, Name in { "Running", "Jumping" } do
+			local Sound = Root:FindFirstChild(Name)
+			if Sound then
+				MuteDefaultSound(Record, Sound)
+			end
 		end
 	end
 	if not Record.State or not Animator or Record.Animator == Animator then
@@ -197,7 +199,7 @@ function FootstepsController:TrackCharacter(Character: Model)
 	local Record: Record = { Character = Character, Tracks = {}, Connections = {}, Muted = {}, Order = 0 }
 	Records[Character] = Record
 	table.insert(Record.Connections, Character.DescendantAdded:Connect(function(Object: Instance)
-		MuteRunningSound(Record, Object)
+		MuteDefaultSound(Record, Object)
 		if Object:IsA("Humanoid") or Object:IsA("Animator") or Object:IsA("BasePart") then
 			Attach(Record)
 		end
@@ -217,6 +219,21 @@ function FootstepsController:TrackCharacter(Character: Model)
 		self:UntrackCharacter(Character)
 	end))
 	Attach(Record)
+end
+
+function FootstepsController:PlayArmorSound(Character: Model)
+	local Camera = workspace.CurrentCamera
+	local Root = Character.PrimaryPart
+	if not Camera or not Root or not Character:IsDescendantOf(workspace) or not Character:GetAttribute("HasMetalArmor")
+		or (Root.Position - Camera.CFrame.Position).Magnitude > FootstepConfig.AudibleDistance then
+		return
+	end
+
+	self:TrackCharacter(Character)
+	local Record = Records[Character]
+	if Record and Record.State then
+		FootstepPlaybackController.PlayArmor(Record.State, Camera.CFrame.Position)
+	end
 end
 
 function FootstepsController.KnitStart()

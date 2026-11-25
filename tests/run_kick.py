@@ -15,6 +15,8 @@ FILES = {
     "AssemblyMass": "src/ReplicatedStorage/Utils/GetAssemblyMass.luau",
     "Hit": "src/ServerStorage/Services/HitService.luau",
     "Kick": "src/ServerStorage/Services/KickService.luau",
+    "Reaction": "src/ServerStorage/Services/EnemyReactionService.luau",
+    "Input": "src/StarterPlayer/StarterCharacterScripts/InputController.luau",
 }
 
 

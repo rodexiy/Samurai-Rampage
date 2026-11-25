@@ -1,11 +1,10 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Knit = require(ReplicatedStorage.Packages.Knit)
+local Knit = require(game.ReplicatedStorage.Packages.Knit)
 
 local StanceVisualController = Knit.CreateController({
 	Name = "StanceVisualController",
 })
 
-local Stances = require(ReplicatedStorage.Shared.Index.Stances)
+local Stances = require(game.ReplicatedStorage.Shared.Index.Stances)
 
 local LEFT_ARM_RAGDOLL_TAG = "ClientLeftArmRagdoll"
 local LEFT_ARM_OUTWARD_OFFSET = 0.35
@@ -111,6 +110,9 @@ function StanceVisualController:DisableLeftArmRagdoll(Character: Model)
 	if State.LeftShoulder and State.LeftShoulder.Parent then
 		State.LeftShoulder.Enabled = State.LeftShoulderEnabled
 	end
+	if State.LeftArm and State.LeftArm.Parent then
+		State.LeftArm.Massless = State.LeftArmMassless
+	end
 
 	for _, InstanceToDestroy in State.Instances do
 		if InstanceToDestroy and InstanceToDestroy.Parent then
@@ -125,6 +127,9 @@ function StanceVisualController:EnableLeftArmRagdoll(Character: Model)
 	if State then
 		if State.LeftShoulder and State.LeftShoulder.Parent then
 			State.LeftShoulder.Enabled = false
+		end
+		if State.LeftArm and State.LeftArm.Parent then
+			State.LeftArm.Massless = true
 		end
 		return
 	end
@@ -166,10 +171,12 @@ function StanceVisualController:EnableLeftArmRagdoll(Character: Model)
 		LeftShoulder = LeftShoulder,
 		LeftShoulderEnabled = LeftShoulder.Enabled,
 		LeftArm = LeftShoulder.Part1,
+		LeftArmMassless = LeftShoulder.Part1.Massless,
 		Instances = Instances,
 		Connections = {},
 	}
 
+	LeftShoulder.Part1.Massless = true
 	LeftShoulder.Enabled = false
 	SnapLeftArmToShoulder(LeftShoulder)
 

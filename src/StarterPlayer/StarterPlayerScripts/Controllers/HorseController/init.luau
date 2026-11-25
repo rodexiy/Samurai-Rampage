@@ -66,14 +66,6 @@ local function SetControlledHorse(Model: Model?)
 		return
 	end
 
-	if ControlledHorse and ControlledHorse.PrimaryPart then
-		local Velocity = ControlledHorse.PrimaryPart:FindFirstChild("MountVelocity") :: LinearVelocity?
-		if Velocity then
-			Velocity.PlaneVelocity = Vector2.zero
-			Velocity.Enabled = false
-		end
-	end
-
 	HorseMountedAnimationController.Reset(MountedAnimation)
 	ControlledHorse = Model
 	Grounding = if Model then HorseGrounding.Create(Model) else nil

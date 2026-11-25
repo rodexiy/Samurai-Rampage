@@ -36,6 +36,7 @@ type HorseState = {
 	LastCheck: number,
 	LastLook: number,
 	Grounding: HorseGrounding.State,
+	CoastingVelocity: Vector3?,
 }
 
 local Horses: { [Player]: HorseState } = {}
@@ -43,6 +44,7 @@ local LastSpawn: { [Player]: number } = {}
 local HorseFolder: Folder
 local LookEvent: UnreliableRemoteEvent
 local DataService
+local KnockbackService
 
 local function GetGroundParams(Character: Model): RaycastParams
 	local Params = RaycastParams.new()
@@ -157,13 +159,15 @@ local function CreatePhysics(Model: Model): (BasePart, LinearVelocity, AlignOrie
 	return Root, Velocity, Orientation, Size
 end
 
-function HorseService:Dismount(Player: Player)
+function HorseService:Dismount(Player: Player, PreserveMomentum: boolean?)
 	local State = Horses[Player]
 	local Rider = State and State.Rider
 	if not State or not Rider then
 		return
 	end
 
+	local MountVelocity = State.Root.AssemblyLinearVelocity
+	State.CoastingVelocity = if PreserveMomentum then MountVelocity * Vector3.new(1, 0, 1) else nil
 	State.Rider = nil
 	State.Model:SetAttribute("RiderLookDirection", nil)
 	State.Model:SetAttribute("RiderLookTime", nil)
@@ -172,9 +176,9 @@ function HorseService:Dismount(Player: Player)
 	Rider.Character:SetAttribute("InHorse", false)
 	State.Model:SetAttribute("RiderUserId", nil)
 	State.Velocity.Enabled = true
-	State.Velocity.PlaneVelocity = Vector2.zero
+	State.Velocity.PlaneVelocity = if State.CoastingVelocity then Vector2.new(MountVelocity.X, MountVelocity.Z) else Vector2.zero
 	State.Orientation.CFrame = State.Root.CFrame.Rotation
-	State.Root.AssemblyLinearVelocity = Vector3.new(0, State.Root.AssemblyLinearVelocity.Y, 0)
+	State.Root.AssemblyLinearVelocity = if PreserveMomentum then MountVelocity else Vector3.new(0, MountVelocity.Y, 0)
 	State.Root.AssemblyAngularVelocity = Vector3.zero
 	HorseGrounding.Reset(State.Grounding)
 	HorseGrounding.Update(State.Grounding, 0)
@@ -184,7 +188,7 @@ function HorseService:Dismount(Player: Player)
 	State.Prompt.Enabled = true
 
 	local CharacterRoot = Rider.Character.PrimaryPart
-	if CharacterRoot and Rider.Character.Parent then
+	if CharacterRoot and Rider.Character.Parent and not PreserveMomentum then
 		local Params = GetGroundParams(Rider.Character)
 		local Offset = State.Root.Size.X * 0.5 + 3
 
@@ -222,6 +226,32 @@ function HorseService:Dismount(Player: Player)
 
 	Rider.Humanoid.AutoRotate = Rider.AutoRotate
 	Rider.Humanoid.PlatformStand = Rider.PlatformStand
+
+	if PreserveMomentum and CharacterRoot then
+		CharacterRoot.AssemblyLinearVelocity = MountVelocity
+	end
+end
+
+function HorseService:KnockOff(Character: Model, Attacker: Model, AttackDirection: Vector3?): boolean
+	local Player = Players:GetPlayerFromCharacter(Character)
+	local State = Player and Horses[Player]
+	if not State or not State.Rider or State.Rider.Character ~= Character then
+		return false
+	end
+
+	local Velocity = State.Root.AssemblyLinearVelocity
+	local Direction = AttackDirection or (Character:GetPivot().Position - Attacker:GetPivot().Position)
+	Direction = Direction * Vector3.new(1, 0, 1)
+	if Direction.Magnitude <= 0.001 then
+		Direction = HorseGrounding.HorizontalDirection(Attacker:GetPivot().LookVector)
+	end
+
+	self:Dismount(Player, true)
+	KnockbackService:FlingWithVelocity(Character, Velocity
+		+ Direction.Unit * HorseConfig.HitDismount.KnockbackSpeed
+		+ Vector3.yAxis * HorseConfig.HitDismount.UpwardSpeed)
+
+	return true
 end
 
 function HorseService:Mount(Player: Player, Model: Model)
@@ -275,6 +305,7 @@ function HorseService:Mount(Player: Player, Model: Model)
 		PlatformStand = PlatformStand, Parts = Parts, Weld = Weld,
 	}
 	State.LastLook = -math.huge
+	State.CoastingVelocity = nil
 
 	State.Prompt.Enabled = false
 	State.LastPosition = State.Root.Position
@@ -474,6 +505,7 @@ end
 
 function HorseService.KnitInit()
 	DataService = Knit.GetService("DataService")
+	KnockbackService = Knit.GetService("KnockbackService")
 
 	local Events = ReplicatedStorage.Assets:FindFirstChild("Events")
 	if not Events then
@@ -542,6 +574,20 @@ function HorseService.KnitStart()
 	RunService.PreSimulation:Connect(function(DeltaTime: number)
 		for _, State in Horses do
 			if not State.Rider and State.Root:IsDescendantOf(workspace) then
+				local Velocity = State.CoastingVelocity
+				if Velocity then
+					local Speed = math.max(0, Velocity.Magnitude - HorseConfig.HitDismount.CoastingDeceleration * DeltaTime)
+					Velocity = if Speed > 0 then Velocity.Unit * Speed else Vector3.zero
+					Velocity = HorseGrounding.ConstrainMovement(State.Grounding, Velocity, DeltaTime)
+					if Velocity.Magnitude <= 0.01 then
+						Velocity = Vector3.zero
+					end
+
+					State.CoastingVelocity = if Velocity.Magnitude > 0.01 then Velocity else nil
+					State.Velocity.Enabled = true
+					State.Velocity.PlaneVelocity = Vector2.new(Velocity.X, Velocity.Z)
+				end
+
 				HorseGrounding.Update(State.Grounding, DeltaTime)
 			end
 		end

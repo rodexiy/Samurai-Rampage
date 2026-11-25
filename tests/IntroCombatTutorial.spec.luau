@@ -170,12 +170,12 @@ return function(Source: string, DamageSource: string, ValidateSource: string): s
 						then Players
 						else {
 							Packages = { Knit = "Knit" },
-							Shared = { IntroCutsceneConfig = "Config", StatProgression = "Progression" },
+							Shared = { IntroCutsceneConfig = "Config", StatProgression = "Progression", KickConfig = "KickConfig" },
 						}
 				end,
 			},
 			require = function(Name: string): any
-				return if Name == "Knit" then Knit else { CombatTutorial = Config }
+				return if Name == "Knit" then Knit elseif Name == "KickConfig" then { StaminaCost = 10 } else { CombatTutorial = Config }
 			end,
 			Vector3 = { new = V, zero = V(0, 0, 0) },
 			CFrame = {

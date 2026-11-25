@@ -20,6 +20,7 @@ local SkillService
 local InCombatService
 local IntroCutsceneService
 local IntroCombatTutorialService
+local HorseService
 
 function HitService:IsInFront(Attacker: Model, Character: Model)
 	local amountForward = Character:GetPivot().LookVector
@@ -98,7 +99,13 @@ function HitService:Hit(Character: Model, Attacker: Model, Damage: number, Data:
 	if Data.By ~= "Kick" then
 		RenderService:RenderForAllPlayers("Combat", "Blood", { Character = Character, Attacker = Attacker, Ranged = Data.Ranged })
 	end
-	if Data.FlingOnLast then
+	local KnockedOff = false
+	if Character:GetAttribute("Mounted") then
+		local Direction = if Data.Ranged and typeof(Data.RayCFrame) == "CFrame" then Data.RayCFrame.LookVector else nil
+		KnockedOff = HorseService:KnockOff(Character, Attacker, Direction)
+	end
+
+	if Data.FlingOnLast and not KnockedOff then
 		WeaponService:TryFling(Character, Attacker)
 	end
 
@@ -183,6 +190,7 @@ function HitService.KnitInit()
 	InCombatService = Knit.GetService("InCombatService")
 	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
 	IntroCombatTutorialService = Knit.GetService("IntroCombatTutorialService")
+	HorseService = Knit.GetService("HorseService")
 end
 
 function HitService.KnitStart() end

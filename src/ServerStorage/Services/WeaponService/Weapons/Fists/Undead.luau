@@ -115,6 +115,10 @@ Undead.Attack = function(Attacker: Model, Data: { any })
 
 						Debris:AddItem(BodyVelocity, 0.1)
 
+						if Character:GetAttribute("Ragdoll") then
+							return
+						end
+
 						local RootPart = Character:FindFirstChild("HumanoidRootPart")
 						local BodyVelocity = Instance.new("BodyVelocity")
 						BodyVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)

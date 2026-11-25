@@ -112,13 +112,13 @@ function Combat.Blood(Data)
 
 	if not Data.Ranged then
 		RenderController:ExecuteForCharacter(CharacterToRender, function()
-			CameraController:ShakeOnce(3, 10, 0.1, 0.1)
+			CameraController:ShakeOnce(5, 12, 0.03, 0.2)
 			ScreenParticleController:EmitParticle("Blood", 1.5)
 		end)
 	end
 
 	RenderController:ExecuteForCharacter(Data.Attacker, function()
-		CameraController:ShakeOnce(2, 10, 0.1, 0.1)
+		CameraController:ShakeOnce(3, 12, 0.03, 0.15)
 	end)
 
 	local VFX
@@ -163,11 +163,11 @@ function Combat.Deflect(Data)
 	end
 
 	RenderController:ExecuteForCharacter(CharacterToRender, function()
-		CameraController:ShakeOnce(5, 15, 0.1, 0.25)
+		CameraController:ShakeOnce(8, 18, 0.02, 0.3)
 	end)
 	if not Data.Ranged then
 		RenderController:ExecuteForCharacter(Data.Attacker, function()
-			CameraController:ShakeOnce(5, 15, 0.1, 0.25)
+			CameraController:ShakeOnce(8, 18, 0.02, 0.3)
 		end)
 	end
 
@@ -234,7 +234,7 @@ function Combat.HeavyDeflect(Data)
 	Debris:AddItem(VFX, 1.5)
 
 	RenderController:ExecuteForCharacter(CharacterToRender, function()
-		CameraController:ShakeOnce(2.5, 8, 0.03, 0.25)
+		CameraController:ShakeOnce(5, 12, 0.02, 0.3)
 		CameraController:PulseFieldOfView(-4, 0.12)
 	end)
 end
@@ -247,12 +247,12 @@ function Combat.Block(Data)
 	VFX.Parent = workspace.VFX
 
 	RenderController:ExecuteForCharacter(CharacterToRender, function()
-		CameraController:ShakeOnce(1.5, 10, 0.1, 0.1)
+		CameraController:ShakeOnce(3, 14, 0.03, 0.18)
 	end)
 
 	if not Data.Ranged then
 		RenderController:ExecuteForCharacter(Data.Attacker, function()
-			CameraController:ShakeOnce(0.75, 10, 0.1, 0.1)
+			CameraController:ShakeOnce(1.5, 12, 0.03, 0.15)
 		end)
 	end
 
@@ -268,6 +268,8 @@ function Combat.Roll(Data)
 	if not CharacterToRender then
 		return
 	end
+
+	Knit.GetController("FootstepsController"):PlayArmorSound(CharacterToRender)
 
 	local ConvertDirection = {
 		Forward = CFrame.Angles(0, math.rad(180), 0),

@@ -25,10 +25,12 @@ local HitService
 local KnockbackService
 local StatService
 local DoorService
+local StaminaService
 
 type KickState = {
 	Started: number,
 	Hitted: { [Model]: boolean },
+	Notified: { [Model]: boolean },
 	Connections: { RBXScriptConnection },
 	DoorHitbox: Part?,
 }
@@ -49,6 +51,7 @@ function KickService:HitTarget(Attacker: Model, Character: Model)
 	end
 
 	local Damage = Config.BaseDamage + StatService:GetLevel(Attacker, "Strength") * Config.StrengthDamage
+	local WasMounted = Character:GetAttribute("Mounted") == true
 	local Result = HitService:NormalHit(Character, Attacker, Damage, {
 		By = "Kick",
 		Action = "Kick",
@@ -60,7 +63,26 @@ function KickService:HitTarget(Attacker: Model, Character: Model)
 	end
 
 	self.Client.Impact:FireAll(Character)
-	KnockbackService:Fling(Character, Attacker, Result == "Hit" or Result == "TutorialKick", Config.KnockbackImpulse)
+	if WasMounted and Result == "Hit" then
+		return
+	end
+
+	if Result == "Deflect" then
+		return
+	end
+
+	local Offset = Character:GetPivot().Position - Attacker:GetPivot().Position
+	local Direction = Vector3.new(Offset.X, 0, Offset.Z)
+	if Direction.Magnitude <= 0.001 then
+		local Look = Attacker:GetPivot().LookVector
+		Direction = Vector3.new(Look.X, 0, Look.Z)
+	end
+	if Direction.Magnitude <= 0.001 then
+		return
+	end
+
+	local Speed = Config.KnockbackSpeed * (if Result == "Block" then Config.BlockKnockbackMultiplier else 1)
+	KnockbackService:FlingWithVelocity(Character, Direction.Unit * Speed, Result == "Hit" or Result == "TutorialKick")
 end
 
 function KickService:Stop(Character: Model, Completed: boolean?)
@@ -84,14 +106,14 @@ function KickService:Stop(Character: Model, Completed: boolean?)
 	end
 end
 
-function KickService:CheckHitbox(Character: Model, State: KickState)
+function KickService:CheckHitbox(Character: Model, State: KickState, CanHit: boolean)
 	local Root = Character.PrimaryPart
 	if not Root then
 		self:Stop(Character)
 		return
 	end
 
-	if not State.DoorHitbox then
+	if CanHit and not State.DoorHitbox then
 		local Hitbox = Instance.new("Part")
 		Hitbox.Name = "KickDoorHitbox"
 		Hitbox.Size = Config.DoorHitboxSize
@@ -104,8 +126,10 @@ function KickService:CheckHitbox(Character: Model, State: KickState)
 		State.DoorHitbox = Hitbox
 	end
 
-	State.DoorHitbox.CFrame = Root.CFrame * CFrame.new(0, 0, -Config.DoorHitboxSize.Z / 2)
-	DoorService:BreakInHitbox(Character, State.DoorHitbox, State.Hitted)
+	if CanHit and State.DoorHitbox then
+		State.DoorHitbox.CFrame = Root.CFrame * CFrame.new(0, 0, -Config.DoorHitboxSize.Z / 2)
+		DoorService:BreakInHitbox(Character, State.DoorHitbox, State.Hitted)
+	end
 
 	local Params = OverlapParams.new()
 	Params.FilterType = Enum.RaycastFilterType.Include
@@ -128,11 +152,21 @@ function KickService:CheckHitbox(Character: Model, State: KickState)
 			continue
 		end
 
-		State.Hitted[Target] = true
-		local Detected = Target:FindFirstChild("HitboxDetected")
-		if Target:GetAttribute("IsAI") and Detected and Detected:IsA("BindableEvent") then
-			Detected:Fire(Character, { Action = "Kick" })
+		if not State.Notified[Target] then
+			State.Notified[Target] = true
+			local Detected = Target:FindFirstChild("HitboxDetected")
+			if Target:GetAttribute("IsAI") and Detected and Detected:IsA("BindableEvent") then
+				Detected:Fire(Character, {
+					Action = "Kick",
+					TimeUntilHit = math.max(0, Config.HitDelay - (workspace:GetServerTimeNow() - State.Started)),
+				})
+			end
 		end
+		if not CanHit then
+			continue
+		end
+
+		State.Hitted[Target] = true
 		task.spawn(function()
 			if Active[Character] == State then
 				self:HitTarget(Character, Target)
@@ -146,9 +180,10 @@ function KickService:Kick(Character: Model)
 		return
 	end
 
-	local State: KickState = { Started = workspace:GetServerTimeNow(), Hitted = {}, Connections = {} }
+	local State: KickState = { Started = workspace:GetServerTimeNow(), Hitted = {}, Notified = {}, Connections = {} }
 	local TotalDuration = Config.HitDelay + Config.Duration
 	Active[Character] = State
+	StaminaService:RemoveStamina(Character, Config.StaminaCost)
 	local Side = if LastSides[Character] == "Right" then "Left" else "Right"
 	LastSides[Character] = Side
 
@@ -180,8 +215,8 @@ function KickService:Kick(Character: Model)
 				self:Stop(Character)
 			elseif Elapsed >= TotalDuration then
 				self:Stop(Character, true)
-			elseif Elapsed >= Config.HitDelay then
-				self:CheckHitbox(Character, State)
+			else
+				self:CheckHitbox(Character, State, Elapsed >= Config.HitDelay)
 			end
 		end)
 	)
@@ -200,6 +235,7 @@ function KickService.KnitInit()
 	KnockbackService = Knit.GetService("KnockbackService")
 	StatService = Knit.GetService("StatService")
 	DoorService = Knit.GetService("DoorService")
+	StaminaService = Knit.GetService("StaminaService")
 end
 
 function KickService.KnitStart()

@@ -1,6 +1,8 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Gashadokuro = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local Character: Model
 local Humanoid: Humanoid
@@ -13,16 +15,14 @@ local CombatAnimations
 
 local FinderService
 local WeaponService
-local AIService
 local PostureService
 local AnimationService
 local HitboxService
 local RenderService
 local SkillService
+local EnemyReactionService
 
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
 
-local TimeOffset = math.random(1, 10000)
 
 local Target: Model = nil
 local BindedTarget: Model = nil
@@ -271,6 +271,7 @@ function Gashadokuro.Start(_Config)
 	HitboxService = Knit.GetService("HitboxService")
 	RenderService = Knit.GetService("RenderService")
 	SkillService = Knit.GetService("SkillService")
+	EnemyReactionService = Knit.GetService("EnemyReactionService")
 
 	Character = script.Parent
 
@@ -322,9 +323,14 @@ function Gashadokuro.Start(_Config)
 	local HitboxDetected: BindableEvent = Character:FindFirstChild("HitboxDetected")
 
 	if HitboxDetected then
-		HitboxDetected.Event:Connect(function(Attacker: Model, Data: {})
+		HitboxDetected.Event:Connect(function(Attacker: Model, Data: { Action: string?, TimeUntilHit: number?, DodgeOnly: boolean? })
 			if not Target then
 				Target = Attacker
+			end
+
+			if Data.Action == "Kick" then
+				EnemyReactionService:ReactToKick(Character, Attacker, Config, Data.TimeUntilHit or 0)
+				return
 			end
 
 			if Data.DodgeOnly then

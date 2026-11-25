@@ -185,6 +185,10 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 
 					Debris:AddItem(BodyVelocity, 0.1)
 
+					if Character:GetAttribute("Ragdoll") then
+						return
+					end
+
 					local TargetRoot = Character.PrimaryPart
 					local TargetVelocity = Instance.new("BodyVelocity")
 					TargetVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)

@@ -288,6 +288,25 @@ local function PlaySound(State: State, Voices: { Sound }, Id: string, Volume: nu
 	return true
 end
 
+function FootstepPlaybackController.PlayArmor(State: State, Listener: Vector3): boolean
+	if not State.Character:GetAttribute("HasMetalArmor") or not State.Character:IsDescendantOf(workspace)
+		or State.Root ~= State.Character.PrimaryPart
+		or (State.Root.Position - Listener).Magnitude > FootstepConfig.AudibleDistance then
+		return false
+	end
+
+	local Armor = FootstepPlaybackController.PickSound(FootstepConfig.Sounds.MetalArmor, State.LastArmor)
+	if not Armor then
+		return false
+	end
+
+	local Played = PlaySound(State, State.ArmorVoices, Armor, FootstepConfig.ArmorVolume)
+	if Played then
+		State.LastArmor = Armor
+	end
+	return Played
+end
+
 local function AddFootprint(State: State, Hit: RaycastResult)
 	if not FootstepConfig.FootprintMaterials[Hit.Material] then
 		return
@@ -348,13 +367,7 @@ function FootstepPlaybackController.Play(State: State, Listener: Vector3, Marker
 	State.LastStep, State.LastSurface = Now, Id
 	State.NextFoot = if State.NextFoot == 1 then 2 else 1
 	local Played = PlaySound(State, State.SurfaceVoices, Id, FootstepConfig.GetVolume(Hit.Material))
-	if State.Character:GetAttribute("HasMetalArmor") then
-		local Armor = FootstepPlaybackController.PickSound(FootstepConfig.Sounds.MetalArmor, State.LastArmor)
-		if Armor then
-			State.LastArmor = Armor
-			PlaySound(State, State.ArmorVoices, Armor, FootstepConfig.ArmorVolume)
-		end
-	end
+	FootstepPlaybackController.PlayArmor(State, Listener)
 	AddFootprint(State, Hit)
 	return Played
 end

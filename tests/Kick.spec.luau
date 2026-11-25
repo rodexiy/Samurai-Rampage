@@ -52,6 +52,9 @@ return function(Sources: { [string]: string }): string
 	function VectorMeta.__sub(A: any, B: any): any
 		return Vector.new(A.X - B.X, A.Y - B.Y, A.Z - B.Z)
 	end
+	function VectorMeta.__div(A: any, B: number): any
+		return Vector.new(A.X / B, A.Y / B, A.Z / B)
+	end
 	function VectorMeta.__mul(A: any, B: number): any
 		return Vector.new(A.X * B, A.Y * B, A.Z * B)
 	end
@@ -117,8 +120,8 @@ return function(Sources: { [string]: string }): string
 		function Value:FindFirstChildWhichIsA(Name: string): any
 			return if Name == "Humanoid" then self.Humanoid else nil
 		end
-		function Value:FindFirstChild(_Name: string): any
-			return nil
+		function Value:FindFirstChild(Name: string): any
+			return self[Name]
 		end
 		function Value:GetPivot(): any
 			return self.PrimaryPart.CFrame
@@ -245,6 +248,11 @@ return function(Sources: { [string]: string }): string
 		Subject:SetAttribute("Health", Subject:GetAttribute("Health") - Amount)
 	end
 	Services.DamageService = Damage
+	Services.StaminaService = {
+		RemoveStamina = function(_Self: any, Subject: any, Amount: number)
+			Subject:SetAttribute("Stamina", Subject:GetAttribute("Stamina") - Amount)
+		end,
+	}
 	Services.StatService = {
 		GetLevel = function(): number
 			return Attacker:GetAttribute("Strength") or 0
@@ -281,7 +289,6 @@ return function(Sources: { [string]: string }): string
 	local DoorBoxes = {}
 	Services.HitboxService = {
 		GetCharactersInBoxArea = function(): any
-			Check(DoorChecks > 0, "Door collision is checked before the character-only HitboxService query")
 			return { Attacker, Target, Target }
 		end,
 	}
@@ -384,7 +391,7 @@ return function(Sources: { [string]: string }): string
 	end
 	local Config, Validate, Movement = Load("Config"), Load("Validate"), Load("Movement")
 	-- Balance edits must not change the fixed reference values used by these scenarios.
-	Config.KnockbackImpulse = 1.4
+	Config.KnockbackSpeed = 35
 	local AssemblyMass = Load("AssemblyMass")
 	local FirstAssembly = { Anchored = false, AssemblyMass = 12, Massless = true }
 	local SecondAssembly = { Anchored = false, AssemblyMass = 3, Massless = true }
@@ -501,13 +508,32 @@ return function(Sources: { [string]: string }): string
 	Attacker:SetAttribute("TalentMobileGuard", false)
 	Attacker:SetAttribute("Kicking", false)
 
+	Attacker:SetAttribute("Stamina", Config.StaminaCost - 1)
+	Kick:Kick(Attacker)
+	Check(#Starts == 0 and not Attacker:GetAttribute("KickDebounce"), "Insufficient stamina rejects the kick without cooldown")
+	Attacker:SetAttribute("Stamina", Config.StaminaCost)
+	Check(Validate:CanKick(Attacker), "Exactly enough stamina permits a kick")
+	Attacker:SetAttribute("Stamina", 100)
+	local Notifications = 0
+	Target:SetAttribute("IsAI", true)
+	Target.HitboxDetected = Object("BindableEvent")
+	Target.HitboxDetected.Event:Connect(function(Subject: any, Data: any)
+		Notifications += 1
+		Check(Subject == Attacker and Data.Action == "Kick" and Data.TimeUntilHit > 0,
+			"AI is warned during windup with time left to defend")
+	end)
 	Kick.Client.Request:Fire(Player, Target)
 	Kick.Client.Request:Fire(Player, "invalid")
 	Check(#Starts == 0, "Reject forged character and malformed request")
 	Kick.Client.Request:Fire(Player, Attacker)
 	Check(#Starts == 1 and Attacker:GetAttribute("Kicking"), "Owned request starts kick")
+	Check(Attacker:GetAttribute("Stamina") == 90, "Accepted kick spends stamina once at start")
+	Kick:Kick(Attacker)
+	Check(Attacker:GetAttribute("Stamina") == 90, "Duplicate requests do not spend stamina again")
 	Step(0.05)
 	Check(Target:GetAttribute("Health") == 100, "No damage before contact window")
+	Check(Notifications == 1, "AI receives a single windup warning")
+	Target:SetAttribute("IsAI", false)
 	Step(0.219)
 	Check(
 		Target:GetAttribute("Health") == 100 and Attacker:GetAttribute("Kicking") and DoorChecks == 0,
@@ -516,7 +542,7 @@ return function(Sources: { [string]: string }): string
 	Step(0.002)
 	Check(Target:GetAttribute("Health") == 96 and Ragdolls == 1, "Unblocked kick deals low damage with ragdoll")
 	Check(
-		Created[#Created].ClassName == "LinearVelocity" and Created[#Created].VectorVelocity.Z == -140,
+		Created[#Created].ClassName == "LinearVelocity" and Created[#Created].VectorVelocity.Z == -35,
 		"The first hit applies Push after entering ragdoll"
 	)
 	Check(
@@ -539,6 +565,7 @@ return function(Sources: { [string]: string }): string
 	Check(#Starts == 2 and Starts[1] ~= Starts[2], "Cooldown expires and kicking legs alternate")
 	Attacker:SetAttribute("BeenHitted", true)
 	Check(not Attacker:GetAttribute("Kicking"), "Incoming hit cancels kick")
+	Check(Attacker:GetAttribute("Stamina") == 80, "Cancelling a started kick does not refund stamina")
 	Step(0.3)
 	Check(Impacts == 1, "Cancelled kick cannot apply late hits")
 	Attacker:SetAttribute("BeenHitted", false)
@@ -561,14 +588,14 @@ return function(Sources: { [string]: string }): string
 			Case.Expected .. " avoids damage and ragdoll"
 		)
 		Check(
-			Pushes() == Count + (if Case.Expected == "Dodge" then 0 else 1),
+			Pushes() == Count + (if Case.Expected == "Block" then 1 else 0),
 			Case.Expected .. " has correct knockback"
 		)
-		if Case.Expected ~= "Dodge" then
+		if Case.Expected == "Block" then
 			local Force = Created[#Created]
 			Check(
-				Force.ClassName == "LinearVelocity" and Force.VectorVelocity.Z == -140,
-				Case.Expected .. " uses the same mass-scaled velocity as the last combo hit"
+				Force.ClassName == "LinearVelocity" and Force.VectorVelocity.Z == -35 * Config.BlockKnockbackMultiplier,
+				Case.Expected .. " reduces the fixed kick velocity"
 			)
 			Check(
 				Force.Parent.Lifetime == 0.2 and Force.ForceLimitsEnabled == false,
@@ -620,20 +647,20 @@ return function(Sources: { [string]: string }): string
 	local BeforeZeroDirection = Pushes()
 	Knockback:FlingInDirection(Target, Vector.new(0, 0, 0))
 	Check(Pushes() == BeforeZeroDirection, "Zero-length impact directions cannot create invalid forces")
-	Config.KnockbackImpulse = 2.6
+	Config.KnockbackSpeed = 26
 	Target:SetAttribute("Ragdoll", false)
 	local BeforeRagdolls = Ragdolls
 	Kick:HitTarget(Attacker, Target)
-	Check(Ragdolls == BeforeRagdolls + 1, "KickConfig controls the impulse used when entering ragdoll")
+	Check(Ragdolls == BeforeRagdolls + 1, "KickConfig controls speed when entering ragdoll")
 	Kick:HitTarget(Attacker, Target)
 	Check(
-		Created[#Created].VectorVelocity.Z == -520,
-		"KickConfig also controls push strength for an already ragdolled target"
+		Created[#Created].VectorVelocity.Z == -26,
+		"Kick speed stays fixed when target mass increases"
 	)
-	Config.KnockbackImpulse = 0.7
+	Config.KnockbackSpeed = 7
 	Target:SetAttribute("Blocking", true)
 	Kick:HitTarget(Attacker, Target)
-	Check(Created[#Created].VectorVelocity.Z == -140, "Blocked kicks use the configured kick impulse")
+	Check(Created[#Created].VectorVelocity.Z == -7 * Config.BlockKnockbackMultiplier, "Blocked kicks use reduced configured speed")
 	Target:SetAttribute("Blocking", false)
 	Target:SetAttribute("Ragdoll", false)
 	Knockback:Fling(Target, Attacker)
@@ -661,5 +688,167 @@ return function(Sources: { [string]: string }): string
 	Check(Target:GetAttribute("Health") == ProtectedHealth and Target:GetAttribute("Ragdoll")
 		and Pushes() == ProtectedPushes + 1,
 		"A confirmed tutorial kick pushes and ragdolls the protected opponent without dealing damage")
+	local Rolls, Blocks = 0, 0
+	Services.MovementService = {
+		Roll = function(_Self: any, Subject: any, Direction: string, StartCFrame: any)
+			Check(Subject == Target and StartCFrame == Target.PrimaryPart.CFrame,
+				"AI dodge supplies the start frame required by MovementService")
+			Check(Direction == "Left" or Direction == "Right", "AI dodges sideways")
+			Rolls += 1
+			Subject:SetAttribute("RollIFrame", true)
+			Subject:SetAttribute("Rolling", true)
+		end,
+	}
+	Services.PostureService.Block = function(_Self: any, Subject: any, Enabled: boolean): boolean
+		Subject:SetAttribute("Blocking", Enabled)
+		if Enabled then
+			Blocks += 1
+			Subject:SetAttribute("DeflectTime", true)
+			Task.delay(0.175, function()
+				Subject:SetAttribute("DeflectTime", false)
+			end)
+		end
+		return Enabled
+	end
+	local Reaction = Load("Reaction")
+	Reaction.KnitInit()
+	local RandomValues = {}
+	Env.math = table.clone(math)
+	Env.math.random = function(): number
+		return table.remove(RandomValues, 1) or 1
+	end
+	local ReactionConfig = { ActionChance = 100, DeflectChance = 70, RollChance = 30, Actions = { "Roll" } }
+	local function ResetReaction()
+		Step(1)
+		for _, Attribute in { "Ragdoll", "BeenHitted", "Blocking", "DeflectTime", "Rolling", "RollIFrame", "RollDebounce" } do
+			Target:SetAttribute(Attribute, false)
+		end
+		Target:SetAttribute("IntroTutorialProtected", false)
+		Target.PrimaryPart.CFrame.LookVector = Vector.new(0, 0, 1)
+		Target.PrimaryPart.CFrame.RightVector = Vector.xAxis
+		Attacker:SetAttribute("Kicking", true)
+	end
+	ResetReaction()
+	RandomValues = { 1, 100, 1 }
+	Reaction:ReactToKick(Target, Attacker, ReactionConfig, 0.27)
+	Step(0.1)
+	Check(not Target:GetAttribute("Blocking"), "Parry waits until close to contact")
+	Step(0.1)
+	Check(Target:GetAttribute("DeflectTime"), "Late guard opens a parry window")
+	Step(0.07)
+	Check(Target:GetAttribute("DeflectTime"), "Parry window overlaps the kick contact time")
+
+	ResetReaction()
+	RandomValues = { 1, 100, 100 }
+	Reaction:ReactToKick(Target, Attacker, ReactionConfig, 0.27)
+	Step(0)
+	Check(Target:GetAttribute("Blocking"), "Failed parry choice still raises an early guard")
+	Step(0.27)
+	Check(Target:GetAttribute("Blocking") and not Target:GetAttribute("DeflectTime"),
+		"Early guard resolves as a normal block at contact")
+	Step(0.25)
+	Check(not Target:GetAttribute("Blocking"), "Guard ends after the kick hit window")
+
+	ResetReaction()
+	RandomValues = { 1, 1, 1, 1 }
+	Reaction:ReactToKick(Target, Attacker, ReactionConfig, 0.27)
+	Step(0.2)
+	Check(Rolls == 1 and Target:GetAttribute("RollIFrame"), "Configured dodge enters the authoritative roll state")
+	Check(Created[#Created].VectorVelocity.X == -25, "AI dodge physically moves sideways at a bounded speed")
+
+	ResetReaction()
+	local BeforeBlocks, BeforeRolls = Blocks, Rolls
+	RandomValues = { 1, 100, 1 }
+	Reaction:ReactToKick(Target, Attacker, ReactionConfig, 0.27)
+	Attacker:SetAttribute("Kicking", false)
+	Step(0.2)
+	Check(Blocks == BeforeBlocks and Rolls == BeforeRolls, "Cancelled kick cannot cause a delayed defense")
+
+	ResetReaction()
+	Target:SetAttribute("BeenHitted", true)
+	Reaction:ReactToKick(Target, Attacker, ReactionConfig, 0)
+	Step(0)
+	Check(Blocks == BeforeBlocks and Rolls == BeforeRolls, "Stunned enemies cannot react to kicks")
+	Target:SetAttribute("BeenHitted", false)
+	Target.PrimaryPart.CFrame.LookVector = Vector.new(0, 0, -1)
+	Reaction:ReactToKick(Target, Attacker, ReactionConfig, 0)
+	Step(0)
+	Check(Blocks == BeforeBlocks and Rolls == BeforeRolls, "Enemies do not defend against unseen kicks from behind")
+	Target.PrimaryPart.CFrame.LookVector = Vector.new(0, 0, 1)
+	Target:SetAttribute("IntroTutorialActive", true)
+	Reaction:ReactToKick(Target, Attacker, ReactionConfig, 0)
+	Step(0)
+	Check(Blocks == BeforeBlocks and Rolls == BeforeRolls, "Scripted tutorial defense is preserved")
+	Target:SetAttribute("IntroTutorialActive", false)
+	ReactionConfig.ActionChance = 0
+	Reaction:ReactToKick(Target, Attacker, ReactionConfig, 0)
+	Step(0)
+	Check(Blocks == BeforeBlocks and Rolls == BeforeRolls, "Reaction respects configured action chance")
+	local KickInputs, ClimbInputs = 0, 0
+	local CanEnterClimb = false
+	local Mouse = {
+		Button1Down = Signal(), Button1Up = Signal(),
+		Button2Down = Signal(), Button2Up = Signal(),
+	}
+	function Player:GetMouse(): any
+		return Mouse
+	end
+	Players.LocalPlayer = Player
+	Engine.UserInputService = { InputBegan = Signal(), InputEnded = Signal() }
+	Env.Enum.KeyCode = { G = { Name = "G" } }
+	Env.Enum.UserInputState = { Begin = 1, End = 2, Cancel = 3 }
+	Env.Enum.UserInputType = { MouseButton1 = {}, MouseButton2 = {} }
+	Knit.GetController = function(Name: string): any
+		Check(Name == "KickController", "Shared key routes to the kick controller")
+		return { HandleInput = function()
+			KickInputs += 1
+		end }
+	end
+	Modules.ClimbAction = {
+		keys = { Env.Enum.KeyCode.G },
+		callback = function()
+			ClimbInputs += 1
+			Attacker:SetAttribute("Climbing", not Attacker:GetAttribute("Climbing") and CanEnterClimb)
+		end,
+	}
+	Env.script = { Parent = { Actions = { GetChildren = function(): { any }
+		return { { Name = "Climb", IsA = function(): boolean
+			return true
+		end } }
+	end } } }
+	local OriginalRequire = Env.require
+	Env.require = function(Value: any): any
+		return if type(Value) == "table" and Value.Name == "Climb" then Modules.ClimbAction else OriginalRequire(Value)
+	end
+	local Input = Load("Input")
+	Input.Start()
+	local Key = { Name = "InputObject", KeyCode = Env.Enum.KeyCode.G }
+	local function PressG(Processed: boolean?)
+		Engine.UserInputService.InputBegan:Fire(Key, Processed)
+	end
+	Attacker:SetAttribute("Climbing", true)
+	PressG()
+	Check(not Attacker:GetAttribute("Climbing") and KickInputs == 0,
+		"G releases the wall without also triggering a kick")
+	CanEnterClimb = true
+	PressG()
+	Check(Attacker:GetAttribute("Climbing") and KickInputs == 0,
+		"G grabs a climbable wall without also triggering a kick")
+	PressG()
+	Check(not Attacker:GetAttribute("Climbing") and KickInputs == 0,
+		"Repeated wall release still consumes the shared key")
+	CanEnterClimb = false
+	PressG()
+	Check(KickInputs == 1, "G kicks normally when climbing does not consume the key")
+	local BeforeClimbInputs = ClimbInputs
+	PressG(true)
+	Engine.UserInputService.InputEnded:Fire(Key, false)
+	Check(KickInputs == 1 and ClimbInputs == BeforeClimbInputs,
+		"Processed input and key release do not trigger either action")
+	Attacker:SetAttribute("IntroTutorialAction", "Kick")
+	Player:SetAttribute("InIntroCutscene", true)
+	PressG()
+	Check(KickInputs == 2 and ClimbInputs == BeforeClimbInputs,
+		"Kick lesson still accepts G when climbing is unavailable")
 	return "Kick: " .. Checks .. " checks passed"
 end

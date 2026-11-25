@@ -3,7 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local Guard = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local Character: Model
 local Humanoid: Humanoid
@@ -11,21 +11,19 @@ local RootPart: BasePart
 local Align: AlignOrientation
 local Config = {}
 local Actions = {}
-local BountedPlayers = {}
 
 local CurrentNode
 local CombatAnimations
 local Nodes
 local FinderService
 local WeaponService
-local AIService
 local PostureService
 local AnimationService
 local HitboxService
 local RenderService
 local SkillService
+local EnemyReactionService
 
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
 local CustomPathfinding = require(ServerStorage.Services.Services.AIService.CustomPathfinding)
 
 local TimeOffset = math.random(1, 10000)
@@ -282,7 +280,7 @@ function Guard:MoveToRandomTarget()
 
 	local Waypoints = Path:GetWaypoints()
 
-	for i, Waypoint in Waypoints do
+	for _, Waypoint in Waypoints do
 		if typeof(Waypoint) == "PathWaypoint" then
 			if CustomPathfinding.Break then
 				break
@@ -429,8 +427,8 @@ function Guard:Rest()
 	if Job and tick() - TickSinceLastWorking > JobConfig.RestDuration then
 		local JobNode = ServerStorage.WalkingNodes[Character:GetAttribute("NodeLocation")]:FindFirstChild(Job)
 		if JobNode then
-			local Nodes = JobNode:GetChildren()
-			JobNode = GetClosestJobNode(Nodes, Job)
+			local JobNodes = JobNode:GetChildren()
+			JobNode = GetClosestJobNode(JobNodes, Job)
 			if JobNode then
 				local temp =
 					table.clone(ServerStorage.WalkingNodes[Character:GetAttribute("NodeLocation")].Nodes:GetChildren())
@@ -535,6 +533,7 @@ function Guard.Start(_Config)
 	HitboxService = Knit.GetService("HitboxService")
 	RenderService = Knit.GetService("RenderService")
 	SkillService = Knit.GetService("SkillService")
+	EnemyReactionService = Knit.GetService("EnemyReactionService")
 
 	Character = script.Parent
 
@@ -593,7 +592,7 @@ function Guard.Start(_Config)
 	local HitboxDetected: BindableEvent = Character:FindFirstChild("HitboxDetected")
 
 	if HitboxDetected then
-		HitboxDetected.Event:Connect(function(Attacker: Model, Data: {})
+		HitboxDetected.Event:Connect(function(Attacker: Model, Data: { Action: string?, TimeUntilHit: number?, DodgeOnly: boolean? })
 			if not Target then
 				CustomPathfinding.Break = true
 				local TargetPlayer = game.Players:GetPlayerFromCharacter(Attacker)
@@ -605,14 +604,17 @@ function Guard.Start(_Config)
 				task.delay(30, function()
 					local _Target = FinderService:GetClosestTarget(Character, Config.DetectionDistance)
 
-					if _Target and not _Target:GetAttribute("Bounted") then
-						Attacker:SetAttribute("Bounted", nil)
-					elseif not _Target then
+					if not _Target or not _Target:GetAttribute("Bounted") then
 						Attacker:SetAttribute("Bounted", nil)
 					elseif _Target and _Target:GetAttribute("Bounted") then
 						_Target:SetAttribute("Bounted", true)
 					end
 				end)
+			end
+
+			if Data.Action == "Kick" then
+				EnemyReactionService:ReactToKick(Character, Attacker, Config, Data.TimeUntilHit or 0)
+				return
 			end
 
 			if Data.DodgeOnly then

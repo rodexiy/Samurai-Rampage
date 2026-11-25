@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Knit = require(ReplicatedStorage.Packages.Knit)
 local Validate = require(ReplicatedStorage.Shared.Validate)
 
 local InputController = {}
@@ -33,6 +34,25 @@ function InputController:FireAction(input, state, gameProcessedEvent)
 		value = input.KeyCode.Name
 	end
 	if not value then
+		return
+	end
+
+	if value == Enum.KeyCode.G.Name then
+		if gameProcessedEvent or state ~= Enum.UserInputState.Begin then
+			return
+		end
+
+		local Character = Player.Character
+		if not Character then
+			return
+		end
+
+		local WasClimbing = Character:GetAttribute("Climbing")
+		InputController.Caller("Climb", state, input)
+
+		if not WasClimbing and not Character:GetAttribute("Climbing") then
+			Knit.GetController("KickController"):HandleInput(state)
+		end
 		return
 	end
 
