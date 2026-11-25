@@ -2,7 +2,6 @@ local Debris = game:GetService("Debris")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
-local GetAssemblyMass = require(ReplicatedStorage.Shared.Utils.GetAssemblyMass)
 
 local KnockbackService = Knit.CreateService({
 	Name = "KnockbackService",
@@ -10,7 +9,7 @@ local KnockbackService = Knit.CreateService({
 })
 
 local RagdollService
-local FlingImpulse = 4
+local FlingSpeed = 50
 local FlingForceDuration = 0.2
 local FlingRagdollDuration = 1
 
@@ -87,20 +86,19 @@ function KnockbackService:FlingInDirection(
 	Character: Model,
 	Direction: Vector3,
 	ShouldRagdoll: boolean?,
-	Impulse: number?
+	Speed: number?
 )
 	if Direction.Magnitude <= 0.001 or not PrepareFling(Character, ShouldRagdoll) then
 		return
 	end
 	Direction = Direction.Unit
-	local KnockbackImpulse = Impulse or FlingImpulse
-	self:Push(Character, Direction * (KnockbackImpulse * GetAssemblyMass(Character)), FlingForceDuration)
+	self:Push(Character, Direction * (Speed or FlingSpeed), FlingForceDuration)
 end
 
-function KnockbackService:Fling(Character: Model, Attacker: Model, ShouldRagdoll: boolean?, Impulse: number?)
+function KnockbackService:Fling(Character: Model, Attacker: Model, ShouldRagdoll: boolean?, Speed: number?)
 	local Offset = Character:GetPivot().Position - Attacker:GetPivot().Position
 	local Direction = if Offset.Magnitude > 0.001 then Offset.Unit else Attacker:GetPivot().LookVector
-	self:FlingInDirection(Character, Direction, ShouldRagdoll, Impulse)
+	self:FlingInDirection(Character, Direction, ShouldRagdoll, Speed)
 end
 
 function KnockbackService.KnitInit()

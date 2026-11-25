@@ -534,10 +534,10 @@ return function(Sources: { [string]: string }): string
 	Check(Target:GetAttribute("Health") == 100, "No damage before contact window")
 	Check(Notifications == 1, "AI receives a single windup warning")
 	Target:SetAttribute("IsAI", false)
-	Step(0.219)
+	Step(Config.HitDelay - 0.051)
 	Check(
 		Target:GetAttribute("Health") == 100 and Attacker:GetAttribute("Kicking") and DoorChecks == 0,
-		"Character and door hitboxes stay inactive until 0.27 seconds"
+		"Character and door hitboxes stay inactive until the configured contact time"
 	)
 	Step(0.002)
 	Check(Target:GetAttribute("Health") == 96 and Ragdolls == 1, "Unblocked kick deals low damage with ragdoll")
@@ -630,15 +630,19 @@ return function(Sources: { [string]: string }): string
 	Check(Target:GetAttribute("Health") == Before - 10, "Kick damage scales with server Strength")
 	Step(Config.Duration)
 	Check(not Attacker:GetAttribute("Kicking"), "Movement restriction clears after kick")
-	local BeforePushes = Pushes()
 	Target:SetAttribute("Ragdoll", true)
+	Target.Mass = 10
+	Knockback:Fling(Target, Attacker)
+	local LightTargetVelocity = Created[#Created].VectorVelocity.Z
+	local BeforePushes = Pushes()
 	Target.Mass = 200
 	Knockback:Fling(Target, Attacker)
 	local DefaultVelocity = Created[#Created].VectorVelocity.Z
 	Check(
 		Pushes() == BeforePushes + 1 and DefaultVelocity < 0,
-		"An already ragdolled target still receives the mass-scaled combo push"
+		"An already ragdolled target still receives the combo push"
 	)
+	Check(DefaultVelocity == LightTargetVelocity, "Heavy targets receive the same combo speed as light targets")
 	Knockback:FlingInDirection(Target, Vector.new(1, 0, 0))
 	Check(
 		Created[#Created].VectorVelocity.X == -DefaultVelocity and Created[#Created].VectorVelocity.Z == 0,
@@ -664,7 +668,7 @@ return function(Sources: { [string]: string }): string
 	Target:SetAttribute("Blocking", false)
 	Target:SetAttribute("Ragdoll", false)
 	Knockback:Fling(Target, Attacker)
-	Check(Ragdolls == BeforeRagdolls + 2, "The combo retains its default impulse after changing KickConfig")
+	Check(Ragdolls == BeforeRagdolls + 2, "The combo retains its default speed after changing KickConfig")
 	Check(
 		Created[#Created].VectorVelocity.Z == DefaultVelocity,
 		"Changing kick configuration does not change the default combo strength"

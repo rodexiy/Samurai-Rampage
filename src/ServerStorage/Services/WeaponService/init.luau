@@ -580,11 +580,9 @@ function WeaponService:IsLastAttack(Character: Model)
 	return Character:GetAttribute("ComboCounter") >= #WeaponService:GetStanceAnimationFolder(Character).M1:GetChildren()
 end
 function WeaponService:TryFling(Character: Model, Attacker: Model)
-	if Character:HasTag("Boss") or not WeaponService:IsLastAttack(Attacker) then
-		return
+	if WeaponService:IsLastAttack(Attacker) then
+		WeaponService:Fling(Character, Attacker)
 	end
-
-	WeaponService:Fling(Character, Attacker)
 end
 
 function WeaponService:ShowSlash(Attacker: Model, Animation: Animation)
