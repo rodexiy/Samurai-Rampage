@@ -161,6 +161,26 @@ function StatService:GiveXP(Player: Player, Name: string, Amount: number): numbe
 	return Levels
 end
 
+function StatService:MaxStats(Player: Player): (boolean, string?)
+	local Data = DataService:GetData(Player)
+	if not LoadedPlayers[Player] or not Data or not Data.Stats then
+		return false, "Player data is not loaded."
+	end
+
+	for _, Name in Progression.Names do
+		local Stat = Data.Stats[Name]
+		Stat.Level = Progression.MaxLevel
+		Stat.XP = 0
+	end
+
+	self:Publish(Player)
+	if Player.Character and Player.Character:GetAttribute("Loaded") then
+		ValuesService:UpdateAll(Player.Character, false)
+	end
+
+	return true
+end
+
 function StatService:GiveRewardXP(Player: Player, Amount: number, Kind: string)
 	local Weights = Progression.RewardWeights[Kind]
 	if not Weights or typeof(Amount) ~= "number" or Amount <= 0 or Amount ~= Amount or Amount == math.huge then

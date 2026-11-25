@@ -1,6 +1,6 @@
 return {
     Duration = 0.25,
-    HitDelay = 0.27,
+    HitDelay = 0.3,
     Cooldown = 1.5,
     BaseDamage = 4,
     StrengthDamage = 0.6,

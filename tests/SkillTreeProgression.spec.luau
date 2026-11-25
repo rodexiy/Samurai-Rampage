@@ -9,7 +9,7 @@ return function(Config: any, Progression: any): number
 	for _ in Nodes do
 		Count += 1
 	end
-	Check(Count == 31 and #Config.Names == 5, "Five attribute trees contain thirty-one talents")
+	Check(Count == 29 and #Config.Names == 5, "Five attribute trees contain twenty-nine talents")
 
 	local Layouts = {}
 	for _, Stat in Config.Names do
@@ -62,38 +62,36 @@ return function(Config: any, Progression: any): number
 			end
 		end
 		Explore({})
-		Check(if Stat == "Agility" then Routes > 2 else Routes == (if Stat == "Vitality" then 1 else 2),
-			"Preferences and optional traversal talents produce complete routes")
+		Check(Routes == (if Stat == "Vitality" then 1 else 2), "Preferences produce complete routes")
 		for _, Name in Names do
 			Check(Reachable[Name], "Every talent is reachable: " .. Name)
 		end
 		Check(Tree.Branches[1].Stat == Stat, "Tree talents use their own attribute points")
 	end
 	local Agility = { Stats = { Agility = { Level = 10 } }, UnlockedNodes = {} }
-	for _, Name in { "Climb Speed", "WallRun", "Vault" } do
-		Check(not Progression.CanUnlock(Agility, Name, Nodes), "Optional traversal talents still require Climb: " .. Name)
-	end
-	table.insert(Agility.UnlockedNodes, "Climb")
-	for _, Name in { "Climb Speed", "WallRun", "Vault" } do
-		Check(Progression.CanUnlock(Agility, Name, Nodes), "Traversal talents unlock independently after Climb: " .. Name)
+	for _, Name in { "Climb Speed", "WallRun" } do
+		Check(Progression.CanUnlock(Agility, Name, Nodes), "Traversal talents unlock independently from the root: " .. Name)
 	end
 	for _, Name in { "Travel Breath", "Controlled Landing", "Long Roll" } do
 		Check(Progression.CanUnlock(Agility, Name, Nodes), "The main route does not require optional traversal talents: " .. Name)
 		table.insert(Agility.UnlockedNodes, Name)
 	end
-	Check(Progression.GetPoints(Agility, "Agility", Nodes) == 2, "Skipping optional talents leaves two points after a roll preference")
+	Check(Progression.GetPoints(Agility, "Agility", Nodes) == 4, "Skipping optional talents leaves four points after a roll preference")
 	Agility.OtherSkills = { "WallRun" }
 	Check(not Progression.CanUnlock(Agility, "WallRun", Nodes), "Trainer unlocks cannot be purchased again")
-	Check(Progression.GetPoints(Agility, "Agility", Nodes) == 2, "Trainer unlocks do not spend attribute points")
+	Check(Progression.GetPoints(Agility, "Agility", Nodes) == 4, "Trainer unlocks do not spend attribute points")
 	local Convergence = { Stats = { Vitality = { Level = 10 } }, UnlockedNodes = { "Rest Recovery", "Burn Resistance", "Second Wind" } }
 	Check(not Progression.CanUnlock(Convergence, "Recovery Reserve", Nodes), "Converging branches require every prerequisite")
 	table.insert(Convergence.UnlockedNodes, "Health Recovery")
 	Check(Progression.CanUnlock(Convergence, "Recovery Reserve", Nodes), "Completing the branches opens the converging talent")
-	local Migrated = { Stats = { Vitality = { Level = 10 } }, SkillTreeVersion = Config.Version,
-		UnlockedNodes = { "Efficient Dressing", "Rest Recovery", "Preserved Dressing", "Health Recovery", "Last Breath" } }
+	local Migrated = { Stats = { Vitality = { Level = 10 }, Agility = { Level = 10 } }, SkillTreeVersion = Config.Version,
+		UnlockedNodes = { "Efficient Dressing", "Rest Recovery", "Preserved Dressing", "Health Recovery", "Last Breath", "Vault", "Climb", "Climb Speed" } }
 	Progression.Reconcile(Migrated, Nodes, Config.Version)
-	Check(#Migrated.UnlockedNodes == 2 and Progression.GetPoints(Migrated, "Vitality", Nodes) == 6, "Retired item talents refund points and preserve existing valid talents")
-	Check(#Migrated.RetiredSkillNodes == 3, "Removed purchases remain archived")
+	Check(#Migrated.UnlockedNodes == 3 and Progression.GetPoints(Migrated, "Vitality", Nodes) == 6, "Retired item talents refund points and preserve existing valid talents")
+	Check(#Migrated.RetiredSkillNodes == 5, "Removed purchases remain archived")
+	Check(Progression.GetPoints(Migrated, "Agility", Nodes) == 8 and table.find(Migrated.UnlockedNodes, "Climb Speed") ~= nil
+		and not Progression.CanUnlock(Migrated, "Vault", Nodes) and not Progression.CanUnlock(Migrated, "Climb", Nodes),
+		"Retired traversal purchases refund points, preserve their former children and cannot be purchased again")
 
 	local Data = { Stats = { Strength = { Level = 1 }, Agility = { Level = 10 } }, UnlockedNodes = {} }
 	Check(not Progression.CanUnlock(Data, "Committed Attack", Nodes), "Points from another tree cannot cover an insufficient balance")

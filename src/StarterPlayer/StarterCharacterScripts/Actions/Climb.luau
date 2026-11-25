@@ -225,10 +225,6 @@ local Climb = {
 			return
 		end
 
-		if not SkillTreeController:IsSkillUnlocked("Climb") then
-			return
-		end
-
 		if not Validate:CanClimb(Character) then
 			StopClimb(true)
 			return

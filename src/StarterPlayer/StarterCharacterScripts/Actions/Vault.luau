@@ -6,7 +6,6 @@ local Player = Players.LocalPlayer
 local Character = Player.Character
 local Humanoid = Character:WaitForChild("Humanoid")
 local AnimationController = Knit.GetController("AnimationController")
-local SkillTreeController = Knit.GetController("SkillTreeController")
 local Validate = require(ReplicatedStorage.Shared.Validate)
 local Animator = AnimationController:GetAnimator(Character)
 
@@ -133,7 +132,7 @@ local vault = {
 		if inputState ~= Enum.UserInputState.Begin then
 			return
 		end
-		if Vaulting or not Validate:CanVault(Character) or not SkillTreeController:IsSkillUnlocked("Vault") then
+		if Vaulting or not Validate:CanVault(Character) then
 			return
 		end
 	

@@ -240,8 +240,6 @@ function CharacterService:BindEvents(Character: Model, Owner: Player)
 			if Character:GetAttribute("Ragdoll") then
 				RagdollService:Unragdoll(Character)
 			end
-			local Humanoid = Character:FindFirstChild("Humanoid") :: Humanoid
-			Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 		end
 	end)
 
@@ -255,8 +253,6 @@ function CharacterService:BindEvents(Character: Model, Owner: Player)
 		local MinHealthToGetUp = Character:GetAttribute("MaxHealth") * 0.2
 		if not Character:GetAttribute("Carried") and Character:GetAttribute("Health") >= MinHealthToGetUp then
 			RagdollService:Unragdoll(Character)
-			local Humanoid = Character:FindFirstChild("Humanoid") :: Humanoid
-			Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 			if Character:FindFirstChild("CarryPrompt") then
 				Character:FindFirstChild("CarryPrompt"):Destroy()
 			end

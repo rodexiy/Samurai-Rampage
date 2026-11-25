@@ -1,4 +1,10 @@
 return {
+	RecoveryMaxSpeed = 3, -- Studs per second, including vertical movement.
+	RecoveryMaxAngularSpeed = 2, -- Radians per second.
+	RecoveryStableTime = 0.25,
+	JointFrictionTorque = 5,
+	RecoverySyncTimeout = 1,
+
 	ImpactSounds = {
 		"rbxassetid://83123564520089",
 		"rbxassetid://125172888675723",

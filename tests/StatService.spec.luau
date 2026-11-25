@@ -328,9 +328,9 @@ return function(Sources: { [string]: string }): string
 	Check(not Trees:UnlockNode(Specialist, {}) and not Trees:UnlockNode(Specialist, "Kendo Proficiency I"), "Malformed and retired nodes are rejected")
 	Trees:LoadAttributes(Specialist)
 	Check(SpecialData.SkillPoints.Strength == 0 and #SpecialData.Inventory == 3, "Reloading does not refund purchases or duplicate starter items")
-	Check(Trees:UnlockNode(Specialist, "Climb"), "Another attribute can spend its own points")
+	Check(Trees:UnlockNode(Specialist, "Travel Breath"), "Another attribute can spend its own points")
 	Check(Trees:ResetSpecificSkillTree(Specialist, "Strength"), "A single tree can be reset")
-	Check(SpecialData.SkillPoints.Strength == 10 and SpecialData.SkillPoints.Agility == 8 and Trees:IsSkillUnlocked(Specialist, "Climb"),
+	Check(SpecialData.SkillPoints.Strength == 10 and SpecialData.SkillPoints.Agility == 8 and Trees:IsSkillUnlocked(Specialist, "Travel Breath"),
 		"Single-tree resets preserve other purchases")
 	Check(Trees:UnlockNode(Specialist, "Committed Attack"), "Refunded points remain spendable")
 	Trees:ResetSkillTree(Specialist)
@@ -350,22 +350,22 @@ return function(Sources: { [string]: string }): string
 		"The wall run trainer still grants permanent knowledge with a replicated source marker")
 	Check(SpecialData.SkillPoints.Agility == 10 and not Trees:UnlockNode(Specialist, "WallRun"),
 		"Trainer unlocks spend no agility points and cannot be bought twice")
-	Trees:LearnOtherSkill(Specialist, "Vault")
-	Check(not Trees:IsSkillUnlocked(Specialist, "Vault"), "Other skill grants cannot bypass normal tree purchases")
+	Trees:LearnOtherSkill(Specialist, "Climb Speed")
+	Check(not Trees:IsSkillUnlocked(Specialist, "Climb Speed"), "Other skill grants cannot bypass normal tree purchases")
 	Trees:LoadAttributes(Specialist)
 	Check(Trees:IsSkillUnlocked(Specialist, "WallRun") and Specialist.UnlockedNodes.WallRun:GetAttribute("OtherSkill") == true,
 		"Existing trainer unlocks remain replicated after reload")
 	Trees:ResetSkillTree(Specialist)
 	Check(Trees:IsSkillUnlocked(Specialist, "WallRun") and SpecialData.SkillPoints.Agility == 10,
 		"Tree resets preserve wall run learned from the trainer")
-	for _, Name in { "Climb", "WallRun", "Vault" } do
+	for _, Name in { "Travel Breath", "WallRun", "Climb Speed" } do
 		if Name ~= "WallRun" then
 			Check(Trees:UnlockNode(Specialist, Name), "Optional traversal talents can be purchased: " .. Name)
 		end
 	end
 	Check(SpecialData.SkillPoints.Agility == 6, "Purchased traversal talents debit agility points")
 	Trees:ResetSpecificSkillTree(Specialist, "Agility")
-	Check(not Trees:IsSkillUnlocked(Specialist, "Vault") and Trees:IsSkillUnlocked(Specialist, "WallRun"),
+	Check(not Trees:IsSkillUnlocked(Specialist, "Climb Speed") and Trees:IsSkillUnlocked(Specialist, "WallRun"),
 		"Agility resets remove purchases and preserve trainer knowledge")
 	local Trainee = NewPlayer()
 	local AttackingPlayer = NewPlayer()
@@ -454,5 +454,39 @@ return function(Sources: { [string]: string }): string
 	Check(math.abs(NewDamage - ActualDamage - 2 * Config.Bonuses.Strength.WeaponDamage) < 0.001, "Strength applies actual damage")
 	Check(math.abs(Defender:GetAttribute("DefaultWalkSpeed") - (12 + 2 * Config.Bonuses.Agility.WalkSpeed)) < 0.001, "Agility applies movement bonuses")
 	Check(Damage:CanDamage(Defender, Attacker), "Combat no longer depends on general level")
+
+	local MaxPlayer = NewPlayer()
+	MaxPlayer.Name = "MaxPlayer"
+	local MaxCharacter = Character(MaxPlayer)
+	local MaxData = Profiles[MaxPlayer]
+	Stats:GiveXP(MaxPlayer, "Strength", Config.GetXPRequired("Strength", 0) + Config.GetXPRequired("Strength", 1))
+	Check(Trees:UnlockNode(MaxPlayer, "Committed Attack"), "Existing purchases precede the max-stats command")
+	local MaxCommand = Load(Sources.MaxStatsCommand)
+	Check(Load(Sources.MaxStatsDefinition).Group == "Admin" and Stats.Client.MaxStats == nil,
+		"Maxing stats uses admin permissions without exposing a client remote")
+	Check(MaxCommand({ Executor = MaxPlayer }):find(MaxPlayer.Name, 1, true) ~= nil, "The command defaults to its executor")
+	for _, Name in Config.Names do
+		Check(MaxData.Stats[Name].Level == Config.MaxLevel and MaxData.Stats[Name].XP == 0
+			and MaxPlayer:GetAttribute(Name .. "Level") == Config.MaxLevel and MaxPlayer:GetAttribute(Name .. "XPRequired") == 0,
+			"Maxing saves and replicates the configured maximum: " .. Name)
+	end
+	Check(MaxData.SkillPoints.Strength == Config.MaxLevel * Config.PointsPerLevel - 2
+		and MaxData.SkillPoints.Agility == Config.MaxLevel * Config.PointsPerLevel and MaxData.SkillPoints.Spirit == nil,
+		"Maxing grants earned points while accounting for existing purchases and excluding Spirit")
+	Check(MaxCharacter:GetAttribute("MaxHealth") == 100 + Config.MaxLevel * Config.Bonuses.Vitality.Health
+		and MaxCharacter:GetAttribute("MaxStamina") == 100 + Config.MaxLevel * Config.Bonuses.Resistance.Stamina,
+		"Maxing immediately applies character bonuses")
+	Check(Stats:MaxStats(MaxPlayer) and Trees:IsSkillUnlocked(MaxPlayer, "Committed Attack")
+		and #MaxData.Inventory == 3, "Repeated maxing preserves purchased talents and inventory")
+	Stats:LoadPlayer(MaxPlayer)
+	Check(Stats:GetLevel(MaxPlayer, "Spirit") == Config.MaxLevel, "Maxed stats survive profile reload")
+	local Target = NewPlayer()
+	Target.Name = "SelectedPlayer"
+	local Missing = InstanceNew("Player")
+	Missing.Name = "UnloadedPlayer"
+	local Response = MaxCommand({ Executor = MaxPlayer }, { Target, Missing })
+	Check(Stats:GetLevel(Target, "Agility") == Config.MaxLevel and Response:find(Target.Name, 1, true) ~= nil
+		and Response:find(Missing.Name, 1, true) ~= nil, "Selected players update while unloaded profiles report failure")
+	Check(not Stats:MaxStats(LoadingPlayer), "A profile whose stats have not loaded cannot be maxed")
 	return tostring(PureChecks + Checks) .. " progression checks passed"
 end

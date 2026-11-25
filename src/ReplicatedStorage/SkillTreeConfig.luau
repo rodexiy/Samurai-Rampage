@@ -73,15 +73,12 @@ Config.Trees.Dexterity = CreateTree("Dexterity", Color3.fromRGB(144, 146, 156), 
 	}),
 })
 Config.Trees.Agility = CreateTree("Agility", Color3.fromRGB(172, 142, 85), "Improve traversal and choose your roll preference.", {
-	Node("Climb", "Climb walls by pressing G.", 1, 0, {
-		Node("Climb Speed", "Climb walls faster.", 0, -1),
-		Node("WallRun", "Run along walls by jumping again beside a wall while airborne.", 1, 1, nil, { TrainerUnlock = true }),
-		Node("Vault", "Jump over low obstacles.", 2, 1),
-		Node("Travel Breath", "Running and climbing no longer drain stamina outside combat.", 2, -1, {
-			Node("Controlled Landing", "Take 40% less damage from moderate falls. Extreme falls remain dangerous.", 2, -2, {
-				Node("Long Roll", "Roll farther, but return to attacking later. Invulnerability is unchanged. Exclusive with Short Roll.", 1.5, -3, nil, { ChoiceGroup = "AgilityPreference" }),
-				Node("Short Roll", "Roll a shorter distance, but return to attacking sooner. Invulnerability is unchanged. Exclusive with Long Roll.", 2.5, -3, nil, { ChoiceGroup = "AgilityPreference" }),
-			}),
+	Node("Climb Speed", "Climb walls faster.", 0, -1),
+	Node("WallRun", "Run along walls by jumping again beside a wall while airborne.", 1, 1, nil, { TrainerUnlock = true }),
+	Node("Travel Breath", "Running and climbing no longer drain stamina outside combat.", 2, -1, {
+		Node("Controlled Landing", "Take 40% less damage from moderate falls. Extreme falls remain dangerous.", 2, -2, {
+			Node("Long Roll", "Roll farther, but return to attacking later. Invulnerability is unchanged. Exclusive with Short Roll.", 1.5, -3, nil, { ChoiceGroup = "AgilityPreference" }),
+			Node("Short Roll", "Roll a shorter distance, but return to attacking sooner. Invulnerability is unchanged. Exclusive with Long Roll.", 2.5, -3, nil, { ChoiceGroup = "AgilityPreference" }),
 		}),
 	}),
 })

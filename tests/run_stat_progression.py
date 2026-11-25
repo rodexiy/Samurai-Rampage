@@ -19,6 +19,8 @@ FILES = {
     "TreeConfig": "src/ReplicatedStorage/SkillTreeConfig.luau",
     "TreeProgression": "src/ReplicatedStorage/SkillTreeProgression.luau",
     "TreeTests": "tests/SkillTreeProgression.spec.luau",
+    "MaxStatsDefinition": "src/ServerStorage/Cmdr/Commands/maxStats.luau",
+    "MaxStatsCommand": "src/ServerStorage/Cmdr/Commands/maxStatsServer.luau",
 }
 
 
