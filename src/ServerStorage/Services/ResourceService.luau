@@ -44,7 +44,7 @@ local ResourceTypes = {
 	Sulfur = {
 		Name = "Sulfur",
 		Rewards = {
-			{ Name = "Sulfur", Amount = {1, 2}, Weight = 100 },
+			{ Name = "Sulfur", Amount = { 1, 2 }, Weight = 100 },
 		},
 		RespawnTime = { 5, 10 },
 	},
@@ -130,7 +130,11 @@ local CustomFunctions = {
 	end,
 }
 
-function ResourceService:BreakResource(Player: Player, Resource: Model)
+function ResourceService:BreakResource(
+	Player: Player,
+	Resource: Model,
+	Options: { Animate: boolean?, RespawnTemplate: Model? }?
+)
 	local ResourceType = ResourceTypes[Resource.Name] or ResourceTypes["NormalTree"]
 	if not ResourceType then
 		return
@@ -139,7 +143,7 @@ function ResourceService:BreakResource(Player: Player, Resource: Model)
 	local CustomFunction = CustomFunctions[Resource.Name] or CustomFunctions["NormalTree"]
 	CustomFunction(Player, Resource)
 
-	local Clone = Resource:Clone()
+	local Clone = if Options and Options.RespawnTemplate then Options.RespawnTemplate else Resource:Clone()
 	local OldParent = Resource.Parent
 	for _ in ResourceType.Rewards do
 		local ItemName, Amount = RewardService:GetRandomRewardFromWeight(ResourceType.Rewards)
@@ -147,16 +151,31 @@ function ResourceService:BreakResource(Player: Player, Resource: Model)
 		local AmountAdded = InventoryService:GiveItemToPlayer(Player, Item)
 		if AmountAdded > 0 then
 			MissionBoardService:CollectResource(Player, ItemName, AmountAdded)
-			QuestService:CallQuestFunction(Player, "CollectResource", ItemName, AmountAdded, ResourceType.Name, Resource)
+			QuestService:CallQuestFunction(
+				Player,
+				"CollectResource",
+				ItemName,
+				AmountAdded,
+				ResourceType.Name,
+				Resource
+			)
 		end
 	end
 
 	QuestService:CallQuestFunction(Player, "BreakResource", ResourceType.Name)
 	RealmService:BreakResource(Player, Resource)
-	ResourceService:BreakAnimation(Resource)
+	if not Options or Options.Animate ~= false then
+		ResourceService:BreakAnimation(Resource)
+	end
 
 	if not OldParent:IsDescendantOf(workspace.Realms) then
-		ResourceService:Respawn(Clone, OldParent, ResourceType)
+		if Options and Options.Animate == false then
+			task.spawn(function()
+				ResourceService:Respawn(Clone, OldParent, ResourceType)
+			end)
+		else
+			ResourceService:Respawn(Clone, OldParent, ResourceType)
+		end
 	else
 		Clone:Destroy()
 	end

@@ -1,131 +1,40 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local Config = require(ReplicatedStorage.Shared.TreeCuttingConfig)
+local AnimationService = Knit.GetService("AnimationService")
+local DebounceService = Knit.GetService("DebounceService")
+local TreeCuttingService = Knit.GetService("TreeCuttingService")
+
 local Axe = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
-local AnimationService = Knit.GetService("AnimationService")
-local CollectionService = game:GetService("CollectionService")
-local DebounceService = Knit.GetService("DebounceService")
-local Players = game:GetService("Players")
-local StaminaService = Knit.GetService("StaminaService")
-local ResourceService = Knit.GetService("ResourceService")
-local RenderService = Knit.GetService("RenderService")
-local RealmService = Knit.GetService("RealmService")
-local SoundEffectService = Knit.GetService("SoundEffectService")
-
-local TreeParams = OverlapParams.new()
-TreeParams.FilterType = Enum.RaycastFilterType.Whitelist
-
-local TREE_MAX_HEALTH = 5
-
-local function GetTreesFolder(): Folder?
-	local Map = workspace:FindFirstChild("Map")
-	local Vegetation = Map and Map:FindFirstChild("Vegetation")
-	local TreesFolder = Vegetation and Vegetation:FindFirstChild("Trees")
-	if TreesFolder and TreesFolder:IsA("Folder") then
-		return TreesFolder
-	end
-
-	return nil
-end
-
-local function GetTreeFilterInstances(TreesFolder: Folder): { Instance }
-	local FilterInstances = { TreesFolder }
-
-	for _, TaggedTree in CollectionService:GetTagged("Tree") do
-		table.insert(FilterInstances, TaggedTree)
-	end
-
-	return FilterInstances
-end
-
-local function GetTreeFromPart(Part: BasePart, TreesFolder: Folder): Model?
-	local Current = Part.Parent
-	while Current and Current ~= TreesFolder do
-		if Current:IsA("Model") and (Current.Parent == TreesFolder or CollectionService:HasTag(Current, "Tree")) then
-			return Current
-		end
-
-		Current = Current.Parent
-	end
-
-	return nil
-end
-
-function Axe.Activated(Character: Model, Data: { any })
-	local TreesFolder = GetTreesFolder()
-	if not TreesFolder then
-		return
-	end
-
-	TreeParams.FilterDescendantsInstances = GetTreeFilterInstances(TreesFolder)
-
+function Axe.Activated(Character: Model, _Data: { any })
+	local Player = Players:GetPlayerFromCharacter(Character)
 	local Tool = Character:FindFirstChildWhichIsA("Tool")
+	local Stamina = Character:GetAttribute("Stamina")
 	if
-		not Tool
+		not Player
+		or not Tool
 		or Character:GetAttribute("AxePick")
 		or Character:GetAttribute("Died")
 		or Character:GetAttribute("Ragdoll")
-		or Character:GetAttribute("Stamina") < 15
+		or typeof(Stamina) ~= "number"
+		or Stamina < 15
 	then
 		return
 	end
 
-	local AxeAnimation = Tool:FindFirstChild("Activated", true)
-	if not AxeAnimation then
+	local Animation = Tool:FindFirstChild("Activated", true) :: Animation?
+	if not Animation or not Animation:IsA("Animation") then
 		return
 	end
-
-
-	DebounceService:AddDebounce(Character, "AxePick", 2)
-	local Track = AnimationService:PlayAnimation(Character, AxeAnimation)
-	Track.Priority = Enum.AnimationPriority.Action4
-
-	local Player = game.Players:GetPlayerFromCharacter(Character)
-	if not Player then
-		return
+	DebounceService:AddDebounce(Character, "AxePick", Config.SwingCooldown)
+	local Track = AnimationService:PlayAnimation(Character, Animation)
+	if Track then
+		Track.Priority = Enum.AnimationPriority.Action4
 	end
 
-	local TreeParts =
-		workspace:GetPartBoundsInBox(Character:GetPivot() * CFrame.new(0, 0, -2.5), Vector3.new(5, 5, 5), TreeParams)
-
-	local Trees = {}
-
-	for _, Part in TreeParts do
-		local Tree = GetTreeFromPart(Part, TreesFolder)
-		if Tree and not table.find(Trees, Tree) then
-			table.insert(Trees, Tree)
-		end
-	end
-
-	local Player = Players:GetPlayerFromCharacter(Character)
-
-	for _, Tree in Trees do
-		if not RealmService:HasOwnership(Player, Tree) then
-			continue
-		end
-
-		if Tree:GetAttribute("Broken") then
-			continue
-		end
-
-		
-		if not Tree:GetAttribute("Health") then
-			Tree:SetAttribute("MaxHealth", TREE_MAX_HEALTH)
-			Tree:SetAttribute("Health", TREE_MAX_HEALTH)
-		end
-
-		RenderService:RenderForAllPlayers("Resource", "Shake", { Character = Character, Resource = Tree })
-		SoundEffectService:PlayRandomFromFolder("ChopTree", true, Tree)
-		
-		local Health = Tree:GetAttribute("Health") - 1
-		Tree:SetAttribute("Health", Health)
-
-		if Health <= 0 then
-
-			Tree:SetAttribute("Broken", true)
-			SoundEffectService:PlayRandomFromFolder("FallTree", true, Tree)
-			ResourceService:BreakResource(Player, Tree)
-		end
-	end
+	TreeCuttingService:Swing(Player, Character)
 end
 
 return Axe
