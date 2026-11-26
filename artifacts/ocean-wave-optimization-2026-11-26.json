@@ -1,0 +1,257 @@
+{
+  "date": "2026-11-26",
+  "change": "Ocean wave CPU optimization",
+  "implementation": {
+    "controller": "src/StarterPlayer/StarterPlayerScripts/Controllers/OceanWaveController.luau",
+    "chunkSizeStuds": 128,
+    "chunkVisibilityBatch": 16,
+    "visibilityIntervalSeconds": 0.25,
+    "fullRateDistanceStuds": 256,
+    "distantUpdateHz": 15,
+    "visibilityMarginStuds": 64,
+    "waveHeightMarginStuds": 16,
+    "sampler": "Sparse indices and translated sample origins reuse the spatial cache. Existing default sampler and GetDisplacement behavior preserved.",
+    "lifecycle": "Rendering disconnected when no chunks are visible, settings reset applied bones, and character/ocean removal cleans up connections."
+  },
+  "measurements": {
+    "realLegacySea": {
+      "animatedBones": 2025,
+      "name": "realLegacySea",
+      "metrics": {
+        "cpu": {
+          "p50": 9.189100004732609,
+          "p95": 10.453900322318077,
+          "mean": 9.27519273505078,
+          "n": 386
+        },
+        "gpu": {
+          "p50": 4.015103913843632,
+          "p95": 4.7482880763709545,
+          "mean": 3.9378030978413445,
+          "n": 386
+        },
+        "dt": {
+          "p50": 15.392400324344635,
+          "p95": 17.23179966211319,
+          "mean": 15.54767902303545,
+          "n": 386
+        }
+      },
+      "frames": 10,
+      "scopes": {
+        "OceanWaves.Legacy": {
+          "maxMs": 2.5957400316833628,
+          "msPerFrame": 1.6430065534397726,
+          "calls": 10,
+          "totalMs": 16.430065534397727,
+          "meanMs": 1.6430065534397726
+        },
+        "Script_Waves": {
+          "maxMs": 2.6001014575017507,
+          "msPerFrame": 1.6459991165816519,
+          "calls": 10,
+          "totalMs": 16.45999116581652,
+          "meanMs": 1.6459991165816519
+        }
+      }
+    },
+    "realLegacyVillage": {
+      "animatedBones": 2025,
+      "name": "realLegacyVillage",
+      "metrics": {
+        "cpu": {
+          "p50": 14.032099395990372,
+          "p95": 15.896499156951904,
+          "mean": 14.190876683396464,
+          "n": 296
+        },
+        "gpu": {
+          "p50": 10.76195202767849,
+          "p95": 11.717503890395164,
+          "mean": 10.804985851250791,
+          "n": 296
+        },
+        "dt": {
+          "p50": 20.053399726748466,
+          "p95": 23.01580086350441,
+          "mean": 20.324230150042755,
+          "n": 296
+        }
+      },
+      "frames": 10,
+      "scopes": {
+        "OceanWaves.Legacy": {
+          "maxMs": 2.731332578187903,
+          "msPerFrame": 2.0638388761636177,
+          "calls": 10,
+          "totalMs": 20.63838876163618,
+          "meanMs": 2.0638388761636177
+        },
+        "Script_Waves": {
+          "maxMs": 2.7368383612547404,
+          "msPerFrame": 2.0669415090087115,
+          "calls": 10,
+          "totalMs": 20.669415090087114,
+          "meanMs": 2.0669415090087115
+        }
+      }
+    },
+    "realOptimizedSea": {
+      "animatedBones": 866,
+      "name": "realOptimizedSea",
+      "metrics": {
+        "cpu": {
+          "p50": 9.091699495911598,
+          "p95": 10.258900001645088,
+          "mean": 9.202528528697874,
+          "n": 435
+        },
+        "gpu": {
+          "p50": 4.087808076292276,
+          "p95": 4.525056108832359,
+          "mean": 4.115609022863637,
+          "n": 435
+        },
+        "dt": {
+          "p50": 13.68630025535822,
+          "p95": 15.634700655937195,
+          "mean": 13.826578405910524,
+          "n": 435
+        }
+      },
+      "frames": 10,
+      "scopes": {
+        "OceanWaves.Apply": {
+          "maxMs": 0.5959305478640999,
+          "msPerFrame": 0.16647464304792264,
+          "calls": 12,
+          "totalMs": 1.6647464304792265,
+          "meanMs": 0.1387288692066022
+        },
+        "Script_Waves": {
+          "maxMs": 1.2143660223123334,
+          "msPerFrame": 0.5383333011409832,
+          "calls": 20,
+          "totalMs": 5.383333011409832,
+          "meanMs": 0.2691666505704916
+        },
+        "OceanWaves.Visibility": {
+          "maxMs": 0.3836737254005129,
+          "msPerFrame": 0.18299796680435065,
+          "calls": 10,
+          "totalMs": 1.8299796680435065,
+          "meanMs": 0.18299796680435065
+        },
+        "OceanWaves.Update": {
+          "maxMs": 1.212117138188205,
+          "msPerFrame": 0.3383417823908985,
+          "calls": 10,
+          "totalMs": 3.383417823908985,
+          "meanMs": 0.3383417823908985
+        },
+        "OceanWaves.Sample": {
+          "maxMs": 0.4654447147299834,
+          "msPerFrame": 0.1664670599577221,
+          "calls": 12,
+          "totalMs": 1.6646705995772209,
+          "meanMs": 0.1387225499647684
+        }
+      }
+    },
+    "finalOptimizedVillage": {
+      "animatedBones": 0,
+      "name": "finalOptimizedVillage",
+      "metrics": {
+        "cpu": {
+          "p50": 14.327099546790123,
+          "p95": 17.951300367712975,
+          "mean": 14.689784922441582,
+          "n": 324
+        },
+        "gpu": {
+          "p50": 10.698752477765083,
+          "p95": 11.701984331011772,
+          "mean": 10.70091727528905,
+          "n": 324
+        },
+        "dt": {
+          "p50": 18.193000927567482,
+          "p95": 22.319000214338303,
+          "mean": 18.565154933359153,
+          "n": 324
+        }
+      },
+      "frames": 10,
+      "scopes": {
+        "OceanWaves.Visibility": {
+          "maxMs": 1.6003407177090594,
+          "msPerFrame": 0.5818917968029836,
+          "calls": 8,
+          "totalMs": 5.818917968029837,
+          "meanMs": 0.7273647460037296
+        },
+        "Script_Waves": {
+          "maxMs": 1.6134525700376798,
+          "msPerFrame": 0.5948314593662417,
+          "calls": 10,
+          "totalMs": 5.948314593662417,
+          "meanMs": 0.5948314593662417
+        }
+      }
+    }
+  },
+  "cpuReductionPercent": {
+    "village": 71.22165979183814,
+    "openSea": 67.2944355973305
+  },
+  "integration": [
+    {
+      "name": "Visible water animates",
+      "changed": 866
+    },
+    {
+      "name": "Opaque enclosure stops updates",
+      "changed": 0
+    },
+    {
+      "name": "Transparent geometry does not stop waves"
+    },
+    {
+      "name": "Settings immediately restore flat water"
+    },
+    {
+      "name": "Settings reenable animation"
+    },
+    {
+      "name": "Grid transition recenters and continues animating"
+    },
+    {
+      "name": "Cleanup is idempotent and destroys ocean"
+    }
+  ],
+  "rotation": {
+    "cleanup": "passed",
+    "continuousRotation": "passed",
+    "renderConnectionsStarted": 1
+  },
+  "mathRegression": "WaveFunctionSampler.spec.luau: 53 checks passed",
+  "methodology": {
+    "renderSamples": 1441,
+    "sampleSecondsPerScenario": 6,
+    "profilerFramesPerScenario": 10,
+    "location": "Fixed village camera and fixed open-sea camera. Temporary anchored dummy root; player remained in place.",
+    "legacy": "Original full-bone renderer with an explicit OceanWaves.Legacy profiler wrapper, using the compatible shared sampler.",
+    "notes": [
+      "CPU scope totals are inclusive; child scopes were not added to parent totals.",
+      "Short MicroProfiler windows characterize these views; they do not guarantee published-client or mobile FPS.",
+      "Temporary benchmarks and opaque/transparent test geometry were confined to Play and discarded.",
+      "Visibility checks were spread over frames after an initial prototype showed a periodic visibility spike.",
+      "Continuous camera rotation was separately regression-tested to avoid restarting a scan indefinitely."
+    ]
+  },
+  "validation": {
+    "selene": "0 errors, 0 warnings, 0 parse errors on all four changed/new Luau files",
+    "rojo": "Build passed",
+    "runtime": "No ocean-related errors in Studio output"
+  }
+}

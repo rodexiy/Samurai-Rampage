@@ -143,8 +143,9 @@ function WaveFunction:GetDisplacement(position: Vector3, serverTime: number): Ve
 	return Vector3.new(x, y, z)
 end
 
--- Cache spatial phases for fixed sample positions; only the time phase changes each frame.
-function WaveFunction:CreateDisplacementSampler(positions: { Vector3 }): (number) -> { Vector3 }
+-- Cache spatial phases once. Optional indices update only selected bones; an offset
+-- moves the sample grid without rebuilding the cache when the ocean recenters.
+function WaveFunction:CreateDisplacementSampler(positions: { Vector3 }): (number, { number }?, Vector3?) -> { Vector3 }
 	local samplePositions = table.clone(positions)
 	local spatialSines: { { number } } = {}
 	local spatialCosines: { { number } } = {}
@@ -167,14 +168,18 @@ function WaveFunction:CreateDisplacementSampler(positions: { Vector3 }): (number
 	end
 
 	-- The returned array is reused. Callers should consume it before sampling again.
-	return function(serverTime: number): { Vector3 }
+	return function(serverTime: number, indices: { number }?, offset: Vector3?): { Vector3 }
+		local translation = offset or Vector3.zero
 		for waveIndex, wave in WAVES do
-			local phase = wave.K * wave.Speed * serverTime * gravityScale
+			local phase = wave.K * (wave.Speed * serverTime * gravityScale
+				- wave.DirectionX * translation.X - wave.DirectionZ * translation.Z)
 			timeSines[waveIndex] = math.sin(phase)
 			timeCosines[waveIndex] = math.cos(phase)
 		end
 
-		for index, position in samplePositions do
+		for selectedIndex = 1, if indices then #indices else #samplePositions do
+			local index = if indices then indices[selectedIndex] else selectedIndex
+			local position = samplePositions[index] + translation
 			local sines = spatialSines[index]
 			local cosines = spatialCosines[index]
 			local x, y, z = 0, 0, 0

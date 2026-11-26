@@ -1,153 +1,226 @@
 local CollectionService = game:GetService("CollectionService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
 
-local ScreenParticleController = Knit.CreateController({
-	Name = "ScreenParticleController",
-})
+local Knit = require(ReplicatedStorage.Packages.Knit)
+
+local ScreenParticleController = Knit.CreateController({ Name = "ScreenParticleController" })
 local RenderController
-
-local Particles = {}
-
 local Player = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local ScreenParticles = game.ReplicatedStorage.Assets.VFX.Screen
-function ScreenParticleController:EmitParticle(ParticleName: string, Duration: number)
-	if not Player:GetAttribute("ScreenParticles") then
+local ScreenParticles = ReplicatedStorage.Assets.VFX.Screen
+local RENDER_BINDING = "ScreenParticleController"
+local RenderBound = false
+local Character: Model?
+local BurnConnection: RBXScriptConnection?
+
+type Entry = {
+	Id: string,
+	Particle: BasePart | Model,
+	Offset: CFrame,
+	Stopping: boolean,
+	DurationTask: thread?,
+	CleanupTask: thread?,
+}
+local Particles: { [string]: Entry } = {}
+
+local function DestroyParticle(Entry: Entry, DestroyInstance: boolean)
+	if Particles[Entry.Id] ~= Entry then
 		return
 	end
-	local Particle = ScreenParticles[ParticleName]:Clone()
-	for _, Part in Particle:GetChildren() do
-		if Part:IsA("BasePart") then
-			Part.Anchored = true
-		end
+
+	Particles[Entry.Id] = nil
+	if Entry.DurationTask then
+		task.cancel(Entry.DurationTask)
+		Entry.DurationTask = nil
+	end
+	if Entry.CleanupTask then
+		task.cancel(Entry.CleanupTask)
+		Entry.CleanupTask = nil
 	end
 
-	local Offset = CFrame.new(0, 0, 0)
+	if not next(Particles) and RenderBound then
+		RunService:UnbindFromRenderStep(RENDER_BINDING)
+		RenderBound = false
+	end
+	if DestroyInstance then
+		Entry.Particle:Destroy()
+	end
+end
 
-	local ViewportSize = Camera.ViewportSize
-	local AspectRatio = ViewportSize.X / ViewportSize.Y
-	local FOV = math.rad(Camera.FieldOfView)
-
-	-- Distance from camera to projection plane
-	local Distance = 1 -- Arbitrary distance for calculations
-
-	-- Vertical and Horizontal size at the given distance
-	local VerticalSize = 2 * Distance * math.tan(FOV / 2)
-	local HorizontalSize = VerticalSize * AspectRatio
-
-	-- Camera's CFrame
-	local CameraCFrame = Camera.CFrame
-	local CameraPosition = CameraCFrame.Position
-	local CameraLookVector = CameraCFrame.LookVector
-
-	-- Calculate edges based on camera direction
-	local Center = CameraPosition + CameraLookVector * Distance
-
-	local RightVector = CameraCFrame.RightVector
-	local UpVector = CameraCFrame.UpVector
-
-	local Top = Center + UpVector * (VerticalSize / 2)
-	local Bottom = Center - UpVector * (VerticalSize / 2)
-	local Left = Center - RightVector * (HorizontalSize / 2)
-	local Right = Center + RightVector * (HorizontalSize / 2)
-
-	local CenterOffset = CFrame.new(0, 0, -Distance)
-	local TopOffset = CFrame.new(0, VerticalSize / 2, -Distance)
-	local BottomOffset = CFrame.new(0, -VerticalSize / 2, -Distance)
-	local LeftOffset = CFrame.new(-HorizontalSize / 2, 0, -Distance)
-	local RightOffset = CFrame.new(HorizontalSize / 2, 0, -Distance)
-
-	if Particle:GetAttribute("SizeType") == "FillScreen" then
-		Particle.Size = Vector3.new(HorizontalSize, VerticalSize, 0)
-	elseif Particle:GetAttribute("SizeType") == "Border" then
-		local TopPart = Particle:FindFirstChild("Top")
-		local BottomPart = Particle:FindFirstChild("Bottom")
-		local LeftPart = Particle:FindFirstChild("Left")
-		local RightPart = Particle:FindFirstChild("Right")
-		TopPart.Size = Vector3.new(HorizontalSize, 0, 0)
-		BottomPart.Size = Vector3.new(HorizontalSize, 0, 0)
-		LeftPart.Size = Vector3.new(0, VerticalSize, 0)
-		RightPart.Size = Vector3.new(0, VerticalSize, 0)
-
-		Particle:PivotTo(Camera.CFrame)
-
-		TopPart.Position = Top + (TopPart:GetAttribute("Offset") or Vector3.new(0, 0, 0))
-		BottomPart.Position = Bottom + (BottomPart:GetAttribute("Offset") or Vector3.new(0, 0, 0))
-		LeftPart.Position = Left + (LeftPart:GetAttribute("Offset") or Vector3.new(0, 0, 0))
-		RightPart.Position = Right + (RightPart:GetAttribute("Offset") or Vector3.new(0, 0, 0))
-	else
-		Particle.Size = Vector3.new(HorizontalSize, 1, 0)
-		Offset = BottomOffset
+local function StopParticle(Entry: Entry)
+	if Particles[Entry.Id] ~= Entry or Entry.Stopping then
+		return
 	end
 
-	local guid = HttpService:GenerateGUID(false)
-	Particle:SetAttribute("Id", guid)
-	Particles[guid] = Particle
-	RunService:BindToRenderStep(guid, Enum.RenderPriority.Camera.Value + 6, function(dt)
-		Particle:PivotTo(Camera.CFrame * Offset)
+	Entry.Stopping = true
+	if Entry.DurationTask then
+		task.cancel(Entry.DurationTask)
+		Entry.DurationTask = nil
+	end
+
+	local Lifetime = math.clamp(RenderController:StopParticles(Entry.Particle), 0, 5)
+	Entry.CleanupTask = task.delay(Lifetime, function()
+		Entry.CleanupTask = nil
+		DestroyParticle(Entry, true)
 	end)
+end
+
+local function Render()
+	local Camera = workspace.CurrentCamera
+	if not Camera then
+		return
+	end
+
+	for _, Entry in Particles do
+		Entry.Particle:PivotTo(Camera.CFrame * Entry.Offset)
+	end
+end
+
+local function ConfigureParticle(Particle: BasePart | Model, Camera: Camera): CFrame
+	local AspectRatio = Camera.ViewportSize.X / math.max(Camera.ViewportSize.Y, 1)
+	local VerticalSize = 2 * math.tan(math.rad(Camera.FieldOfView) / 2)
+	local HorizontalSize = VerticalSize * AspectRatio
+	local SizeType = Particle:GetAttribute("SizeType")
+
+	if SizeType == "Border" then
+		local Borders = {
+			Top = { Position = Vector3.new(0, VerticalSize / 2, -1), Size = Vector3.new(HorizontalSize, 0, 0) },
+			Bottom = { Position = Vector3.new(0, -VerticalSize / 2, -1), Size = Vector3.new(HorizontalSize, 0, 0) },
+			Left = { Position = Vector3.new(-HorizontalSize / 2, 0, -1), Size = Vector3.new(0, VerticalSize, 0) },
+			Right = { Position = Vector3.new(HorizontalSize / 2, 0, -1), Size = Vector3.new(0, VerticalSize, 0) },
+		}
+		Particle:PivotTo(Camera.CFrame)
+		for Name, Border in Borders do
+			local Part = Particle:FindFirstChild(Name) :: BasePart?
+			if Part then
+				Part.Size = Border.Size
+				Part.Position = Camera.CFrame:PointToWorldSpace(Border.Position) + (Part:GetAttribute("Offset") or Vector3.zero)
+			end
+		end
+
+		return CFrame.identity
+	end
+
+	assert(Particle:IsA("BasePart"), "Screen particle must be a BasePart or a border Model")
+	if SizeType == "FillScreen" then
+		Particle.Size = Vector3.new(HorizontalSize, VerticalSize, 0)
+		return CFrame.identity
+	end
+
+	Particle.Size = Vector3.new(HorizontalSize, 1, 0)
+	return CFrame.new(0, -VerticalSize / 2, -1)
+end
+
+function ScreenParticleController:EmitParticle(ParticleName: string, Duration: number?): ((BasePart | Model)?, string?)
+	local Camera = workspace.CurrentCamera
+	if not Player:GetAttribute("ScreenParticles") or not Camera then
+		return nil, nil
+	end
+
+	local Particle = ScreenParticles[ParticleName]:Clone() :: BasePart | Model
+	if Particle:IsA("BasePart") then
+		Particle.Anchored = true
+	end
+	for _, Part in Particle:QueryDescendants("BasePart") :: { BasePart } do
+		Part.Anchored = true
+	end
+
+	local Entry: Entry = {
+		Id = HttpService:GenerateGUID(false),
+		Particle = Particle,
+		Offset = ConfigureParticle(Particle, Camera),
+		Stopping = false,
+	}
+	Particle:SetAttribute("Id", Entry.Id)
+	Particles[Entry.Id] = Entry
+	Particle.Destroying:Once(function()
+		DestroyParticle(Entry, false)
+	end)
+	Particle:PivotTo(Camera.CFrame * Entry.Offset)
+	Particle.Parent = workspace.VFX
 
 	if Particle:GetAttribute("EmitType") == "Enabled" then
-		for _, Child: ParticleEmitter in Particle:GetDescendants() do
-			if Child:IsA("ParticleEmitter") then
-				Child.Enabled = true
-			end
+		for _, Emitter in Particle:QueryDescendants("ParticleEmitter") :: { ParticleEmitter } do
+			Emitter.Enabled = true
 		end
 	else
 		RenderController:EmitParticles(Particle)
 	end
 
-	Particle.Parent = game.Workspace.VFX
-
+	if not RenderBound then
+		RenderBound = true
+		RunService:BindToRenderStep(RENDER_BINDING, Enum.RenderPriority.Camera.Value + 6, Render)
+	end
 	if Duration then
-		task.delay(Duration, function()
-			RenderController:StopParticles(Particle)
-			task.wait(0.5)
-			RunService:UnbindFromRenderStep(guid)
-			Particle:Destroy()
-			Particles[guid] = nil
+		Entry.DurationTask = task.delay(Duration, function()
+			Entry.DurationTask = nil
+			StopParticle(Entry)
 		end)
 	end
 
-	return Particle, guid
+	return Particle, Entry.Id
 end
 
 function ScreenParticleController:ClearAllParticles()
-	for _, Particle in Particles do
-		RenderController:StopParticles(Particle)
-		task.wait(0.5)
-		RunService:UnbindFromRenderStep(Particle:GetAttribute("Id"))
-		Particle:Destroy()
+	for _, Entry in Particles do
+		DestroyParticle(Entry, true)
 	end
-
-	table.clear(Particles)
 end
 
 function ScreenParticleController:ClearParticleWithName(Name: string)
-	for _, Particle in Particles do
-		if Particle.Name == Name then
-			task.spawn(function()
-				local LongestLifeTime = RenderController:StopParticles(Particle)
-				LongestLifeTime = math.min(LongestLifeTime, 5)
-				task.wait(LongestLifeTime)
-				RunService:UnbindFromRenderStep(Particle:GetAttribute("Id"))
-				Particle:Destroy()
-				Particles[_] = nil
-			end)
+	for _, Entry in Particles do
+		if Entry.Particle.Name == Name then
+			StopParticle(Entry)
 		end
 	end
 end
 
-function ScreenParticleController:HasParticleWithName(Name: string)
-	for _, Particle in Particles do
-		if Particle.Name == Name then
+function ScreenParticleController:HasParticleWithName(Name: string): boolean
+	for _, Entry in Particles do
+		if not Entry.Stopping and Entry.Particle.Name == Name then
 			return true
 		end
 	end
+
+	return false
+end
+
+local function RefreshStatus(Name: string, Active: boolean)
+	if Active then
+		if not ScreenParticleController:HasParticleWithName(Name) then
+			ScreenParticleController:EmitParticle(Name)
+		end
+	else
+		ScreenParticleController:ClearParticleWithName(Name)
+	end
+end
+
+local function RefreshCharacter()
+	if not Character or Character ~= Player.Character then
+		return
+	end
+
+	local Damage = Character:GetAttribute("BurnDamage")
+	RefreshStatus("Burn", typeof(Damage) == "number" and Damage > 0)
+	RefreshStatus("Electrified", CollectionService:HasTag(Character, "Electrified"))
+end
+
+local function UnbindCharacter()
+	if BurnConnection then
+		BurnConnection:Disconnect()
+		BurnConnection = nil
+	end
+	Character = nil
+	ScreenParticleController:ClearAllParticles()
+end
+
+local function BindCharacter(NewCharacter: Model)
+	UnbindCharacter()
+	Character = NewCharacter
+	BurnConnection = NewCharacter:GetAttributeChangedSignal("BurnDamage"):Connect(RefreshCharacter)
+	RefreshCharacter()
 end
 
 function ScreenParticleController.KnitInit()
@@ -155,34 +228,28 @@ function ScreenParticleController.KnitInit()
 end
 
 function ScreenParticleController.KnitStart()
-	local function BindCharacter(character: Model)
-		ScreenParticleController:ClearAllParticles()
-		character:GetAttributeChangedSignal("BurnDamage"):Connect(function()
-			if character:GetAttribute("BurnDamage") ~= 0 then
-				if ScreenParticleController:HasParticleWithName("Burn") then
-					return
-				end
-				ScreenParticleController:EmitParticle("Burn")
-			else
-				ScreenParticleController:ClearParticleWithName("Burn")
-			end
-		end)
-
-		CollectionService:GetInstanceAddedSignal("Electrified"):Connect(function(Character)
-			if Character == character then
-				ScreenParticleController:EmitParticle("Electrified")
-			end
-		end)
-
-		CollectionService:GetInstanceRemovedSignal("Electrified"):Connect(function(Character)
-			if Character == character then
-				ScreenParticleController:ClearParticleWithName("Electrified")
-			end
-		end)
-	end
-	Player.CharacterAdded:Connect(function(character)
-		BindCharacter(character)
+	Player.CharacterAdded:Connect(BindCharacter)
+	Player.CharacterRemoving:Connect(function(OldCharacter: Model)
+		if OldCharacter == Character then
+			UnbindCharacter()
+		end
 	end)
+	Player:GetAttributeChangedSignal("ScreenParticles"):Connect(function()
+		if Player:GetAttribute("ScreenParticles") then
+			RefreshCharacter()
+		else
+			ScreenParticleController:ClearAllParticles()
+		end
+	end)
+
+	local function RefreshElectrified(Object: Instance)
+		if Object == Character then
+			RefreshCharacter()
+		end
+	end
+	CollectionService:GetInstanceAddedSignal("Electrified"):Connect(RefreshElectrified)
+	CollectionService:GetInstanceRemovedSignal("Electrified"):Connect(RefreshElectrified)
+
 	if Player.Character then
 		BindCharacter(Player.Character)
 	end

@@ -1,0 +1,2040 @@
+{
+  "date": "2026-11-26",
+  "place": "Samurai Rampage",
+  "placeId": 114465859606431,
+  "methodology": {
+    "environment": "Roblox Studio Play, client and server in Studio process",
+    "location": "Kawasaki Shrine / Kawasaki Village",
+    "viewport": [
+      1918,
+      1080
+    ],
+    "quality": "Rendering.QualityLevel.Level21",
+    "scenarioSeconds": 12,
+    "snapshotsPerScenario": 6,
+    "totalRenderIntervalSamples": 1912,
+    "fpsSource": "1000 / mean(RenderStepped deltaTime in milliseconds)",
+    "captureOverhead": "Next two render intervals excluded after each synchronous MicroProfiler buffer snapshot",
+    "camera": "Player stationary, substantially same camera pose; MCP automatically restored CameraType Custom",
+    "limitations": [
+      "Desktop automation native pipe unavailable; foreground focus/background throttle could not be verified.",
+      "Single machine, one stationary viewpoint, one player; no published-client or mobile validation.",
+      "Scenario order sequential; no randomized or repeated A/B runs. FPS deltas are observations, not guaranteed gains.",
+      "GPU logs contained invalid negative intervals; GPU scope means excluded from conclusions.",
+      "SmartBone runtime suppression also removes Studio-only Iris debug work; published-client gain may differ.",
+      "MicroProfiler scopes can be inclusive and parallel; worker durations must not be summed into wall time.",
+      "SmartBone skip branches contain unmatched profilebegin/profileend, so its duration ranking is unreliable."
+    ],
+    "rawMicroprofilerBuffersSaved": false
+  },
+  "runs": {
+    "noWaves_noSmartBoneRuntimes": {
+      "maxMs": 38.13380002975464,
+      "stats": [
+        {
+          "physicsMs": 0.7514642477035522,
+          "cpuMs": 11.290200054645538,
+          "gpuMs": 13.87212797999382
+        },
+        {
+          "physicsMs": 0.8560827374458313,
+          "cpuMs": 14.48030024766922,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 0.861304759979248,
+          "cpuMs": 10.85249986499548,
+          "gpuMs": 11.855744756758213
+        },
+        {
+          "physicsMs": 0.800632894039154,
+          "cpuMs": 11.762399226427078,
+          "gpuMs": 12.249087914824486
+        },
+        {
+          "physicsMs": 0.7360275983810425,
+          "cpuMs": 11.704700067639351,
+          "gpuMs": 13.526015914976597
+        },
+        {
+          "physicsMs": 0.8204106092453003,
+          "cpuMs": 12.940899468958378,
+          "gpuMs": 13.468671590089798
+        }
+      ],
+      "elapsed": 12.066018900019117,
+      "samples": 383,
+      "p99Ms": 36.01500019431114,
+      "fps": 32.71703444213682,
+      "p95Ms": 34.456200897693634,
+      "p50Ms": 30.223699286580086,
+      "meanMs": 30.565117439619865
+    },
+    "noSmartBone": {
+      "maxMs": 82.7609971165657,
+      "stats": [
+        {
+          "physicsMs": 2.3886756896972656,
+          "cpuMs": 13.16479966044426,
+          "gpuMs": 18.42585578560829
+        },
+        {
+          "physicsMs": 3.7334952354431152,
+          "cpuMs": 21.05659991502762,
+          "gpuMs": 29.303807765245438
+        },
+        {
+          "physicsMs": 1.8678513765335083,
+          "cpuMs": 16.625700518488884,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.0079591274261475,
+          "cpuMs": 12.147000059485435,
+          "gpuMs": 17.00454391539097
+        },
+        {
+          "physicsMs": 0.783054769039154,
+          "cpuMs": 13.112199492752552,
+          "gpuMs": 18.53644661605358
+        },
+        {
+          "physicsMs": 0.8663992881774902,
+          "cpuMs": 15.843300148844719,
+          "gpuMs": 19.067903980612755
+        }
+      ],
+      "ranges": [
+        {
+          "min": 11085,
+          "absoluteMax": 26318,
+          "max": 11091,
+          "absoluteMin": 26312
+        },
+        {
+          "min": 11239,
+          "absoluteMax": 26471,
+          "max": 11244,
+          "absoluteMin": 26466
+        },
+        {
+          "min": 11373,
+          "absoluteMax": 26604,
+          "max": 11377,
+          "absoluteMin": 26600
+        },
+        {
+          "min": 11555,
+          "absoluteMax": 26788,
+          "max": 11561,
+          "absoluteMin": 26782
+        },
+        {
+          "min": 11743,
+          "absoluteMax": 26974,
+          "max": 11747,
+          "absoluteMin": 26970
+        },
+        {
+          "min": 11926,
+          "absoluteMax": 27160,
+          "max": 11933,
+          "absoluteMin": 27153
+        }
+      ],
+      "elapsed": 12.075981899979524,
+      "samples": 236,
+      "p99Ms": 75.8821964263916,
+      "fps": 20.413765743700093,
+      "p95Ms": 65.41319936513901,
+      "p50Ms": 45.32960057258606,
+      "meanMs": 48.98655214110168
+    },
+    "noWaves": {
+      "maxMs": 62.42860108613968,
+      "stats": [
+        {
+          "physicsMs": 1.056502342224121,
+          "cpuMs": 13.23659997433424,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.1387131214141846,
+          "cpuMs": 12.186899781227112,
+          "gpuMs": 14.016351662576199
+        },
+        {
+          "physicsMs": 1.1673564910888672,
+          "cpuMs": 11.897100135684013,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.2798516750335693,
+          "cpuMs": 13.41089978814125,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.7442615032196045,
+          "cpuMs": 14.646200463175774,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.212048053741455,
+          "cpuMs": 11.91799994558096,
+          "gpuMs": 14.690304175019264
+        }
+      ],
+      "ranges": [
+        {
+          "min": 14179,
+          "absoluteMax": 29431,
+          "max": 14184,
+          "absoluteMin": 29426
+        },
+        {
+          "min": 14405,
+          "absoluteMax": 29657,
+          "max": 14410,
+          "absoluteMin": 29652
+        },
+        {
+          "min": 14620,
+          "absoluteMax": 29872,
+          "max": 14625,
+          "absoluteMin": 29867
+        },
+        {
+          "min": 14835,
+          "absoluteMax": 30088,
+          "max": 14841,
+          "absoluteMin": 30082
+        },
+        {
+          "min": 15032,
+          "absoluteMax": 30282,
+          "max": 15035,
+          "absoluteMin": 30279
+        },
+        {
+          "min": 15217,
+          "absoluteMax": 30473,
+          "max": 15222,
+          "absoluteMin": 30468
+        }
+      ],
+      "elapsed": 12.085165100055747,
+      "samples": 312,
+      "p99Ms": 47.90620133280754,
+      "fps": 26.853421432019545,
+      "p95Ms": 43.667200952768326,
+      "p50Ms": 36.93680092692375,
+      "meanMs": 37.239202554934685
+    },
+    "hiddenVegetation_noSmartBoneRuntimes": {
+      "maxMs": 52.71869897842407,
+      "stats": [
+        {
+          "physicsMs": 0.8570296764373779,
+          "cpuMs": 13.749299570918083,
+          "gpuMs": 16.14745520055294
+        },
+        {
+          "physicsMs": 0.823173999786377,
+          "cpuMs": 12.132499366998672,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.0028961896896362,
+          "cpuMs": 11.790700256824493,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 0.927741527557373,
+          "cpuMs": 11.628399603068829,
+          "gpuMs": 17.70598441362381
+        },
+        {
+          "physicsMs": 0.9353572726249695,
+          "cpuMs": 13.566499575972557,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 0.7756324410438538,
+          "cpuMs": 11.415200307965279,
+          "gpuMs": 15.454208478331566
+        }
+      ],
+      "elapsed": 12.062749999924563,
+      "samples": 356,
+      "p99Ms": 39.05760124325752,
+      "fps": 30.347436237583654,
+      "p95Ms": 35.78700125217438,
+      "p50Ms": 33.01449865102768,
+      "meanMs": 32.95171269728394
+    },
+    "noSmartBoneRuntimes": {
+      "maxMs": 47.243598848581314,
+      "stats": [
+        {
+          "physicsMs": 0.8145315647125244,
+          "cpuMs": 10.13999991118908,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.5307930707931519,
+          "cpuMs": 10.794499889016151,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.843012809753418,
+          "cpuMs": 11.630800552666187,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.812854290008545,
+          "cpuMs": 12.765600346028805,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 0.7361399531364441,
+          "cpuMs": 9.826100431382656,
+          "gpuMs": 12.62598391622305
+        },
+        {
+          "physicsMs": 0.8297561407089233,
+          "cpuMs": 10.699300095438957,
+          "gpuMs": 0
+        }
+      ],
+      "ranges": [
+        {
+          "min": 17367,
+          "absoluteMax": 32637,
+          "max": 17386,
+          "absoluteMin": 32618
+        },
+        {
+          "min": 17629,
+          "absoluteMax": 32899,
+          "max": 17648,
+          "absoluteMin": 32880
+        },
+        {
+          "min": 17882,
+          "absoluteMax": 33152,
+          "max": 17901,
+          "absoluteMin": 33133
+        },
+        {
+          "min": 18131,
+          "absoluteMax": 33401,
+          "max": 18150,
+          "absoluteMin": 33382
+        },
+        {
+          "min": 18394,
+          "absoluteMax": 33664,
+          "max": 18413,
+          "absoluteMin": 33645
+        },
+        {
+          "min": 18665,
+          "absoluteMax": 33935,
+          "max": 18684,
+          "absoluteMin": 33916
+        }
+      ],
+      "elapsed": 12.057322699925862,
+      "samples": 382,
+      "p99Ms": 38.18339854478836,
+      "fps": 32.450846438889094,
+      "p95Ms": 34.86590087413788,
+      "p50Ms": 30.494900420308113,
+      "meanMs": 30.815837173405743
+    },
+    "baseline": {
+      "maxMs": 125.41580200195312,
+      "stats": [
+        {
+          "physicsMs": 1.8125948905944824,
+          "cpuMs": 14.160200022161007,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.3715358972549438,
+          "cpuMs": 13.113199733197689,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.2635399103164673,
+          "cpuMs": 16.275199130177498,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.4656716585159302,
+          "cpuMs": 14.988300390541553,
+          "gpuMs": 18.226174637675285
+        },
+        {
+          "physicsMs": 1.3683068752288818,
+          "cpuMs": 14.21590056270361,
+          "gpuMs": 0
+        },
+        {
+          "physicsMs": 1.4448012113571167,
+          "cpuMs": 13.649200089275837,
+          "gpuMs": 18.559999763965607
+        }
+      ],
+      "ranges": [
+        {
+          "min": 3950,
+          "absoluteMax": 19024,
+          "max": 3957,
+          "absoluteMin": 19017
+        },
+        {
+          "min": 4122,
+          "absoluteMax": 19194,
+          "max": 4127,
+          "absoluteMin": 19189
+        },
+        {
+          "min": 4300,
+          "absoluteMax": 19369,
+          "max": 4302,
+          "absoluteMin": 19367
+        },
+        {
+          "min": 4477,
+          "absoluteMax": 19548,
+          "max": 4481,
+          "absoluteMin": 19544
+        },
+        {
+          "min": 4650,
+          "absoluteMax": 19720,
+          "max": 4653,
+          "absoluteMin": 19717
+        },
+        {
+          "min": 4828,
+          "absoluteMax": 19899,
+          "max": 4832,
+          "absoluteMin": 19895
+        }
+      ],
+      "elapsed": 12.085019099991769,
+      "samples": 243,
+      "p99Ms": 87.2092992067337,
+      "fps": 20.90166351442437,
+      "p95Ms": 53.91189828515053,
+      "p50Ms": 45.748498290777206,
+      "meanMs": 47.843081930291994
+    }
+  },
+  "scene": {
+    "triangles": {
+      "Children": [
+        {
+          "Name": "Undefined",
+          "Sizes": {
+            "Drawcalls": 11,
+            "Triangles": 68642
+          }
+        },
+        {
+          "Name": "Opaque",
+          "Sizes": {
+            "Drawcalls": 926,
+            "Triangles": 3493700
+          }
+        },
+        {
+          "Name": "Transparent",
+          "Sizes": {
+            "Drawcalls": 31,
+            "Triangles": 4505
+          }
+        },
+        {
+          "Name": "Terrain",
+          "Sizes": {
+            "Drawcalls": 126,
+            "Triangles": 105298
+          }
+        },
+        {
+          "Name": "Grass",
+          "Sizes": {
+            "Drawcalls": 45,
+            "Triangles": 294505
+          }
+        },
+        {
+          "Name": "UI",
+          "Sizes": {
+            "Drawcalls": 1,
+            "Triangles": 2
+          }
+        },
+        {
+          "Name": "Decal",
+          "Sizes": {
+            "Drawcalls": 7,
+            "Triangles": 4200
+          }
+        },
+        {
+          "Name": "Cloud",
+          "Sizes": {
+            "Drawcalls": 6,
+            "Triangles": 6
+          }
+        },
+        {
+          "Name": "Particles",
+          "Sizes": {
+            "Drawcalls": 1,
+            "Triangles": 926
+          }
+        },
+        {
+          "Name": "Shadows",
+          "Sizes": {
+            "Drawcalls": 1152,
+            "Triangles": 2256910
+          }
+        }
+      ],
+      "Name": "TriangleComposition",
+      "Sizes": {
+        "Drawcalls": 2306,
+        "Triangles": 6228694
+      }
+    },
+    "stats": {
+      "memoryMb": 8491.12109375,
+      "instances": 146257
+    },
+    "scriptVmBytes": 79047488,
+    "topScripts": [
+      {
+        "bytes": 1183576,
+        "path": "Workspace.Entity.rodexiy.Client.Misc.Waves"
+      },
+      {
+        "bytes": 648614,
+        "path": "Players.rodexiy.PlayerScripts.WindController.WindShake.Settings"
+      },
+      {
+        "bytes": 647408,
+        "path": "ReplicatedStorage.Assets.Libraries.TopbarPlus"
+      },
+      {
+        "bytes": 335483,
+        "path": "Players.rodexiy.PlayerScripts.WindController.WindShake"
+      },
+      {
+        "bytes": 257654,
+        "path": "Players.rodexiy.PlayerScripts.Client.Controllers.SmartBoneController"
+      },
+      {
+        "bytes": 247077,
+        "path": "ReplicatedStorage.Assets.Libraries.SmartBone.Components.Bone"
+      },
+      {
+        "bytes": 167313,
+        "path": "Players.rodexiy.PlayerGui.Temporary.PrivateServer.content.TextButton.Button"
+      },
+      {
+        "bytes": 166012,
+        "path": "ReplicatedStorage.Assets.Libraries.Zone"
+      },
+      {
+        "bytes": 121629,
+        "path": "ReplicatedStorage.Assets.Libraries.SmartBone.Components.BoneTree"
+      },
+      {
+        "bytes": 106158,
+        "path": "Players.rodexiy.PlayerScripts.Client.Controllers.UI.InventoryController"
+      },
+      {
+        "bytes": 103385,
+        "path": "Players.rodexiy.PlayerScripts.Client.Controllers.HorseAnimationController.HorseRigController"
+      },
+      {
+        "bytes": 94443,
+        "path": "Players.rodexiy.PlayerScripts.Client.Controllers.RenderController.Combat"
+      }
+    ]
+  },
+  "geometryComposition": {
+    "meshes": [
+      {
+        "example": "Workspace.Ores.Iron.Iron.NewOptmized",
+        "mesh": "rbxassetid://121489555298055",
+        "count": 224
+      },
+      {
+        "example": "Workspace.Model.RopeShaftDiamondSharpBase",
+        "mesh": "rbxassetid://3573287908",
+        "count": 216
+      },
+      {
+        "example": "Workspace.Map.WoodCircle.Model.MeshPart",
+        "mesh": "rbxassetid://133680613957548",
+        "count": 215
+      },
+      {
+        "example": "Workspace.Assets.BurlapBag_Side.SoilABag.Rope",
+        "mesh": "rbxassetid://9992922609",
+        "count": 175
+      },
+      {
+        "example": "Workspace.TS02_ENV_Grass_05",
+        "mesh": "rbxassetid://92441950827595",
+        "count": 85
+      },
+      {
+        "example": "Workspace.Model.dwada.002",
+        "mesh": "rbxassetid://73028246755044",
+        "count": 63
+      },
+      {
+        "example": "Workspace.Map.Vegetation.Rocks.Orca_Rocks",
+        "mesh": "rbxassetid://14974154499",
+        "count": 51
+      },
+      {
+        "example": "Workspace.DuckBoard.Board",
+        "mesh": "rbxassetid://135663636623065",
+        "count": 51
+      },
+      {
+        "example": "Workspace.Map.Vegetation.RedLeaves.Leaves_Pile_01",
+        "mesh": "rbxassetid://14398344679",
+        "count": 43
+      },
+      {
+        "example": "Workspace.Model.TopGrass",
+        "mesh": "rbxassetid://516875678",
+        "count": 39
+      },
+      {
+        "example": "Workspace.Hay.Hay.Rope",
+        "mesh": "rbxassetid://111496219035002",
+        "count": 36
+      },
+      {
+        "example": "Workspace.Stylized Bricks.default",
+        "mesh": "rbxassetid://12333766377",
+        "count": 35
+      }
+    ],
+    "roots": [
+      {
+        "visibleApprox": 2117,
+        "meshes": 641,
+        "name": "Assets",
+        "precise": 0,
+        "parts": 3541
+      },
+      {
+        "visibleApprox": 2017,
+        "meshes": 847,
+        "name": "Model",
+        "precise": 32,
+        "parts": 3601
+      },
+      {
+        "visibleApprox": 398,
+        "meshes": 1165,
+        "name": "Map",
+        "precise": 0,
+        "parts": 1165
+      },
+      {
+        "visibleApprox": 238,
+        "meshes": 238,
+        "name": "Ores",
+        "precise": 0,
+        "parts": 238
+      },
+      {
+        "visibleApprox": 199,
+        "meshes": 296,
+        "name": "Carroças",
+        "precise": 0,
+        "parts": 296
+      },
+      {
+        "visibleApprox": 157,
+        "meshes": 22,
+        "name": "Lights",
+        "precise": 0,
+        "parts": 372
+      },
+      {
+        "visibleApprox": 131,
+        "meshes": 131,
+        "name": "ObjetsForRealm",
+        "precise": 4,
+        "parts": 180
+      },
+      {
+        "visibleApprox": 85,
+        "meshes": 85,
+        "name": "TS02_ENV_Grass_05",
+        "precise": 0,
+        "parts": 85
+      },
+      {
+        "visibleApprox": 76,
+        "meshes": 157,
+        "name": "Hay",
+        "precise": 72,
+        "parts": 157
+      },
+      {
+        "visibleApprox": 71,
+        "meshes": 264,
+        "name": "Entity",
+        "precise": 151,
+        "parts": 412
+      },
+      {
+        "visibleApprox": 52,
+        "meshes": 52,
+        "name": "Cart 2",
+        "precise": 0,
+        "parts": 52
+      },
+      {
+        "visibleApprox": 51,
+        "meshes": 5,
+        "name": "templecity",
+        "precise": 0,
+        "parts": 103
+      },
+      {
+        "visibleApprox": 44,
+        "meshes": 0,
+        "name": "Poste",
+        "precise": 0,
+        "parts": 44
+      },
+      {
+        "visibleApprox": 41,
+        "meshes": 126,
+        "name": "Varal",
+        "precise": 0,
+        "parts": 235
+      },
+      {
+        "visibleApprox": 39,
+        "meshes": 61,
+        "name": "Board",
+        "precise": 0,
+        "parts": 61
+      },
+      {
+        "visibleApprox": 34,
+        "meshes": 28,
+        "name": "Crates",
+        "precise": 28,
+        "parts": 56
+      },
+      {
+        "visibleApprox": 30,
+        "meshes": 30,
+        "name": "Stylized Bricks",
+        "precise": 0,
+        "parts": 30
+      },
+      {
+        "visibleApprox": 23,
+        "meshes": 23,
+        "name": "VASE",
+        "precise": 1,
+        "parts": 23
+      }
+    ]
+  },
+  "geometryIsolation": {
+    "vegetation": {
+      "Children": [
+        {
+          "Name": "Undefined",
+          "Sizes": {
+            "Drawcalls": 11,
+            "Triangles": 68642
+          }
+        },
+        {
+          "Name": "Opaque",
+          "Sizes": {
+            "Drawcalls": 890,
+            "Triangles": 3452363
+          }
+        },
+        {
+          "Name": "Transparent",
+          "Sizes": {
+            "Drawcalls": 35,
+            "Triangles": 4565
+          }
+        },
+        {
+          "Name": "Terrain",
+          "Sizes": {
+            "Drawcalls": 126,
+            "Triangles": 105298
+          }
+        },
+        {
+          "Name": "Grass",
+          "Sizes": {
+            "Drawcalls": 45,
+            "Triangles": 294505
+          }
+        },
+        {
+          "Name": "UI",
+          "Sizes": {
+            "Drawcalls": 1,
+            "Triangles": 2
+          }
+        },
+        {
+          "Name": "Decal",
+          "Sizes": {
+            "Drawcalls": 7,
+            "Triangles": 4200
+          }
+        },
+        {
+          "Name": "Cloud",
+          "Sizes": {
+            "Drawcalls": 5,
+            "Triangles": 5
+          }
+        },
+        {
+          "Name": "Particles",
+          "Sizes": {
+            "Drawcalls": 1,
+            "Triangles": 920
+          }
+        },
+        {
+          "Name": "Shadows",
+          "Sizes": {
+            "Drawcalls": 1092,
+            "Triangles": 2192933
+          }
+        }
+      ],
+      "Name": "TriangleComposition",
+      "Sizes": {
+        "Drawcalls": 2213,
+        "Triangles": 6123433
+      }
+    },
+    "Assets": {
+      "passes": {
+        "Decal": {
+          "Drawcalls": 7,
+          "Triangles": 4200
+        },
+        "Terrain": {
+          "Drawcalls": 126,
+          "Triangles": 105298
+        },
+        "Cloud": {
+          "Drawcalls": 6,
+          "Triangles": 6
+        },
+        "Grass": {
+          "Drawcalls": 45,
+          "Triangles": 294505
+        },
+        "Transparent": {
+          "Drawcalls": 35,
+          "Triangles": 4599
+        },
+        "UI": {
+          "Drawcalls": 1,
+          "Triangles": 2
+        },
+        "Opaque": {
+          "Drawcalls": 1097,
+          "Triangles": 3445950
+        },
+        "Particles": {
+          "Drawcalls": 1,
+          "Triangles": 928
+        },
+        "Undefined": {
+          "Drawcalls": 11,
+          "Triangles": 68642
+        }
+      },
+      "parts": 3541
+    },
+    "trunks": {
+      "Children": [
+        {
+          "Name": "Undefined",
+          "Sizes": {
+            "Drawcalls": 11,
+            "Triangles": 68642
+          }
+        },
+        {
+          "Name": "Opaque",
+          "Sizes": {
+            "Drawcalls": 945,
+            "Triangles": 3531380
+          }
+        },
+        {
+          "Name": "Transparent",
+          "Sizes": {
+            "Drawcalls": 32,
+            "Triangles": 4484
+          }
+        },
+        {
+          "Name": "Terrain",
+          "Sizes": {
+            "Drawcalls": 126,
+            "Triangles": 105298
+          }
+        },
+        {
+          "Name": "Grass",
+          "Sizes": {
+            "Drawcalls": 45,
+            "Triangles": 294505
+          }
+        },
+        {
+          "Name": "UI",
+          "Sizes": {
+            "Drawcalls": 1,
+            "Triangles": 2
+          }
+        },
+        {
+          "Name": "Decal",
+          "Sizes": {
+            "Drawcalls": 7,
+            "Triangles": 4200
+          }
+        },
+        {
+          "Name": "Cloud",
+          "Sizes": {
+            "Drawcalls": 6,
+            "Triangles": 6
+          }
+        },
+        {
+          "Name": "Particles",
+          "Sizes": {
+            "Drawcalls": 1,
+            "Triangles": 904
+          }
+        },
+        {
+          "Name": "Shadows",
+          "Sizes": {
+            "Drawcalls": 1140,
+            "Triangles": 2273354
+          }
+        }
+      ],
+      "Name": "TriangleComposition",
+      "Sizes": {
+        "Drawcalls": 2314,
+        "Triangles": 6282775
+      }
+    },
+    "Hay": {
+      "passes": {
+        "Decal": {
+          "Drawcalls": 7,
+          "Triangles": 4200
+        },
+        "Terrain": {
+          "Drawcalls": 126,
+          "Triangles": 105298
+        },
+        "Cloud": {
+          "Drawcalls": 5,
+          "Triangles": 5
+        },
+        "Grass": {
+          "Drawcalls": 45,
+          "Triangles": 294505
+        },
+        "Transparent": {
+          "Drawcalls": 32,
+          "Triangles": 4599
+        },
+        "UI": {
+          "Drawcalls": 1,
+          "Triangles": 2
+        },
+        "Opaque": {
+          "Drawcalls": 924,
+          "Triangles": 3453688
+        },
+        "Particles": {
+          "Drawcalls": 1,
+          "Triangles": 954
+        },
+        "Undefined": {
+          "Drawcalls": 11,
+          "Triangles": 68642
+        }
+      },
+      "parts": 157
+    },
+    "ObjetsForRealm": {
+      "passes": {
+        "Decal": {
+          "Drawcalls": 5,
+          "Triangles": 3100
+        },
+        "Terrain": {
+          "Drawcalls": 126,
+          "Triangles": 105298
+        },
+        "Cloud": {
+          "Drawcalls": 6,
+          "Triangles": 6
+        },
+        "Grass": {
+          "Drawcalls": 45,
+          "Triangles": 294505
+        },
+        "Transparent": {
+          "Drawcalls": 35,
+          "Triangles": 5245
+        },
+        "UI": {
+          "Drawcalls": 1,
+          "Triangles": 2
+        },
+        "Opaque": {
+          "Drawcalls": 1114,
+          "Triangles": 3468346
+        },
+        "Particles": {
+          "Drawcalls": 1,
+          "Triangles": 968
+        },
+        "Undefined": {
+          "Drawcalls": 11,
+          "Triangles": 68642
+        }
+      },
+      "parts": 180
+    },
+    "Ores": {
+      "passes": {
+        "Decal": {
+          "Drawcalls": 7,
+          "Triangles": 4200
+        },
+        "Terrain": {
+          "Drawcalls": 126,
+          "Triangles": 105298
+        },
+        "Cloud": {
+          "Drawcalls": 6,
+          "Triangles": 6
+        },
+        "Grass": {
+          "Drawcalls": 45,
+          "Triangles": 294505
+        },
+        "Transparent": {
+          "Drawcalls": 34,
+          "Triangles": 4585
+        },
+        "UI": {
+          "Drawcalls": 1,
+          "Triangles": 2
+        },
+        "Opaque": {
+          "Drawcalls": 923,
+          "Triangles": 2571336
+        },
+        "Particles": {
+          "Drawcalls": 1,
+          "Triangles": 930
+        },
+        "Undefined": {
+          "Drawcalls": 11,
+          "Triangles": 68642
+        }
+      },
+      "parts": 238
+    },
+    "normal": {
+      "Decal": {
+        "Drawcalls": 7,
+        "Triangles": 4200
+      },
+      "Terrain": {
+        "Drawcalls": 126,
+        "Triangles": 105298
+      },
+      "Cloud": {
+        "Drawcalls": 5,
+        "Triangles": 5
+      },
+      "Grass": {
+        "Drawcalls": 45,
+        "Triangles": 294505
+      },
+      "Transparent": {
+        "Drawcalls": 33,
+        "Triangles": 4645
+      },
+      "UI": {
+        "Drawcalls": 1,
+        "Triangles": 2
+      },
+      "Opaque": {
+        "Drawcalls": 946,
+        "Triangles": 3535490
+      },
+      "Particles": {
+        "Drawcalls": 1,
+        "Triangles": 954
+      },
+      "Undefined": {
+        "Drawcalls": 11,
+        "Triangles": 68642
+      }
+    },
+    "Carroças": {
+      "passes": {
+        "Decal": {
+          "Drawcalls": 7,
+          "Triangles": 4200
+        },
+        "Terrain": {
+          "Drawcalls": 126,
+          "Triangles": 105298
+        },
+        "Cloud": {
+          "Drawcalls": 5,
+          "Triangles": 5
+        },
+        "Grass": {
+          "Drawcalls": 45,
+          "Triangles": 294505
+        },
+        "Transparent": {
+          "Drawcalls": 35,
+          "Triangles": 4621
+        },
+        "UI": {
+          "Drawcalls": 1,
+          "Triangles": 2
+        },
+        "Opaque": {
+          "Drawcalls": 927,
+          "Triangles": 3497119
+        },
+        "Particles": {
+          "Drawcalls": 1,
+          "Triangles": 928
+        },
+        "Undefined": {
+          "Drawcalls": 11,
+          "Triangles": 68642
+        }
+      },
+      "parts": 296
+    },
+    "Model": {
+      "passes": {
+        "Decal": {
+          "Drawcalls": 5,
+          "Triangles": 3738
+        },
+        "Terrain": {
+          "Drawcalls": 126,
+          "Triangles": 105298
+        },
+        "Cloud": {
+          "Drawcalls": 5,
+          "Triangles": 5
+        },
+        "Grass": {
+          "Drawcalls": 45,
+          "Triangles": 294505
+        },
+        "Transparent": {
+          "Drawcalls": 33,
+          "Triangles": 4285
+        },
+        "UI": {
+          "Drawcalls": 1,
+          "Triangles": 2
+        },
+        "Opaque": {
+          "Drawcalls": 2742,
+          "Triangles": 3348855
+        },
+        "Particles": {
+          "Drawcalls": 1,
+          "Triangles": 916
+        },
+        "Undefined": {
+          "Drawcalls": 11,
+          "Triangles": 68642
+        }
+      },
+      "parts": 3601
+    },
+    "Map": {
+      "passes": {
+        "Decal": {
+          "Drawcalls": 7,
+          "Triangles": 4200
+        },
+        "Terrain": {
+          "Drawcalls": 126,
+          "Triangles": 105298
+        },
+        "Cloud": {
+          "Drawcalls": 6,
+          "Triangles": 6
+        },
+        "Grass": {
+          "Drawcalls": 45,
+          "Triangles": 294505
+        },
+        "Transparent": {
+          "Drawcalls": 32,
+          "Triangles": 4611
+        },
+        "UI": {
+          "Drawcalls": 1,
+          "Triangles": 2
+        },
+        "Opaque": {
+          "Drawcalls": 847,
+          "Triangles": 3150697
+        },
+        "Particles": {
+          "Drawcalls": 1,
+          "Triangles": 948
+        },
+        "Undefined": {
+          "Drawcalls": 11,
+          "Triangles": 68642
+        }
+      },
+      "parts": 1165
+    }
+  },
+  "oreMeshCounts": {
+    "rbxassetid://14974154499": 14,
+    "rbxassetid://121489555298055": 224
+  },
+  "meshSamples": [
+    {
+      "path": "Workspace.Ores.Iron.Iron.Main_Rock",
+      "mesh": "rbxassetid://14974154499",
+      "error": "AssetService::CreateEditableMeshAsync failed because no permission to load asset"
+    },
+    {
+      "vertices": 2100,
+      "path": "Workspace.Map.Vegetation.Trees.Tree_03.Trunk_03",
+      "mesh": "rbxassetid://85977905360474",
+      "faces": 988
+    }
+  ],
+  "smartBone": {
+    "tagged": 81,
+    "inWorkspace": 60,
+    "outsideWorkspace": 21,
+    "bonesAcrossTaggedObjects": 1755,
+    "runtimesSuppressed": 81,
+    "preUpdateEnterCountsAcrossSnapshots": {
+      "baseline": 3410,
+      "noSmartBoneRuntimes": 0,
+      "noSmartBone": 4177
+    },
+    "libraryLineEvidence": {
+      "runtime": {
+        "1": {
+          "text": "local ShouldDebug = RunService:IsStudio() or Config.ALLOW_LIVE_GAME_DEBUG\r",
+          "line": 45
+        },
+        "2": {
+          "text": "if ShouldDebug then\r",
+          "line": 67
+        },
+        "3": {
+          "text": "\t\tIris = Iris.Init()\r",
+          "line": 70
+        },
+        "4": {
+          "text": "if ShouldDebug then\r",
+          "line": 84
+        },
+        "5": {
+          "text": "-- ShouldDebug is just if we are in studio or not\r",
+          "line": 102
+        },
+        "6": {
+          "text": "if ShouldDebug then\r",
+          "line": 103
+        },
+        "7": {
+          "text": "\tIris:Connect(function()\r",
+          "line": 104
+        },
+        "8": {
+          "text": "c(RunService.Heartbeat:ConnectParallel(function(deltaTime)\r",
+          "line": 132
+        },
+        "9": {
+          "text": "\tBonePhysics:StepBoneTrees(deltaTime)\r",
+          "line": 139
+        },
+        "10": {
+          "text": "\t-- ShouldDebug is just if we are in studio or not\r",
+          "line": 150
+        },
+        "11": {
+          "text": "\tif ShouldDebug then\r",
+          "line": 151
+        }
+      },
+      "boneTree": {
+        "1": {
+          "text": "\tfor _, Bone in self.Bones do\r",
+          "line": 216
+        },
+        "2": {
+          "text": "function Class:PreUpdate(Delta: number)\r",
+          "line": 258
+        },
+        "3": {
+          "text": "\tself:UpdateThrottling(RootPartPosition)\r",
+          "line": 271
+        },
+        "4": {
+          "text": "\tself:UpdateBoundingBox()\r",
+          "line": 272
+        },
+        "5": {
+          "text": "\tfor _, Bone in self.Bones do\r",
+          "line": 274
+        },
+        "6": {
+          "text": "\t\tBone:PreUpdate(self)\r",
+          "line": 275
+        },
+        "7": {
+          "text": "\tfor _, Bone in self.Bones do\r",
+          "line": 306
+        },
+        "8": {
+          "text": "\tfor _, Bone in self.Bones do\r",
+          "line": 317
+        },
+        "9": {
+          "text": "\tfor _, Bone in self.Bones do\r",
+          "line": 327
+        },
+        "10": {
+          "text": "\tfor _, Bone in self.Bones do\r",
+          "line": 339
+        },
+        "11": {
+          "text": "\tfor _, Bone in self.Bones do\r",
+          "line": 351
+        },
+        "12": {
+          "text": "\tfor _, Bone in self.Bones do\r",
+          "line": 475
+        }
+      },
+      "smartBone": {
+        "1": {
+          "text": "\t\tdebug.profileend()",
+          "line": 201
+        },
+        "2": {
+          "text": "\tdebug.profileend()",
+          "line": 203
+        },
+        "3": {
+          "text": "\tdebug.profileend()",
+          "line": 219
+        },
+        "4": {
+          "text": "\tdebug.profileend()",
+          "line": 235
+        },
+        "5": {
+          "text": "function Class:m_UpdateBoneTree(BoneTree: IBoneTree, Index: number, Delta: number)",
+          "line": 247
+        },
+        "6": {
+          "text": "\tBoneTree:PreUpdate(Delta) -- Pre update MUST be called before we call SkipUpdate!",
+          "line": 257
+        },
+        "7": {
+          "text": "\tif not BoneTree.InView or math.floor(BoneTree.UpdateRate) == 0 then",
+          "line": 259
+        },
+        "8": {
+          "text": "\t\tif not AlreadySkipped then",
+          "line": 264
+        },
+        "9": {
+          "text": "\t\t\tdebug.profileend()",
+          "line": 265
+        },
+        "10": {
+          "text": "\tdebug.profileend()",
+          "line": 280
+        },
+        "11": {
+          "text": "\tdebug.profileend()",
+          "line": 295
+        },
+        "12": {
+          "text": "\tdebug.profileend()",
+          "line": 395
+        },
+        "13": {
+          "text": "function Class.Start(): { Stop: () -> () }",
+          "line": 527
+        },
+        "14": {
+          "text": "\tfor _, Object in CollectionService:GetTagged(\"SmartBone\") do",
+          "line": 646
+        },
+        "15": {
+          "text": "\t\tSetupObject(Object)",
+          "line": 647
+        }
+      }
+    },
+    "sourceEvidence": {
+      "runtime": "local Actor: Actor = script.Parent\r\nlocal RootObject\r\nlocal ColliderDescriptions\r\nlocal SmartboneModule\r\nlocal SmartboneClass\r\n\r\nlocal Setup = false\r\n\r\nlocal CONNECTIONS = {}\r\n\r\nlocal function c(Conn: RBXScriptConnection)\r\n\ttable.insert(CONNECTIONS, Conn)\r\nend\r\n\r\nlocal function cleanup()\r\n\tfor _, Conn: RBXScriptConnection in CONNECTIONS do\r\n\t\tConn:Disconnect()\r\n\tend\r\nend\r\n\r\nlocal Bind\r\nBind = Actor:BindToMessage(\"Setup\", function(m_Object, m_ColliderDescriptions, m_SmartBone)\r\n\tRootObject = m_Object\r\n\tColliderDescriptions = m_ColliderDescriptions\r\n\tSmartboneModule = m_SmartBone\r\n\tSmartboneClass = require(m_SmartBone)\r\n\r\n\tSetup = true\r\n\r\n\tBind:Disconnect()\r\nend)\r\n\r\nrepeat\r\n\ttask.wait()\r\nuntil Setup\r\n\r\nlocal CollectionService = game:GetService(\"CollectionService\")\r\nlocal RunService = game:GetService(\"RunService\")\r\nlocal BonePhysics = SmartboneClass.new()\r\nlocal Dependencies = SmartboneModule.Dependencies\r\nlocal DebugUi = require(Dependencies.DebugUi)\r\nlocal Iris\r\nlocal Config = require(Dependencies.Config)\r\nlocal Utilities = require(Dependencies.Utilities)\r\nlocal ShouldDebug = RunService:IsStudio() or Config.ALLOW_LIVE_GAME_DEBUG\r\nlocal OverlayEvent = SmartboneModule:WaitForChild(\"OverlayEvent\")\r\n\r\nlocal ForceDestroy = false\r\n\r\n-- So much work for such a basic debug tool\r\nlocal ImOverlay = {\r\n\tBegin = function(...)\r\n\t\tOverlayEvent:Fire(\"Begin\", ...)\r\n\tend,\r\n\tEnd = function(...)\r\n\t\tOverlayEvent:Fire(\"End\", ...)\r\n\tend,\r\n\tText = function(...)\r\n\t\tOverlayEvent:Fire(\"Text\", ...)\r\n\tend,\r\n}\r\n\r\n-- Frame counter for getting animatedworldcframe\r\nshared.FrameCounter = 0\r\nlocal FrameCounterOverflow = 2 ^ 17 -- Maximum number frame counter can go to before it resets to 0 =(131072)\r\n\r\nif ShouldDebug then\r\n\tIris = require(Dependencies.Iris)\r\n\tif not Iris.HasInit() then\r\n\t\tIris = Iris.Init()\r\n\tend\r\nend\r\n\r\nActor.Name = `{RootObject.Name} - {BonePhysics.ID}`\r\n\r\nBonePhysics:LoadObject(RootObject)\r\n\r\nfor _, ColliderDescription in ColliderDescriptions do\r\n\tBonePhysics:LoadRawCollider(ColliderDescription[1], ColliderDescription[2])\r\nend\r\n\r\nlocal DebugState\r\n\r\nif ShouldDebug then\r\n\tDebugState = {\r\n\t\tDRAW_BONE = Iris.State(false),\r\n\t\tDRAW_PHYSICAL_BONE = Iris.State(false),\r\n\t\tDRAW_ROOT_PART = Iris.State(false),\r\n\t\tDRAW_BOUNDING_BOX = Iris.State(false),\r\n\t\tDRAW_AXIS_LIMITS = Iris.State(false),\r\n\t\tDRAW_COLLIDERS = Iris.State(false),\r\n\t\tDRAW_COLLIDER_INFLUENCE = Iris.State(false),\r\n\t\tDRAW_COLLIDER_AWAKE = Iris.State(false),\r\n\t\tDRAW_COLLIDER_BROADPHASE = Iris.State(false),\r\n\t\tDRAW_FILL_COLLIDERS = Iris.State(false),\r\n\t\tDRAW_CONTACTS = Iris.State(false),\r\n\t\tDRAW_ROTATION_LIMITS = Iris.State(false),\r\n\t\tDRAW_ACCELERATION_INFO = Iris.State(false),\r\n\t}\r\nend\r\n\r\n-- ShouldDebug is just if we are in studio or not\r\nif ShouldDebug then\r\n\tIris:Connect(function()\r\n\t\tif RootObject:GetAttribute(\"Debug\") ~= nil then\r\n\t\t\tDebugUi(Iris, BonePhysics, DebugState)\r\n\t\tend\r\n\tend)\r\nend\r\n\r\nc(CollectionService:GetInstanceAddedSignal(\"SmartCollider\"):Connect(function(Object: BasePart)\r\n\tif not Object:IsA(\"BasePart\") then\r\n\t\treturn\r\n\tend\r\n\r\n\tlocal ColliderKey = Object:GetAttribute(\"ColliderKey\")\r\n\tlocal RootColliderKey = RootObject:GetAttribute(\"ColliderKey\")\r\n\r\n\tif tostring(ColliderKey) ~= tostring(RootColliderKey) then\r\n\t\treturn\r\n\tend\r\n\r\n\tlocal ColliderObject = Utilities.GetCollider(Object)\r\n\r\n\tBonePhysics:LoadRawCollider(ColliderObject, Object)\r\nend))\r\n\r\nc(Actor:BindToMessage(\"Destroy\", function()\r\n\tForceDestroy = true\r\nend))\r\n\r\nc(RunService.Heartbeat:ConnectParallel(function(deltaTime)\r\n\tshared.FrameCounter += 1\r\n\r\n\tif shared.FrameCounter > FrameCounterOverflow then\r\n\t\tshared.FrameCounter = 0\r\n\tend\r\n\r\n\tBonePhysics:StepBoneTrees(deltaTime)\r\n\r\n\tif BonePhysics.ShouldDestroy or ForceDestroy then\r\n\t\tBonePhysics:Destroy()\r\n\r\n\t\ttask.synchronize()\r\n\t\tcleanup()\r\n\t\tActor:Destroy()\r\n\t\treturn\r\n\tend\r\n\r\n\t-- ShouldDebug is just if we are in studio or not\r\n\tif ShouldDebug then\r\n\t\tif RootObject:GetAttribute(\"Debug\") ~= nil then\r\n\t\t\ttask.synchronize()\r\n\t\t\tBonePhysics:DrawDebug(\r\n\t\t\t\tDebugState.DRAW_COLLIDERS:get(),\r\n\t\t\t\tDebugState.DRAW_CONTACTS:get(),\r\n\t\t\t\tDebugState.DRAW_PHYSICAL_BONE:get(),\r\n\t\t\t\tDebugState.DRAW_BONE:get(),\r\n\t\t\t\tDebugState.DRAW_AXIS_LIMITS:get(),\r\n\t\t\t\tDebugState.DRAW_ROOT_PART:get(),\r\n\t\t\t\tDebugState.DRAW_FILL_COLLIDERS:get(),\r\n\t\t\t\tDebugState.DRAW_COLLIDER_INFLUENCE:get(),\r\n\t\t\t\tDebugState.DRAW_COLLIDER_AWAKE:get(),\r\n\t\t\t\tDebugState.DRAW_COLLIDER_BROADPHASE:get(),\r\n\t\t\t\tDebugState.DRAW_BOUNDING_BOX:get(),\r\n\t\t\t\tDebugState.DRAW_ROTATION_LIMITS:get(),\r\n\t\t\t\tDebugState.DRAW_ACCELERATION_INFO:get()\r\n\t\t\t)\r\n\r\n\t\t\tBonePhysics:DrawOverlay(ImOverlay)\r\n\t\tend\r\n\tend\r\nend))\r\n",
+      "preUpdate": "function Class:PreUpdate(Delta: number)\r\n\tdebug.profilebegin(\"BoneTree::PreUpdate\")\r\n\tlocal RootPartCFrame = self.RootPart.CFrame\r\n\tlocal RootPartPosition = RootPartCFrame.Position\r\n\r\n\tlocal PreviousVelocity = self.ObjectVelocity\r\n\r\n\tself.ObjectMove = (RootPartPosition - self.ObjectPreviousPosition)\r\n\tself.ObjectVelocity = self.ObjectVelocity:Lerp((self.ObjectMove / Delta) / 4, math.min(Delta * 10, 1))\r\n\tself.ObjectAcceleration = (PreviousVelocity - self.ObjectVelocity) * Delta\r\n\tself.ObjectPreviousPosition = RootPartPosition\r\n\tself.RootPartSize = self.RootPart.Size\r\n\r\n\tself:UpdateThrottling(RootPartPosition)\r\n\tself:UpdateBoundingBox()\r\n\r\n\tfor _, Bone in self.Bones do\r\n\t\tBone:PreUpdate(self)\r\n\tend\r\n\tdebug.profileend()\r\nend\r\n\r\n--- @within BoneTree\r\n--- @param Delta number -- Δt\r\n--- Calculates forces and updates wind. Also calls Bone:StepPhysics()\r\n",
+      "objects": [
+        {
+          "bones": 48,
+          "path": "Workspace.Entity.rodexiy.Assets.Race.Torso.RootPart",
+          "rate": 0,
+          "distance": 13.539609909057617
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.ShortCloth.Plane",
+          "rate": 0,
+          "distance": 199.89503479003906
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.ShortCloth.Plane",
+          "rate": 0,
+          "distance": 204.4457550048828
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.ShortCloth.Plane",
+          "rate": 0,
+          "distance": 209.08450317382812
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.ShortCloth.Plane",
+          "rate": 0,
+          "distance": 213.6531524658203
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.ShortCloth.Plane",
+          "rate": 0,
+          "distance": 218.2044219970703
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 345.97528076171875
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 346.1665954589844
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 346.5993347167969
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 346.6564636230469
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 352.4876403808594
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 352.7341003417969
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 355.30908203125
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 355.5644836425781
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 358.0732727050781
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 358.3489074707031
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 359.6832580566406
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 359.9657897949219
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Cloths.ShortCloth.Plane",
+          "rate": 0,
+          "distance": 518.4520263671875
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Cloths.Curved.Plane",
+          "rate": 0,
+          "distance": 547.5990600585938
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 550.5278930664062
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 550.9425048828125
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 551.8695068359375
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 552.2449951171875
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 559.580322265625
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 560.2733154296875
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 562.8739013671875
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 562.8788452148438
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 563.3328857421875
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 563.3742065429688
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Cloths.ShortCloth.Plane",
+          "rate": 0,
+          "distance": 629.5718383789062
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 693.947265625
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 694.13525390625
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 694.4972534179688
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 694.5634155273438
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 695.749755859375
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 696.1724243164062
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 704.6082153320312
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 705.0655517578125
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 705.4795532226562
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 705.9340209960938
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Cloths.ShortCloth.Plane",
+          "rate": 0,
+          "distance": 722.9879150390625
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 1510.6346435546875
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.Varal.Model.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 1511.0836181640625
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 1518.0135498046875
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 1518.4989013671875
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 1518.615966796875
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Varal.Model.Plane",
+          "rate": 0,
+          "distance": 1519.0845947265625
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Model.ShortCloth.Plane",
+          "rate": 0,
+          "distance": 1526.142578125
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.ObjetsForRealm.Drying Rack.Plane",
+          "rate": 0,
+          "distance": 1557.7117919921875
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.ObjetsForRealm.Drying Rack.Plane",
+          "rate": 0,
+          "distance": 1558.051025390625
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.ObjetsForRealm.Drying Rack.Plane",
+          "rate": 0,
+          "distance": 1559.9117431640625
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.ObjetsForRealm.Drying Rack.Plane",
+          "rate": 0,
+          "distance": 1560.2220458984375
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.ObjetsForRealm.Drying Rack 2.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 1562.95947265625
+        },
+        {
+          "bones": 19,
+          "path": "Workspace.ObjetsForRealm.Drying Rack 2.LongClothLowBone.Plane",
+          "rate": 0,
+          "distance": 1563.560302734375
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Model.Plane",
+          "rate": 0,
+          "distance": 2004.1561279296875
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Model.Plane",
+          "rate": 0,
+          "distance": 2009.064208984375
+        },
+        {
+          "bones": 16,
+          "path": "Workspace.Cloths.Curved.Plane",
+          "rate": 0,
+          "distance": 2061.00244140625
+        },
+        {
+          "bones": 41,
+          "path": "Workspace.Entity.Yamarashi.Assets.Equipables.Legs.Torso.Hazaze.028",
+          "rate": 0,
+          "distance": 2294.715087890625
+        },
+        {
+          "bones": 41,
+          "path": "Workspace.Entity.Yamarashi.Assets.Equipables.Legs.Torso.Hazaze.028",
+          "rate": 0,
+          "distance": 9970.1640625
+        }
+      ]
+    }
+  },
+  "completeCpuScopes": {
+    "noSmartBone": [
+      {
+        "maxMs": 18.101730960208442,
+        "count": 9,
+        "scope": "Perform",
+        "p95Ms": 18.101730960208442,
+        "meanMs": 13.129051687847019,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 10.241117275578745,
+        "count": 21,
+        "scope": "PreRender",
+        "p95Ms": 9.52011476140251,
+        "meanMs": 3.5109942525705264,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 14.06554924230386,
+        "count": 32,
+        "scope": "TextureManager2::processPendingRequests",
+        "p95Ms": 13.150278680750944,
+        "meanMs": 3.2653065024767898,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 4.101785405732699,
+        "count": 11,
+        "scope": "Script_Waves",
+        "p95Ms": 4.101785405732699,
+        "meanMs": 2.385833619014358,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 0.13855684540112634,
+        "count": 11,
+        "scope": "updateInvalidParts",
+        "p95Ms": 0.13855684540112634,
+        "meanMs": 0.09563000931513504,
+        "thread": " RBX Main"
+      }
+    ],
+    "noSmartBoneRuntimes": [
+      {
+        "maxMs": 11.41975009173484,
+        "count": 30,
+        "scope": "Perform",
+        "p95Ms": 11.403735983974912,
+        "meanMs": 9.322651322370302,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 5.6594739219540315,
+        "count": 60,
+        "scope": "PreRender",
+        "p95Ms": 5.3781573608557665,
+        "meanMs": 2.4496954591857047,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 7.374182193293109,
+        "count": 116,
+        "scope": "TextureManager2::processPendingRequests",
+        "p95Ms": 6.824007552118019,
+        "meanMs": 2.0384110380851617,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 1.9263860214600754,
+        "count": 30,
+        "scope": "Script_Waves",
+        "p95Ms": 1.8749412651832245,
+        "meanMs": 1.6352322008530336,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 0.1316853401294793,
+        "count": 30,
+        "scope": "updateInvalidParts",
+        "p95Ms": 0.09110431802582752,
+        "meanMs": 0.07213957114458935,
+        "thread": " RBX Main"
+      }
+    ],
+    "noWaves": [
+      {
+        "maxMs": 12.66280547197266,
+        "count": 9,
+        "scope": "Perform",
+        "p95Ms": 12.66280547197266,
+        "meanMs": 10.761142026719122,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 10.472815149797952,
+        "count": 31,
+        "scope": "TextureManager2::processPendingRequests",
+        "p95Ms": 8.660962897177342,
+        "meanMs": 2.717960271790191,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 5.45611076214891,
+        "count": 16,
+        "scope": "PreRender",
+        "p95Ms": 5.45611076214891,
+        "meanMs": 1.8097244394252527,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 0.21414799920148653,
+        "count": 8,
+        "scope": "updateInvalidParts",
+        "p95Ms": 0.21414799920148653,
+        "meanMs": 0.09574177981704679,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 0.002689316130727093,
+        "count": 8,
+        "scope": "Script_Waves",
+        "p95Ms": 0.002689316130727093,
+        "meanMs": 0.0013926268556474497,
+        "thread": " RBX Main"
+      }
+    ],
+    "baseline": [
+      {
+        "maxMs": 13.933225850241342,
+        "count": 8,
+        "scope": "Perform",
+        "p95Ms": 13.933225850241342,
+        "meanMs": 12.203952827555355,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 13.157118781305599,
+        "count": 27,
+        "scope": "TextureManager2::processPendingRequests",
+        "p95Ms": 13.05502051442636,
+        "meanMs": 3.539331264890734,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 5.80531436379124,
+        "count": 13,
+        "scope": "PreRender",
+        "p95Ms": 5.80531436379124,
+        "meanMs": 3.095903279715318,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 2.0566711707929244,
+        "count": 7,
+        "scope": "Script_Waves",
+        "p95Ms": 2.0566711707929244,
+        "meanMs": 2.0166026911784423,
+        "thread": " RBX Main"
+      },
+      {
+        "maxMs": 0.09723359962026734,
+        "count": 7,
+        "scope": "updateInvalidParts",
+        "p95Ms": 0.09723359962026734,
+        "meanMs": 0.08408377712859354,
+        "thread": " RBX Main"
+      }
+    ]
+  },
+  "memoryAssets": {
+    "GetAnimationMemoryAsync": {
+      "top": [
+        {
+          "Name": "rbxassetid://6409133522",
+          "Size": 15949
+        },
+        {
+          "Name": "rbxassetid://6409138208",
+          "Size": 12149
+        },
+        {
+          "Name": "rbxassetid://138048598476917",
+          "Size": 7675
+        }
+      ],
+      "size": 42531
+    },
+    "GetAudioMemoryAsync": {
+      "top": [
+        {
+          "Name": "SoundService.SoundServicePackage.Combat",
+          "Size": 2765036
+        },
+        {
+          "Name": "Workspace.Entity.rodexiy.HumanoidRootPart",
+          "Size": 2727072
+        },
+        {
+          "Name": "SoundService.ClientFootstepCache",
+          "Size": 2354500
+        }
+      ],
+      "size": 27638290
+    }
+  },
+  "findings": [
+    {
+      "system": "SmartBone",
+      "evidence": "Setting SmartBone=false via player attribute did not improve FPS. Disabling all 81 runtime LocalScripts reduced mean render interval from 47.84 to 30.82 ms. BoneTree PreUpdate still runs before offscreen/update-rate skip. Templates in ReplicatedStorage get actors too.",
+      "priority": 1
+    },
+    {
+      "system": "Ocean",
+      "evidence": "2025 bones, eight wave components; Script_Waves complete-scope mean 2.0166 ms baseline versus 0.00139 ms with Waves=false. Wave visibility uses plane intersections and no occlusion. Bottom-center ray hits rug at 9.17 studs before ocean plane at 80.71 studs.",
+      "priority": 2
+    },
+    {
+      "system": "Geometry/Ores",
+      "evidence": "224 copies of mesh rbxassetid://121489555298055, 3855 faces each. Ores isolation reduced opaque triangles from 3535490 to 2571336. A sampled replacement trunk mesh has 988 faces.",
+      "priority": 3
+    },
+    {
+      "system": "Cloth cutting",
+      "evidence": "Static analysis: per-swing PreRender path skins vertices, scans faces, and builds temporary tables. Mesh connected-component rebuilding on commit. Not reproduced under combat; possible spikes, not established baseline cause."
+    },
+    {
+      "system": "ScreenParticleController lifecycle",
+      "evidence": "Static analysis: global CollectionService Electrified listeners registered inside BindCharacter on every respawn, capturing old character. No disconnect on character removal. Not measured through respawn cycles."
+    }
+  ],
+  "validation": {
+    "rojoBuild": "Passed: rojo build default.project.json --output <TEMP>/Samurai-Rampage-fps-audit.rbxlx",
+    "gameScriptsModified": false,
+    "selene": "Not applicable: no script files changed."
+  }
+}
