@@ -2,7 +2,9 @@ local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
+local DayNightCycleConfig = require(ReplicatedStorage.Shared.DayNightCycleConfig)
 local IntroCutsceneConfig = require(ReplicatedStorage.Shared.IntroCutsceneConfig)
 
 local DayNightCycleController = Knit.CreateController({
@@ -13,13 +15,10 @@ local Player = Players.LocalPlayer
 
 local START_MINUTES_ATTRIBUTE = "DayNightCycleStartMinutes"
 local START_SERVER_TIME_ATTRIBUTE = "DayNightCycleStartServerTime"
-local MINUTES_PER_SECOND_ATTRIBUTE = "DayNightCycleMinutesPerSecond"
 local WAIT_TIME_ATTRIBUTE = "DayNightCycleWaitTime"
 
 
 local WISDOM_WORLD_CLOCK_TIME = 14
-local DEFAULT_WAIT_TIME = 0.25
-local DAY_MINUTES = 24 * 60
 local STREET_LIGHT_ON_COLOR = Color3.fromRGB(248, 248, 248)
 local STREET_LIGHT_OFF_COLOR = Color3.fromRGB(0, 0, 0)
 
@@ -27,21 +26,20 @@ local DefaultStreetLightColors = {}
 local DefaultLightPartColors = {}
 local LightsOn
 
-local function GetCycleWaitTime()
-	return workspace:GetAttribute(WAIT_TIME_ATTRIBUTE) or DEFAULT_WAIT_TIME
+local function GetCycleWaitTime(): number
+	return workspace:GetAttribute(WAIT_TIME_ATTRIBUTE) or DayNightCycleConfig.UpdateInterval
 end
 
-local function GetSyncedMinutesAfterMidnight()
+local function GetSyncedMinutesAfterMidnight(): number
 	local StartMinutes = workspace:GetAttribute(START_MINUTES_ATTRIBUTE)
 	local StartServerTime = workspace:GetAttribute(START_SERVER_TIME_ATTRIBUTE)
-	local MinutesPerSecond = workspace:GetAttribute(MINUTES_PER_SECOND_ATTRIBUTE)
 
-	if typeof(StartMinutes) ~= "number" or typeof(StartServerTime) ~= "number" or typeof(MinutesPerSecond) ~= "number" then
+	if typeof(StartMinutes) ~= "number" or typeof(StartServerTime) ~= "number" then
 		return Lighting:GetMinutesAfterMidnight()
 	end
 
 	local Elapsed = math.max(0, workspace:GetServerTimeNow() - StartServerTime)
-	return (StartMinutes + Elapsed * MinutesPerSecond) % DAY_MINUTES
+	return DayNightCycleConfig.GetMinutesAfterMidnight(StartMinutes, Elapsed)
 end
 
 local function ApplyStreetLight(Neon: Instance, IsLightsOn: boolean)
@@ -110,7 +108,7 @@ local function UpdateClock()
 end
 
 function DayNightCycleController.KnitStart()
-	CollectionService:GetInstanceAddedSignal("StreetLight"):Connect(function(Neon)
+	CollectionService:GetInstanceAddedSignal("StreetLight"):Connect(function(Neon: Instance)
 		if LightsOn ~= nil then
 			ApplyStreetLight(Neon, LightsOn)
 		end
@@ -119,12 +117,19 @@ function DayNightCycleController.KnitStart()
 	Player:GetAttributeChangedSignal("InWisdomWorld"):Connect(UpdateClock)
 	Player:GetAttributeChangedSignal("InIntroStorm"):Connect(UpdateClock)
 
-	task.spawn(function()
-		while true do
-			UpdateClock()
-			task.wait(GetCycleWaitTime())
+	local Elapsed = 0
+	RunService.Heartbeat:Connect(function(DeltaTime: number)
+		Elapsed += DeltaTime
+		local Interval = GetCycleWaitTime()
+		if Elapsed < Interval then
+			return
 		end
+
+		Elapsed %= Interval
+		UpdateClock()
 	end)
+
+	UpdateClock()
 end
 
 return DayNightCycleController

@@ -10,8 +10,9 @@ local WeatherController = Knit.CreateController({
 })
 
 local RenderController
+local WeatherService
 
-local currentHumidity
+local serverHumidity: number?
 local currentWeather
 
 local Camera = workspace.CurrentCamera
@@ -259,7 +260,10 @@ function WeatherController:UpdateWeather()
 		return
 	end
 
-	currentHumidity = workspace:GetAttribute("ClientHumidity") or workspace:GetAttribute("Humidity")
+	local currentHumidity = workspace:GetAttribute("ClientHumidity") or serverHumidity
+	if typeof(currentHumidity) ~= "number" then
+		return
+	end
 
 	if currentHumidity > 0.8 then
 		bindEffect()
@@ -286,6 +290,7 @@ end
 
 function WeatherController.KnitInit()
 	RenderController = Knit.GetController("RenderController")
+	WeatherService = Knit.GetService("WeatherService")
 end
 
 function WeatherController.KnitStart()
@@ -310,27 +315,27 @@ function WeatherController.KnitStart()
 		end
 	end)
 
-	task.spawn(function()
-		local counter = workspace.DistributedGameTime + workspace:GetAttribute("WeatherRandomFactor")
-		while true do
-			counter += 0.01
-			local noise = math.noise(counter, 0, 0) * 1.5
-			workspace:SetAttribute("Humidity", math.abs(noise))
-
-			task.wait(5)
-		end
-	end)
-
-	workspace:GetAttributeChangedSignal("Humidity"):Connect(function()
+	WeatherService.HumidityChanged:Connect(function(Humidity: number)
+		serverHumidity = Humidity
 		WeatherController:UpdateWeather()
 	end)
 	workspace:GetAttributeChangedSignal("ClientHumidity"):Connect(function()
+		WeatherController:UpdateWeather()
+	end)
+	workspace:GetAttributeChangedSignal("InMainMenu"):Connect(function()
 		WeatherController:UpdateWeather()
 	end)
 
 	if workspace:GetAttribute("Season") == "Winter" then
 		WeatherController:AddWinterEffect()
 	end
+
+	local Humidity = WeatherService:GetHumidity()
+	if serverHumidity == nil then
+		serverHumidity = Humidity
+	end
+
+	WeatherController:UpdateWeather()
 end
 
 return WeatherController

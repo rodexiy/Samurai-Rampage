@@ -1,26 +1,22 @@
 local Lighting = game:GetService("Lighting")
-local Workspace = game:GetService("Workspace")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local DayNightCycleConfig = require(ReplicatedStorage.Shared.DayNightCycleConfig)
 
 local DayNightCycleService = Knit.CreateService({
 	Name = "DayNightCycleService",
 	Client = {},
 })
 
-local TIME_SHIFT = 0.155 -- how many minutes shift every tick
-local WAIT_TIME = 0.25 -- length of the tick in seconds
-local MINUTES_PER_SECOND = TIME_SHIFT / WAIT_TIME
-
 local START_MINUTES_ATTRIBUTE = "DayNightCycleStartMinutes"
 local START_SERVER_TIME_ATTRIBUTE = "DayNightCycleStartServerTime"
-local MINUTES_PER_SECOND_ATTRIBUTE = "DayNightCycleMinutesPerSecond"
 local WAIT_TIME_ATTRIBUTE = "DayNightCycleWaitTime"
 
 function DayNightCycleService:SyncCycle(StartMinutes: number?)
-	Workspace:SetAttribute(START_MINUTES_ATTRIBUTE, StartMinutes or math.random(4 * 60, 18 * 60))
-	Workspace:SetAttribute(START_SERVER_TIME_ATTRIBUTE, Workspace:GetServerTimeNow())
-	Workspace:SetAttribute(MINUTES_PER_SECOND_ATTRIBUTE, MINUTES_PER_SECOND)
-	Workspace:SetAttribute(WAIT_TIME_ATTRIBUTE, WAIT_TIME)
+	workspace:SetAttribute(START_MINUTES_ATTRIBUTE, StartMinutes or math.random(4 * 60, 18 * 60))
+	workspace:SetAttribute(START_SERVER_TIME_ATTRIBUTE, workspace:GetServerTimeNow())
+	workspace:SetAttribute(WAIT_TIME_ATTRIBUTE, DayNightCycleConfig.UpdateInterval)
 end
 
 function DayNightCycleService:SetTime(ClockTime: number)
