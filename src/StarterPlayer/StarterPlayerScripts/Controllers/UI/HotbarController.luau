@@ -23,6 +23,8 @@ type HotbarSlot = {
 local HotbarController = Knit.CreateController({
 	Name = "HotbarController",
 })
+local Updated = Instance.new("BindableEvent")
+HotbarController.Updated = Updated.Event
 
 local InventoryService
 local SkillService
@@ -82,16 +84,18 @@ end
 function HotbarController:UpdateVisibility()
 	local InventoryOpen = InventoryController:IsOpen()
 	local StatsOpen = InventoryOpen and InventoryController:GetCurrentTab() == "Stats"
+	local ConsoleHidden = UserInputService.PreferredInput == Enum.PreferredInput.Gamepad
+		and not InventoryOpen and not self:IsSelectingSlot()
 	if Background and Hotbar then
 		local Parent = if InventoryOpen and InventoryGui then InventoryGui else Hotbar
 		if Background.Parent ~= Parent then
 			Background.Parent = Parent
 		end
-		Background.Visible = not DialogHidden and not InventoryModalHidden and not StatsOpen
+		Background.Visible = not DialogHidden and not InventoryModalHidden and not StatsOpen and not ConsoleHidden
 	end
 
 	if Hotbar then
-		Hotbar.Enabled = not DialogHidden and not InventoryOpen
+		Hotbar.Enabled = not DialogHidden and not InventoryOpen and not ConsoleHidden
 	end
 end
 
@@ -424,6 +428,7 @@ function HotbarController:UpdateSlot(Index: number, Tool: Tool?)
 			InventoryDragController:SetSlotStrokeColor(Slot.Button, Color)
 		end
 	end
+	Updated:Fire(Index)
 end
 
 function HotbarController:LoadHotbar(ShowEmpty: boolean, Selected: boolean?)
@@ -485,6 +490,27 @@ function HotbarController:HandleEquip()
 	end
 
 	HotbarController:LoadHotbar(HotbarController:HotbarEnabledBooleans())
+end
+
+function HotbarController:SelectConsoleSlot(Index: number?)
+	if not Character or Character:GetAttribute("RealmEditing") or Player:GetAttribute("InIntroCutscene")
+		or DialogHidden or Player:GetAttribute("InDialog") or InventoryController:IsOpen() then
+		return
+	end
+
+	local Tool = self:GetToolInHotbarIndex(Index)
+	if Tool and Tool:GetAttribute("Class") == "Skill" then
+		self.OnKeyPress(Index, Enum.UserInputState.Begin)
+		self.OnKeyPress(Index, Enum.UserInputState.End)
+		return
+	end
+
+	if Tool and Tool.Parent == Character then
+		return
+	end
+
+	SelectedSlot = if Tool then Index else nil
+	self:HandleEquip()
 end
 
 function HotbarController:GetToolByNameFromPlayer(ToolName: string): Tool?
@@ -836,6 +862,9 @@ function HotbarController.KnitStart()
 	Background = Hotbar:WaitForChild("Background") :: Frame
 	HotbarController:CreateSlots()
 	HotbarController:UpdateVisibility()
+	UserInputService:GetPropertyChangedSignal("PreferredInput"):Connect(function()
+		HotbarController:UpdateVisibility()
+	end)
 
 	Player.Backpack.ChildAdded:Connect(function(Child: Instance)
 		if Child:IsA("Tool") then

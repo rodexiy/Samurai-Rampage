@@ -129,6 +129,11 @@ function BowConfig.CanUse(Character: Model): boolean
 		and Character:FindFirstChildWhichIsA("Tool") == nil
 end
 
+function BowConfig.CanAttack(Character: Model): boolean
+	return not Character:GetAttribute("EgoActive") and not Character:GetAttribute("EgoCutscene")
+		and BowConfig.CanUse(Character)
+end
+
 function BowConfig.IsValidAim(Point: any): boolean
 	return typeof(Point) == "Vector3" and Point.X == Point.X and Point.Y == Point.Y and Point.Z == Point.Z
 		and math.abs(Point.X) < 1e6 and math.abs(Point.Y) < 1e6 and math.abs(Point.Z) < 1e6

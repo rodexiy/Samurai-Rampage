@@ -8,97 +8,30 @@ local SettingsController = Knit.CreateController({
 })
 
 local SettingsService
+local MenuController
 
 local Player = Players.LocalPlayer
-local PlayerGui
-local Menu
-local SettingsUI
+local PlayerGui: PlayerGui
+local Menu: ScreenGui
+local SettingsUI: ScreenGui
 
 local Toggles = {
 	[true] = Color3.fromRGB(0, 255, 0),
 	[false] = Color3.fromRGB(255, 0, 0),
 }
 
-local function SetSettingLabel(Setting: Instance, Text: string)
-	for _, Descendant in Setting:QueryDescendants("GuiObject") do
-		if (Descendant:IsA("TextLabel") or Descendant:IsA("TextButton")) and Descendant.Name ~= "Toggle" then
-			Descendant.Text = Text
-			return
-		end
-	end
-end
-
-function SettingsController:EnsureSettingButton(SettingName: string)
-	if SettingsUI:FindFirstChild(SettingName, true) then
-		return
-	end
-
-	if SettingName == "OST" then
-		local Template = SettingsUI:FindFirstChild("Ambience", true) or SettingsUI:FindFirstChild("Shadows", true)
-		if not Template then
-			return
-		end
-
-		local Setting = Template:Clone()
-		Setting.Name = SettingName
-		SetSettingLabel(Setting, SettingName)
-		Setting.Parent = Template.Parent
-	elseif SettingName == "Birds" or SettingName == "ClothCut" or SettingName == "SmartBone" then
-		local Gameplay = SettingsUI:FindFirstChild("Gameplay", true)
-		if not Gameplay then
-			return
-		end
-
-		local Template = Gameplay:FindFirstChild("LagCompensation") :: ImageButton?
-		if not Template then
-			return
-		end
-
-		local Environment = SettingsUI:FindFirstChild("Environment", true) :: Frame?
-		if not Environment then
-			Environment = Gameplay:Clone() :: Frame
-			Environment.Name = "Environment"
-			Environment.AutomaticSize = Enum.AutomaticSize.Y
-			Environment.Size = UDim2.fromScale(1, 0)
-			local Layout = Environment:FindFirstChildWhichIsA("UIListLayout")
-			if Layout then
-				Layout.Padding = UDim.new(0, 4)
-				Layout.SortOrder = Enum.SortOrder.LayoutOrder
-			end
-			for _, Child in Environment:GetChildren() do
-				if Child:IsA("GuiButton") or Child:IsA("UIAspectRatioConstraint") then
-					Child:Destroy()
-				end
-			end
-			local Title = Environment:FindFirstChild("1 Title") :: TextLabel?
-			if Title then
-				Title.Text = "\u{2022} Environment"
-				Title.Size = UDim2.new(1, 0, 0, 32)
-			end
-			Environment.Parent = Gameplay.Parent
-		end
-
-		local Setting = Template:Clone()
-		Setting.Name = SettingName
-		Setting.Size = UDim2.new(1, 0, 0, 42)
-		Setting.LayoutOrder = if SettingName == "Birds" then 1 elseif SettingName == "ClothCut" then 2 else 3
-		SetSettingLabel(Setting, if SettingName == "ClothCut" then "Cloth Cut" else SettingName)
-		Setting.Parent = Environment
-	end
-end
-
 function SettingsController:LoadSettings()
 	for SettingName, SettingValue in SettingsService:GetSettings() do
-		SettingsController:EnsureSettingButton(SettingName)
-
 		local Setting = SettingsUI:FindFirstChild(SettingName, true) :: ImageButton?
 		if not Setting then
 			continue
 		end
+
 		local Toggle = Setting:FindFirstChild("Toggle") :: ImageButton?
 		if not Toggle then
 			continue
 		end
+
 		Toggle.ImageColor3 = Toggles[SettingValue]
 
 		local function ToggleSetting()
@@ -153,12 +86,19 @@ end
 
 function SettingsController.KnitInit()
 	SettingsService = Knit.GetService("SettingsService")
+	MenuController = Knit.GetController("MenuController")
 end
 
 function SettingsController.KnitStart()
-	PlayerGui = Player:WaitForChild("PlayerGui")
-	Menu = PlayerGui:WaitForChild("Menu")
-	SettingsUI = Menu:WaitForChild("Settings")
+	PlayerGui = Player:WaitForChild("PlayerGui") :: PlayerGui
+	Menu = PlayerGui:WaitForChild("Menu") :: ScreenGui
+	SettingsUI = Menu:WaitForChild("Settings") :: ScreenGui
+
+	local Background = SettingsUI:WaitForChild("background") :: Frame
+	local Close = Background:WaitForChild("Close") :: ImageButton
+	MenuController:BindCloseButton(Close, function()
+		MenuController:CloseAllMenus()
+	end)
 
 	SettingsController:LoadSettings()
 

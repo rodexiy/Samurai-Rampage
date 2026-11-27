@@ -191,6 +191,7 @@ return function(Sources: { [string]: string }): string
 			end,
 		} }
 		local Device = {
+			RegisterAction = function() end,
 			BindAction = function(_Self: any, _Name: string, Callback: any)
 				F.MobileInput = Callback
 			end,

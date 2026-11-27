@@ -27,6 +27,12 @@ local EquipWeapon = {
 			return
 		end
 
+		if inputState == Enum.UserInputState.Cancel then
+			AnimationController:StopAnimationFind(Character, "EquipHold")
+			Character:SetAttribute("Equipping", false)
+			return
+		end
+
 		local CombatAnimations = AnimationController:GetCombatAnimationFolder(Character)
 		if Character:GetAttribute("Meditating") or Character:GetAttribute("RealmEditing") then
 			return

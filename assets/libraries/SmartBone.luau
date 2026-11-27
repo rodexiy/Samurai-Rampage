@@ -7,7 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Dependencies = script:WaitForChild("Dependencies")
 
-local CeiveImOverlay = require(ReplicatedStorage.Assets.Libraries.SmartBone.Dependencies:WaitForChild("CeiveImOverlay"))
+local CeiveImOverlay = require(ReplicatedStorage.Assets.Libraries.SmartBone.Dependencies:WaitForChild("Debug"):WaitForChild("ImOverlay") :: ModuleScript)
 local Config = require(ReplicatedStorage.Assets.Libraries.SmartBone.Dependencies:WaitForChild("Config"))
 local Frustum = require(ReplicatedStorage.Assets.Libraries.SmartBone.Dependencies:WaitForChild("Frustum"))
 local Utilities = require(ReplicatedStorage.Assets.Libraries.SmartBone.Dependencies:WaitForChild("Utilities"))

@@ -2,9 +2,11 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local KickConfig = require(ReplicatedStorage.Shared.KickConfig)
+local EgoConfig = require(ReplicatedStorage.Shared.EgoConfig)
 
 local GeneralCantAttributes = {
 	"Kicking",
+	"EgoCutscene",
 	"Bandaging",
 	"IntroOpening",
 	"Mounted",
@@ -48,6 +50,11 @@ local LessonActions = { Parry = "Block", Attack = "Attack", Dodge = "Roll", Kick
 local IntroCombatActions = { Attack = true, Block = true, Roll = true, Kick = true }
 
 function Validate:CanPerformIntroAction(Character: Model, Action: string): boolean
+	if Character:GetAttribute("EgoCutscene")
+		or (Character:GetAttribute("EgoActive") and EgoConfig.BlockedActions[Action]) then
+		return false
+	end
+
 	local Player = Players:GetPlayerFromCharacter(Character)
 	if not Player or not Player:GetAttribute("InIntroCutscene") then
 		return true

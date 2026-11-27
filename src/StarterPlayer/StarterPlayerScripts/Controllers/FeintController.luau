@@ -16,6 +16,10 @@ local function Feint(State: Enum.UserInputState)
 	end
 end
 
+function FeintController:HandleInput(State: Enum.UserInputState)
+	Feint(State)
+end
+
 local function BindCharacter(Character: Model)
 	local function Refresh()
 		DeviceController:UnbindAction("Feint")
@@ -35,8 +39,11 @@ function FeintController.KnitInit()
 end
 
 function FeintController.KnitStart()
+	DeviceController:RegisterAction("Feint", "Feint", UDim2.fromScale(0.65, 0.725))
+
 	UserInputService.InputBegan:Connect(function(Input: InputObject, Processed: boolean)
-		if not Processed and Input.UserInputType == Enum.UserInputType.MouseButton2 then
+		if not Processed and Input.UserInputType == Enum.UserInputType.MouseButton2
+			and UserInputService.PreferredInput ~= Enum.PreferredInput.Gamepad then
 			Feint(Enum.UserInputState.Begin)
 		end
 	end)

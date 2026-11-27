@@ -16,6 +16,7 @@ local HorseMountedAnimationController = require(Players.LocalPlayer.PlayerScript
 local HorseController = Knit.CreateController({ Name = "HorseController" })
 local LocalPlayer = Players.LocalPlayer
 local HorseService
+local DeviceController
 local Steering: HorseSteeringController.State? = nil
 local Gait: HorseGaitController.State? = nil
 local Avoidance: HorseAvoidanceController.State? = nil
@@ -34,7 +35,7 @@ local function UpdatePrompt(Model: Model)
 	end
 end
 
-local function DismountAction(_Name: string, State: Enum.UserInputState, _Input: InputObject): Enum.ContextActionResult
+local function DismountAction(_Name: string, State: Enum.UserInputState, _Input: InputObject?): Enum.ContextActionResult
 	if State == Enum.UserInputState.Begin then
 		HorseService.Request:Fire("Dismount")
 	end
@@ -42,17 +43,19 @@ local function DismountAction(_Name: string, State: Enum.UserInputState, _Input:
 	return Enum.ContextActionResult.Sink
 end
 
-local function GaitAction(_Name: string, State: Enum.UserInputState, Input: InputObject): Enum.ContextActionResult
+local function GaitAction(_Name: string, State: Enum.UserInputState, Input: InputObject?): Enum.ContextActionResult
 	if not Gait then
 		return Enum.ContextActionResult.Pass
 	end
+
+	local KeyCode = if Input then Input.KeyCode else Enum.KeyCode.None
 	if State == Enum.UserInputState.Begin then
 		if UserInputService:GetFocusedTextBox() or LocalPlayer:GetAttribute("InDialog") then
 			return Enum.ContextActionResult.Pass
 		end
-		ShiftKeys[Input.KeyCode] = true
+		ShiftKeys[KeyCode] = true
 	elseif State == Enum.UserInputState.End then
-		ShiftKeys[Input.KeyCode] = nil
+		ShiftKeys[KeyCode] = nil
 	elseif State == Enum.UserInputState.Cancel then
 		table.clear(ShiftKeys)
 	end
@@ -77,15 +80,23 @@ local function SetControlledHorse(Model: Model?)
 		then HorseSteeringController.Create(Model.PrimaryPart.CFrame, Model.PrimaryPart.AssemblyLinearVelocity) else nil
 	ContextActionService:UnbindAction("DismountHorse")
 	ContextActionService:UnbindAction("HorseGait")
+	DeviceController:UnbindAction("DismountHorse")
+	DeviceController:UnbindAction("HorseGait")
+
 	if Model then
 		ContextActionService:BindActionAtPriority(
-			"DismountHorse", DismountAction, true, Enum.ContextActionPriority.High.Value + 1,
-			HorseConfig.DismountKey, Enum.KeyCode.ButtonA
+			"DismountHorse", DismountAction, false, Enum.ContextActionPriority.High.Value + 1,
+			HorseConfig.DismountKey, Enum.KeyCode.ButtonB
 		)
-		ContextActionService:SetTitle("DismountHorse", "Dismount")
-		ContextActionService:BindActionAtPriority("HorseGait", GaitAction, true,
-			Enum.ContextActionPriority.High.Value + 2, Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift, Enum.KeyCode.ButtonL3)
-		ContextActionService:SetTitle("HorseGait", "Galopar")
+		ContextActionService:BindActionAtPriority("HorseGait", GaitAction, false,
+			Enum.ContextActionPriority.High.Value + 2, Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift, Enum.KeyCode.ButtonA)
+
+		DeviceController:BindAction("DismountHorse", function(State: Enum.UserInputState)
+			DismountAction("DismountHorse", State)
+		end, "Dismount", UDim2.fromScale(0.925, 0.9), true)
+		DeviceController:BindAction("HorseGait", function(State: Enum.UserInputState)
+			GaitAction("HorseGait", State)
+		end, "Galopar", UDim2.fromScale(0.625, 0.9), true)
 	end
 end
 
@@ -175,8 +186,15 @@ local function Simulate(DeltaTime: number)
 	end
 end
 
+function HorseController.KnitInit()
+	DeviceController = Knit.GetController("DeviceController")
+end
+
 function HorseController.KnitStart()
 	HorseService = Knit.GetService("HorseService")
+	DeviceController:RegisterAction("DismountHorse", "Dismount", UDim2.fromScale(0.925, 0.9))
+	DeviceController:RegisterAction("HorseGait", "Galopar", UDim2.fromScale(0.625, 0.9))
+
 	CollectionService:GetInstanceAddedSignal(HorseConfig.Tag):Connect(TrackHorse)
 	CollectionService:GetInstanceRemovedSignal(HorseConfig.Tag):Connect(function(Instance: Instance)
 		-- Streaming can remove a tag without destroying the instance.
@@ -203,11 +221,6 @@ function HorseController.KnitStart()
 		table.clear(ShiftKeys)
 		if Gait then
 			HorseGaitController.Cancel(Gait)
-		end
-	end)
-	UserInputService.InputBegan:Connect(function(Input: InputObject, Processed: boolean)
-		if not Processed and Input.KeyCode == HorseConfig.SpawnKey and not UserInputService:GetFocusedTextBox() then
-			HorseService.Request:Fire("Spawn")
 		end
 	end)
 	RunService.PreSimulation:Connect(Simulate)

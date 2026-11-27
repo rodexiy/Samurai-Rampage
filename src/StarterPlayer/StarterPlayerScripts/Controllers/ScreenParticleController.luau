@@ -3,11 +3,13 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local ScreenParticleController = Knit.CreateController({ Name = "ScreenParticleController" })
 local RenderController
+local WhisperTemplate: Sound
 local Player = Players.LocalPlayer
 local ScreenParticles = ReplicatedStorage.Assets.VFX.Screen
 local RENDER_BINDING = "ScreenParticleController"
@@ -22,8 +24,16 @@ type Entry = {
 	Stopping: boolean,
 	DurationTask: thread?,
 	CleanupTask: thread?,
+	Whisper: Sound?,
 }
 local Particles: { [string]: Entry } = {}
+
+local function StopWhisper(Entry: Entry)
+	if Entry.Whisper then
+		Entry.Whisper:Destroy()
+		Entry.Whisper = nil
+	end
+end
 
 local function DestroyParticle(Entry: Entry, DestroyInstance: boolean)
 	if Particles[Entry.Id] ~= Entry then
@@ -31,6 +41,7 @@ local function DestroyParticle(Entry: Entry, DestroyInstance: boolean)
 	end
 
 	Particles[Entry.Id] = nil
+	StopWhisper(Entry)
 	if Entry.DurationTask then
 		task.cancel(Entry.DurationTask)
 		Entry.DurationTask = nil
@@ -55,6 +66,7 @@ local function StopParticle(Entry: Entry)
 	end
 
 	Entry.Stopping = true
+	StopWhisper(Entry)
 	if Entry.DurationTask then
 		task.cancel(Entry.DurationTask)
 		Entry.DurationTask = nil
@@ -105,8 +117,8 @@ local function ConfigureParticle(Particle: BasePart | Model, Camera: Camera): CF
 
 	assert(Particle:IsA("BasePart"), "Screen particle must be a BasePart or a border Model")
 	if SizeType == "FillScreen" then
-		Particle.Size = Vector3.new(HorizontalSize, VerticalSize, 0)
-		return CFrame.identity
+		Particle.Size = Vector3.new(HorizontalSize, VerticalSize, 0.01)
+		return CFrame.new(0, 0, -1)
 	end
 
 	Particle.Size = Vector3.new(HorizontalSize, 1, 0)
@@ -147,6 +159,13 @@ function ScreenParticleController:EmitParticle(ParticleName: string, Duration: n
 		end
 	else
 		RenderController:EmitParticles(Particle)
+	end
+
+	if ParticleName == "Fear" then
+		local Whisper = WhisperTemplate:Clone()
+		Entry.Whisper = Whisper
+		Whisper.Parent = SoundService
+		Whisper:Play()
 	end
 
 	if not RenderBound then
@@ -205,6 +224,30 @@ local function RefreshCharacter()
 	local Damage = Character:GetAttribute("BurnDamage")
 	RefreshStatus("Burn", typeof(Damage) == "number" and Damage > 0)
 	RefreshStatus("Electrified", CollectionService:HasTag(Character, "Electrified"))
+
+	local Fear = Player:GetAttribute("Fear") or 0
+	RefreshStatus("Fear", Fear >= 75)
+
+	local Intensity = math.clamp((Fear - 75) / 25, 0, 1)
+	local Rate = 0.1 + 0.9 * Intensity
+	local Volume = 0.5 + 0.5 * Intensity
+	for _, Entry in Particles do
+		if Entry.Stopping or Entry.Particle.Name ~= "Fear" then
+			continue
+		end
+
+		if Entry.Whisper then
+			Entry.Whisper.Volume = Volume
+		end
+
+		for _, Emitter in Entry.Particle:QueryDescendants("ParticleEmitter") :: { ParticleEmitter } do
+			if Emitter.Name == "Eyes" then
+				Emitter.Rate = Rate
+			elseif Emitter.Name == "Spark" or Emitter.Name == "Sparks" then
+				Emitter.Rate = 15
+			end
+		end
+	end
 end
 
 local function UnbindCharacter()
@@ -225,9 +268,17 @@ end
 
 function ScreenParticleController.KnitInit()
 	RenderController = Knit.GetController("RenderController")
+
+	WhisperTemplate = Instance.new("Sound")
+	WhisperTemplate.Name = "FearWhisper"
+	WhisperTemplate.SoundId = "rbxassetid://103019858973166"
+	WhisperTemplate.Volume = 0.5
+	WhisperTemplate.Looped = true
+	WhisperTemplate.Parent = SoundService
 end
 
 function ScreenParticleController.KnitStart()
+	Player:GetAttributeChangedSignal("Fear"):Connect(RefreshCharacter)
 	Player.CharacterAdded:Connect(BindCharacter)
 	Player.CharacterRemoving:Connect(function(OldCharacter: Model)
 		if OldCharacter == Character then

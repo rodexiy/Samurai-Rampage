@@ -22,7 +22,7 @@ local ResourceTypes = {
 		Rewards = {
 			{ Name = "WoodLog", Amount = { 4, 8 }, Weight = 100 },
 		},
-		RespawnTime = { 5, 10 },
+		RespawnTime = { 60, 60 },
 	},
 
 	Iron = {

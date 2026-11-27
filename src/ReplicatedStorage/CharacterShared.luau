@@ -35,6 +35,12 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 		return
 	end
 	local function SetWalkSpeed(Speed: number)
+		if Character:GetAttribute("EgoCutscene") then
+			Speed = 0
+		elseif Character:GetAttribute("EgoActive") then
+			Speed = math.min(Speed, Character:GetAttribute("DefaultWalkSpeed") or 16)
+		end
+
 		if Character:GetAttribute("Kicking") then
 			Speed = math.min(Speed, GetBlockWalkSpeed(Character))
 		end
@@ -144,7 +150,9 @@ function Shared:ChangeJumpPower(Character: Model, amount: number?, overwrite: st
 	end
 	local Player = Players:GetPlayerFromCharacter(Character)
 	if (Player and Player:GetAttribute("InIntroCutscene"))
-		or Character:GetAttribute("BowDrawing") or Character:GetAttribute("Crouching") or Character:GetAttribute("Kicking") then
+		or Character:GetAttribute("EgoCutscene")
+		or Character:GetAttribute("Meditating") or Character:GetAttribute("BowDrawing")
+		or Character:GetAttribute("Crouching") or Character:GetAttribute("Kicking") then
 		humanoid.Jump = false
 		humanoid.JumpPower = 0
 		return

@@ -32,7 +32,7 @@ function RangedWeaponConfig.CanFocus(Character: Model, Active: boolean?): boolea
 		and Humanoid.FloorMaterial ~= Enum.Material.Air
 		and Humanoid.MoveDirection.Magnitude < Config.FocusMoveInputDeadzone
 		and Root:GetVelocityAtPosition(Root.Position).Magnitude <= MaxSpeed
-		and not Character:GetAttribute("Running") and Config.CanUse(Character)
+		and not Character:GetAttribute("Running") and Config.CanAttack(Character)
 end
 
 function RangedWeaponConfig.GetModel(ItemName: string): Model?

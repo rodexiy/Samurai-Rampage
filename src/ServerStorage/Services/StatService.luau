@@ -161,7 +161,11 @@ function StatService:GiveXP(Player: Player, Name: string, Amount: number): numbe
 	return Levels
 end
 
-function StatService:MaxStats(Player: Player): (boolean, string?)
+function StatService:SetStats(Player: Player, Level: number): (boolean, string?)
+	if typeof(Level) ~= "number" or Level ~= Level or Level < 0 or Level > Progression.MaxLevel or Level % 1 ~= 0 then
+		return false, string.format("Level must be a whole number between 0 and %d.", Progression.MaxLevel)
+	end
+
 	local Data = DataService:GetData(Player)
 	if not LoadedPlayers[Player] or not Data or not Data.Stats then
 		return false, "Player data is not loaded."
@@ -169,7 +173,7 @@ function StatService:MaxStats(Player: Player): (boolean, string?)
 
 	for _, Name in Progression.Names do
 		local Stat = Data.Stats[Name]
-		Stat.Level = Progression.MaxLevel
+		Stat.Level = Level
 		Stat.XP = 0
 	end
 
@@ -179,6 +183,10 @@ function StatService:MaxStats(Player: Player): (boolean, string?)
 	end
 
 	return true
+end
+
+function StatService:MaxStats(Player: Player): (boolean, string?)
+	return self:SetStats(Player, Progression.MaxLevel)
 end
 
 function StatService:GiveRewardXP(Player: Player, Amount: number, Kind: string)
@@ -229,6 +237,7 @@ end
 local function CanMeditate(Player: Player, Character: Model): boolean
 	local Root = Character.PrimaryPart
 	if not Root or Player:GetAttribute("InIntroCutscene") or Character:GetAttribute("Died") or Character:GetAttribute("Downed") or Player:GetAttribute("InCombat")
+		or Character:GetAttribute("EgoCutscene")
 		or Character:GetAttribute("InCombat") or Player:GetAttribute("InWisdomWorld") or Character:GetAttribute("RealmEditing") then
 		return false
 	end

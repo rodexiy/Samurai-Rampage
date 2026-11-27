@@ -1,4 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ContextActionService = game:GetService("ContextActionService")
+local GamepadService = game:GetService("GamepadService")
+local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -42,12 +45,18 @@ local Touches: { [InputObject]: TouchState } = {}
 local Focus = Vector3.zero
 local Distance = 100
 local FitDistance = 100
+type View = { Focus: Vector3, Distance: number, Yaw: number, Pitch: number }
+local PreviousView: View? = nil
 type FocusMotion = {
 	StartedAt: number,
 	StartFocus: Vector3,
 	TargetFocus: Vector3,
 	StartDistance: number,
 	TargetDistance: number,
+	StartYaw: number,
+	TargetYaw: number,
+	StartPitch: number,
+	TargetPitch: number,
 }
 local FocusTransition: FocusMotion? = nil
 local FOCUS_DURATION = 0.35
@@ -70,6 +79,18 @@ local Panning = false
 local ROTATION_SPEED = 0.006
 local SCENE_ORIGIN = Vector3.new(0, 50000, 0)
 local CAMERA_BINDING = "SkillTreeSceneCamera"
+local GAMEPAD_BINDING = "SkillTreeSceneGamepad"
+local GAMEPAD_PRIORITY = Enum.ContextActionPriority.High.Value + 40
+local GAMEPAD_DEADZONE = 0.2
+local GAMEPAD_PAN_SPEED = 0.6
+local GAMEPAD_ORBIT_SPEED = 1.6
+local GAMEPAD_ZOOM_SPEED = 1.2
+local Gamepad: Enum.UserInputType? = nil
+local MoveStick = Vector2.zero
+local OrbitStick = Vector2.zero
+local ZoomOut = 0
+local ZoomIn = 0
+local BackHandled = false
 type SavedCamera = {
 	Camera: Camera,
 	CameraType: Enum.CameraType,
@@ -79,6 +100,7 @@ type SavedCamera = {
 	Subject: Instance?,
 	MouseBehavior: Enum.MouseBehavior,
 	MouseIconEnabled: boolean,
+	GamepadCursorEnabled: boolean,
 }
 local CameraState: SavedCamera? = nil
 local LightingState: { [string]: any } = {}
@@ -94,6 +116,16 @@ local SCENE_LIGHTING = {
 	ExposureCompensation = 0,
 	GlobalShadows = false,
 }
+
+local function CaptureView(): View
+	return { Focus = Focus, Distance = Distance, Yaw = Yaw, Pitch = Pitch }
+end
+
+local function RememberView()
+	if not PreviousView then
+		PreviousView = CaptureView()
+	end
+end
 
 local function Position2D(Input: InputObject): Vector2
 	return Vector2.new(Input.Position.X, Input.Position.Y)
@@ -165,6 +197,8 @@ function SkillTreeSceneController:Render()
 		Focus = FocusTransition.StartFocus:Lerp(FocusTransition.TargetFocus, Alpha)
 		Distance = FocusTransition.StartDistance
 			+ (FocusTransition.TargetDistance - FocusTransition.StartDistance) * Alpha
+		Yaw = FocusTransition.StartYaw + (FocusTransition.TargetYaw - FocusTransition.StartYaw) * Alpha
+		Pitch = FocusTransition.StartPitch + (FocusTransition.TargetPitch - FocusTransition.StartPitch) * Alpha
 		if Progress >= 1 then
 			FocusTransition = nil
 		end
@@ -201,7 +235,8 @@ function SkillTreeSceneController:Render()
 	end
 end
 
-function SkillTreeSceneController:Pan(Delta: Vector2)
+function SkillTreeSceneController:Pan(Delta: Vector2, SkipRender: boolean?)
+	RememberView()
 	self:CancelFocus()
 	local UnitsPerPixel = 2
 		* Distance
@@ -210,23 +245,110 @@ function SkillTreeSceneController:Pan(Delta: Vector2)
 	local Right = Vector3.new(math.cos(Yaw), 0, -math.sin(Yaw))
 	local Up = Vector3.new(-math.sin(Yaw), 0, -math.cos(Yaw))
 	Focus += (-Right * Delta.X + Up * Delta.Y / math.max(math.abs(math.sin(Pitch)), 0.2)) * UnitsPerPixel
-	self:Render()
+	if not SkipRender then
+		self:Render()
+	end
 end
 
-function SkillTreeSceneController:Orbit(Delta: Vector2)
+function SkillTreeSceneController:Orbit(Delta: Vector2, SkipRender: boolean?)
+	RememberView()
 	self:CancelFocus()
 	Yaw = (Yaw - Delta.X * ROTATION_SPEED) % (math.pi * 2)
 	Pitch = math.clamp(Pitch + Delta.Y * ROTATION_SPEED, math.rad(-80), math.rad(85))
-	self:Render()
+	if not SkipRender then
+		self:Render()
+	end
 end
 
-function SkillTreeSceneController:Zoom(Factor: number)
+function SkillTreeSceneController:Zoom(Factor: number, SkipRender: boolean?)
+	RememberView()
 	self:CancelFocus()
 	Distance = math.clamp(Distance * Factor, 18, math.min(math.max(FitDistance * 1.5, 100), 1600))
-	self:Render()
+	if not SkipRender then
+		self:Render()
+	end
+end
+
+local function ResetGamepad()
+	Gamepad = nil
+	MoveStick = Vector2.zero
+	OrbitStick = Vector2.zero
+	ZoomOut = 0
+	ZoomIn = 0
+end
+
+local function StickValue(Position: Vector3): Vector2
+	local Value = Vector2.new(Position.X, Position.Y)
+	local Magnitude = Value.Magnitude
+	if Magnitude <= GAMEPAD_DEADZONE then
+		return Vector2.zero
+	end
+	return Value.Unit * math.clamp((Magnitude - GAMEPAD_DEADZONE) / (1 - GAMEPAD_DEADZONE), 0, 1)
+end
+
+local function GamepadInput(_Name: string, State: Enum.UserInputState, Input: InputObject): Enum.ContextActionResult
+	if Input.KeyCode == Enum.KeyCode.ButtonB and State ~= Enum.UserInputState.Begin and BackHandled then
+		if State == Enum.UserInputState.End or State == Enum.UserInputState.Cancel then
+			BackHandled = false
+		end
+		return Enum.ContextActionResult.Sink
+	end
+	if not Screen or not Screen.Enabled or not CameraState then
+		return Enum.ContextActionResult.Pass
+	end
+	if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then
+		ResetGamepad()
+		return Enum.ContextActionResult.Pass
+	end
+	if Input.KeyCode == Enum.KeyCode.ButtonB then
+		if State == Enum.UserInputState.Begin and SkillTreeSceneController:ReturnView() then
+			Knit.GetController("SkillTreeController"):Unselect()
+			BackHandled = true
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end
+	if Gamepad and Input.UserInputType ~= Gamepad then
+		return Enum.ContextActionResult.Sink
+	end
+	Gamepad = Input.UserInputType
+	local Released = State == Enum.UserInputState.End or State == Enum.UserInputState.Cancel
+	if Input.KeyCode == Enum.KeyCode.Thumbstick1 then
+		MoveStick = if Released then Vector2.zero else StickValue(Input.Position)
+	elseif Input.KeyCode == Enum.KeyCode.Thumbstick2 then
+		OrbitStick = if Released then Vector2.zero else StickValue(Input.Position)
+	elseif Input.KeyCode == Enum.KeyCode.ButtonL2 then
+		ZoomOut = if Released then 0 else math.clamp(Input.Position.Z, 0, 1)
+	elseif Input.KeyCode == Enum.KeyCode.ButtonR2 then
+		ZoomIn = if Released then 0 else math.clamp(Input.Position.Z, 0, 1)
+	end
+	return Enum.ContextActionResult.Sink
+end
+
+function SkillTreeSceneController:UpdateGamepad(DeltaTime: number)
+	if not Screen.Enabled or not CameraState then
+		return
+	end
+	if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then
+		ResetGamepad()
+		return
+	end
+
+	local Step = math.clamp(DeltaTime, 0, 0.1)
+	if MoveStick ~= Vector2.zero then
+		self:Pan(Vector2.new(-MoveStick.X, MoveStick.Y) * InputSurface.AbsoluteSize.Y * GAMEPAD_PAN_SPEED * Step, true)
+	end
+	if OrbitStick ~= Vector2.zero then
+		self:Orbit(Vector2.new(OrbitStick.X, -OrbitStick.Y) * (GAMEPAD_ORBIT_SPEED / ROTATION_SPEED) * Step, true)
+	end
+	local Zoom = ZoomOut - ZoomIn
+	if Zoom ~= 0 then
+		self:Zoom(math.exp(Zoom * GAMEPAD_ZOOM_SPEED * Step), true)
+	end
 end
 
 function SkillTreeSceneController:ResetView()
+	PreviousView = nil
 	self:CancelFocus()
 	local Size = InputSurface.AbsoluteSize
 	local Aspect = Size.X / math.max(Size.Y, 1)
@@ -246,6 +368,7 @@ function SkillTreeSceneController:ResetView()
 end
 
 function SkillTreeSceneController:StopInput()
+	ResetGamepad()
 	self:CancelFocus()
 	Dragging = false
 	DragButton = nil
@@ -421,7 +544,13 @@ function SkillTreeSceneController:OpenScene()
 		Subject = SceneCamera.CameraSubject,
 		MouseBehavior = UserInputService.MouseBehavior,
 		MouseIconEnabled = UserInputService.MouseIconEnabled,
+		GamepadCursorEnabled = GamepadService.GamepadCursorEnabled,
 	}
+	if GamepadService.GamepadCursorEnabled then
+		GamepadService:DisableGamepadCursor()
+	end
+	ContextActionService:BindActionAtPriority(GAMEPAD_BINDING, GamepadInput, false, GAMEPAD_PRIORITY,
+		Enum.KeyCode.ButtonL2, Enum.KeyCode.ButtonR2, Enum.KeyCode.Thumbstick1, Enum.KeyCode.Thumbstick2, Enum.KeyCode.ButtonB)
 	for Property, Value in SCENE_LIGHTING do
 		LightingState[Property] = SceneLighting[Property]
 		SceneLighting[Property] = Value
@@ -445,7 +574,8 @@ function SkillTreeSceneController:OpenScene()
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	UserInputService.MouseIconEnabled = true
 	self:ResetView()
-	RunService:BindToRenderStep(CAMERA_BINDING, Enum.RenderPriority.Camera.Value + 10, function()
+	RunService:BindToRenderStep(CAMERA_BINDING, Enum.RenderPriority.Camera.Value + 10, function(DeltaTime: number)
+		self:UpdateGamepad(DeltaTime)
 		self:Render()
 		if CameraState then
 			UserInputService.MouseBehavior = if Dragging
@@ -456,8 +586,10 @@ function SkillTreeSceneController:OpenScene()
 end
 
 function SkillTreeSceneController:CloseScene()
+	PreviousView = nil
 	local SceneLighting = Lighting :: any
 	self:StopInput()
+	ContextActionService:UnbindAction(GAMEPAD_BINDING)
 	RunService:UnbindFromRenderStep(CAMERA_BINDING)
 	World.Parent = nil
 	local Previous = CameraState
@@ -475,6 +607,9 @@ function SkillTreeSceneController:CloseScene()
 	end
 	UserInputService.MouseBehavior = Previous.MouseBehavior
 	UserInputService.MouseIconEnabled = Previous.MouseIconEnabled
+	if Previous.GamepadCursorEnabled and UserInputService.PreferredInput == Enum.PreferredInput.Gamepad then
+		GamepadService:EnableGamepadCursor()
+	end
 	if Bloom then
 		Bloom:Destroy()
 		Bloom = nil
@@ -528,6 +663,17 @@ function SkillTreeSceneController:Create(Gui: ScreenGui, Callback: (string) -> (
 	end)
 	UserInputService.WindowFocusReleased:Connect(function()
 		self:StopInput()
+	end)
+	UserInputService.GamepadDisconnected:Connect(function(InputType: Enum.UserInputType)
+		if Gamepad == InputType then
+			ResetGamepad()
+		end
+	end)
+	UserInputService.TextBoxFocused:Connect(ResetGamepad)
+	GamepadService:GetPropertyChangedSignal("GamepadCursorEnabled"):Connect(function()
+		if Screen.Enabled and CameraState and GamepadService.GamepadCursorEnabled then
+			GamepadService:DisableGamepadCursor()
+		end
 	end)
 	InputSurface:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		self:ResetView()
@@ -762,10 +908,31 @@ function SkillTreeSceneController:CancelFocus()
 	FocusTransition = nil
 end
 
+function SkillTreeSceneController:ReturnView(): boolean
+	local View = PreviousView
+	if not View or not Screen.Enabled or not CameraState then
+		return false
+	end
+
+	self:StopInput()
+	PreviousView = nil
+	FocusTransition = {
+		StartedAt = os.clock(), StartFocus = Focus, TargetFocus = View.Focus,
+		StartDistance = Distance, TargetDistance = View.Distance,
+		StartYaw = Yaw, TargetYaw = Yaw + (View.Yaw - Yaw + math.pi) % (math.pi * 2) - math.pi,
+		StartPitch = Pitch, TargetPitch = View.Pitch,
+	}
+	self:Render()
+	return true
+end
+
 function SkillTreeSceneController:FocusNode(Name: string)
 	local Node = Nodes[Name]
 	if not Node or Node.Root then
 		return
+	end
+	if Selected ~= Name then
+		PreviousView = CaptureView()
 	end
 
 	FocusTransition = {
@@ -774,6 +941,8 @@ function SkillTreeSceneController:FocusNode(Name: string)
 		TargetFocus = Node.Position,
 		StartDistance = Distance,
 		TargetDistance = math.min(Distance, NODE_FOCUS_DISTANCE),
+		StartYaw = Yaw, TargetYaw = Yaw,
+		StartPitch = Pitch, TargetPitch = Pitch,
 	}
 	self:Render()
 end

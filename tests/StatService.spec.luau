@@ -488,5 +488,56 @@ return function(Sources: { [string]: string }): string
 	Check(Stats:GetLevel(Target, "Agility") == Config.MaxLevel and Response:find(Target.Name, 1, true) ~= nil
 		and Response:find(Missing.Name, 1, true) ~= nil, "Selected players update while unloaded profiles report failure")
 	Check(not Stats:MaxStats(LoadingPlayer), "A profile whose stats have not loaded cannot be maxed")
+
+	local StatusPlayer = NewPlayer()
+	StatusPlayer.Name = "StatusPlayer"
+	local StatusCharacter = Character(StatusPlayer)
+	local StatusData = Profiles[StatusPlayer]
+	Stats:GiveXP(StatusPlayer, "Strength", Config.GetXPRequired("Strength", 0) + Config.GetXPRequired("Strength", 1) + 17)
+	Check(Trees:UnlockNode(StatusPlayer, "Committed Attack"), "The stat setter accounts for existing skill purchases")
+	local SetStatus = Load(Sources.SetStatusCommand)
+	Check(Load(Sources.SetStatusDefinition).Group == "Admin" and Stats.Client.SetStats == nil,
+		"Setting all stat levels uses admin permissions without adding a client remote")
+	Check(SetStatus({ Executor = StatusPlayer }, 5):find(StatusPlayer.Name, 1, true) ~= nil,
+		"Set-status defaults to the executor")
+	for _, Name in Config.Names do
+		Check(StatusData.Stats[Name].Level == 5 and StatusData.Stats[Name].XP == 0
+			and StatusPlayer:GetAttribute(Name .. "Level") == 5 and StatusPlayer:GetAttribute(Name .. "XP") == 0
+			and StatusPlayer:GetAttribute(Name .. "XPRequired") == Config.GetXPRequired(Name, 5),
+			"Set-status saves and replicates the exact level and clears partial XP: " .. Name)
+	end
+	Check(StatusData.SkillPoints.Strength == 5 * Config.PointsPerLevel - 2
+		and StatusData.SkillPoints.Agility == 5 * Config.PointsPerLevel and StatusData.SkillPoints.Spirit == nil,
+		"Setting levels recalculates available skill points using the existing purchases")
+	Check(StatusCharacter:GetAttribute("MaxHealth") == 100 + 5 * Config.Bonuses.Vitality.Health
+		and StatusCharacter:GetAttribute("MaxStamina") == 100 + 5 * Config.Bonuses.Resistance.Stamina,
+		"Setting levels immediately recalculates character bonuses")
+	Check(Stats:SetStats(StatusPlayer, 1) and StatusData.SkillPoints.Strength == 0
+		and Trees:IsSkillUnlocked(StatusPlayer, "Committed Attack"),
+		"Lowering levels preserves purchases and does not create negative available points")
+	for _, Level in { -1, Config.MaxLevel + 1, 1.5, math.huge, -math.huge, 0 / 0, "5" } do
+		Check(not Stats:SetStats(StatusPlayer, Level) and StatusData.Stats.Strength.Level == 1,
+			"Invalid levels must not mutate the saved stats")
+	end
+	Check(Stats:SetStats(StatusPlayer, 0), "Zero is a valid stat level")
+	for _, Name in Config.Names do
+		Check(StatusData.Stats[Name].Level == 0 and StatusData.Stats[Name].XP == 0,
+			"Setting zero resets the exact stat level and XP: " .. Name)
+	end
+	Check(StatusCharacter:GetAttribute("MaxHealth") == 100 and StatusCharacter:GetAttribute("MaxStamina") == 100,
+		"Lowering stats removes their character bonuses")
+	SetStatus({ Executor = StatusPlayer }, 3, {})
+	Check(StatusData.Stats.Spirit.Level == 3, "An empty player selection defaults to the executor")
+	Stats:LoadPlayer(StatusPlayer)
+	Check(Stats:GetLevel(StatusPlayer, "Vitality") == 3, "Chosen levels survive profile reload")
+	Response = SetStatus({ Executor = StatusPlayer }, 4, { Target, Missing })
+	Check(Stats:GetLevel(Target, "Dexterity") == 4 and Response:find(Target.Name, 1, true) ~= nil
+		and Response:find(Missing.Name, 1, true) ~= nil and Response:find("Failed:", 1, true) ~= nil,
+		"Selected players update while unloaded players report individual failures")
+	Check(not Stats:SetStats(LoadingPlayer, 3), "Profiles whose stats have not loaded cannot be changed")
+	Check(not Stats:SetStats(Missing, 3), "Missing profiles cannot be changed")
+	StatusPlayer.Character = nil
+	Check(Stats:SetStats(StatusPlayer, 2) and StatusData.Stats.Spirit.Level == 2,
+		"Loaded profiles can change between character respawns")
 	return tostring(PureChecks + Checks) .. " progression checks passed"
 end

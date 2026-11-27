@@ -7,6 +7,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = {
+	"EgoConfig": "src/ReplicatedStorage/EgoConfig.luau",
     "Config": "src/ReplicatedStorage/KickConfig.luau",
     "Validate": "src/ReplicatedStorage/Validate.luau",
     "Movement": "src/ReplicatedStorage/CharacterShared.luau",

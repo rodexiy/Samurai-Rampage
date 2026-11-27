@@ -7,7 +7,6 @@ export type HorseStats = {
 
 local HorseConfig = {
 	DefaultTier = 1,
-	SpawnKey = Enum.KeyCode.H,
 	DismountKey = Enum.KeyCode.Space,
 	SpawnDistance = 14,
 	SpawnCooldown = 2,
@@ -339,6 +338,7 @@ local HorseConfig = {
 		},
 	},
 	BlockedAttributes = {
+		"EgoActive", "EgoCutscene",
 		"Died", "Downed", "Ragdoll", "Carried", "Carrying", "InCell", "InLabor",
 		"Meditating", "Climbing", "WallRunning", "Vaulting", "Rolling", "PostureBreak",
 		"HeavyDeflect", "BeenDeflected", "RealmTeleporting", "CameraCutscene",

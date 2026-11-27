@@ -265,7 +265,7 @@ function SkillTreeController:ConfigureInterface()
 	end)
 
 	local CloseButton = SkillTree:WaitForChild("Close") :: ImageButton
-	CloseButton.Activated:Connect(function()
+	MenuController:BindCloseButton(CloseButton, function()
 		SkillTree.Enabled = false
 
 		local Character = Player.Character
@@ -284,12 +284,15 @@ function SkillTreeController:ConfigureInterface()
 	Hint.TextColor3 = Color3.fromRGB(150, 150, 175)
 	Hint.TextSize = 12
 	local function UpdateHint()
-		Hint.Text = if UserInputService.TouchEnabled
+		Hint.Text = if UserInputService.PreferredInput == Enum.PreferredInput.Gamepad
+			then "L2: zoom out | R2: zoom in | Left stick: move | Right stick: rotate | B: previous view"
+			elseif UserInputService.TouchEnabled
 			then "Drag to rotate | Two fingers to move/pinch | Tap to select"
 			else "Left drag to move | Right drag to rotate | Scroll to zoom"
 	end
 	UpdateHint()
 	UserInputService:GetPropertyChangedSignal("TouchEnabled"):Connect(UpdateHint)
+	UserInputService:GetPropertyChangedSignal("PreferredInput"):Connect(UpdateHint)
 
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 		if SkillTree.Enabled then

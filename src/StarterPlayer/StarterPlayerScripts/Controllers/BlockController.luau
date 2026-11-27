@@ -149,7 +149,8 @@ local function TrackCharacter(Character: Model)
 		if Attribute == "WeaponEquipped" then
 			UpdateWeapon()
 		end
-		if ((Attribute == "Died" or Attribute == "PostureBreak" or Attribute == "Ragdoll" or Attribute == "RealmEditing") and Character:GetAttribute(Attribute))
+		if ((Attribute == "Died" or Attribute == "PostureBreak" or Attribute == "Ragdoll" or Attribute == "RealmEditing"
+			or Attribute == "EgoActive" or Attribute == "EgoCutscene") and Character:GetAttribute(Attribute))
 			or (Attribute == "Rolling" and Character:GetAttribute("Rolling") and (Character:GetAttribute("Race") ~= "Raijin"
 				or SkillTreeController:IsSkillUnlocked("Lightning Dash"))) then
 			Release()
@@ -173,6 +174,7 @@ function BlockController.KnitStart()
 	PostureService = Knit.GetService("PostureService")
 	AnimationController = Knit.GetController("AnimationController")
 	DeviceController = Knit.GetController("DeviceController")
+	DeviceController:RegisterAction("Block", "Block", UDim2.fromScale(0.875, 0.425))
 	SkillTreeController = Knit.GetController("SkillTreeController")
 
 	PostureService.BlockResult:Connect(function(Character: Model, Sequence: number, Blocking: boolean)

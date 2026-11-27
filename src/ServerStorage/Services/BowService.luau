@@ -317,6 +317,7 @@ function BowService:BeginDraw(Player: Player, Aim: any)
 	State.LastBegin = Now
 	if
 		not CanUse(Player, State)
+		or not BowConfig.CanAttack(State.Character)
 		or (
 			not Config.IsFirearm
 			and (
@@ -364,7 +365,7 @@ function BowService:Release(Player: Player, Aim: any?, Focused: boolean?)
 	if Config.IsFirearm and State.Character:GetAttribute("BowDrawing") ~= true then
 		return
 	end
-	if not CanUse(Player, State) or not State.Character:GetAttribute("BowEquipped") then
+	if not CanUse(Player, State) or not BowConfig.CanAttack(State.Character) or not State.Character:GetAttribute("BowEquipped") then
 		self:CancelDraw(Player)
 		return
 	end

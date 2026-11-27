@@ -16,6 +16,8 @@ local RevealTween: Tween?
 local HiddenGuis: { [ScreenGui]: boolean } = {}
 local VisibilityConnections: { RBXScriptConnection } = {}
 local SavedBars: { [GuiObject]: boolean } = {}
+local BarSizes: { [GuiObject]: UDim2 } = {}
+local BarTweens: { [GuiObject]: Tween } = {}
 
 local function GetGui(): ScreenGui
 	if Gui and Gui.Parent then
@@ -169,7 +171,41 @@ function CutsceneUIController:ShowInstruction(Title: string, Message: string)
 	assert(Speaker, "Cutscene speaker is missing").Text = Title
 end
 
+function CutsceneUIController:SetBarHeight(Height: number, Duration: number)
+	local CutsceneGui = GetGui()
+	for _, Name in { "Top", "Bottom" } do
+		local Bar = CutsceneGui:FindFirstChild(Name) :: GuiObject?
+		if not Bar then
+			continue
+		end
+
+		BarSizes[Bar] = BarSizes[Bar] or Bar.Size
+		if BarTweens[Bar] then
+			BarTweens[Bar]:Cancel()
+		end
+		local Size = UDim2.new(Bar.Size.X.Scale, Bar.Size.X.Offset, math.clamp(Height, 0, 0.45), 0)
+		if Duration <= 0 then
+			Bar.Size = Size
+		else
+			local Tween = TweenService:Create(Bar, TweenInfo.new(Duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Size = Size })
+			BarTweens[Bar] = Tween
+			Tween:Play()
+		end
+	end
+end
+
 function CutsceneUIController:Finish()
+	for _, Tween in BarTweens do
+		Tween:Cancel()
+	end
+	table.clear(BarTweens)
+	for Bar, Size in BarSizes do
+		if Bar.Parent then
+			Bar.Size = Size
+		end
+	end
+	table.clear(BarSizes)
+
 	for Bar, Visible in SavedBars do
 		if Bar.Parent then
 			Bar.Visible = Visible

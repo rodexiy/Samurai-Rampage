@@ -1,27 +1,26 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local MissionBoardController = Knit.CreateController({
 	Name = "MissionBoardController",
 })
 
 local MissionBoardService
+local MenuController
 
 local Missions = {}
 local Cards = {}
 
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local PlayerGui
 local Menu
 local MissionBoardUI
 local background
 local content
 local Template
-
-local Collector = require(game.ReplicatedStorage.Shared.Collector)
-local Connections = Collector.new()
 
 function MultiplyUDim2(udim, factor)
 	return UDim2.new(
@@ -45,17 +44,6 @@ function IsMouseInBounds(guiObject)
 end
 
 local HoverInfo = TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-local HoverTweens = {}
-
-function StopTweens()
-	for _, tween: Tween in pairs(HoverTweens) do
-		tween:Cancel()
-		tween:Destroy()
-	end
-
-	table.clear(HoverTweens)
-end
-
 function MissionBoardController:UpdateBoard()
 	local function isOverlapping(newPos, newSize)
 		for _, existingCard in pairs(Cards) do
@@ -167,7 +155,7 @@ function MissionBoardController:UpdateBoard()
 			local randomX = math.random(margin, maxX)
 			local randomY = math.random(margin, maxY)
 
-			local newPos = UDim2.new(0, randomX, 0, randomY)
+			local newPos = UDim2.fromOffset(randomX, randomY)
 			Card.Position = newPos
 
 			if not isOverlapping(Card.AbsolutePosition, cardTemplateSize) then
@@ -186,16 +174,16 @@ function MissionBoardController:UpdateBoard()
 	end
 end
 
-function MissionBoardController:OpenBoard(Player: Player)
+function MissionBoardController:OpenBoard(RequestingPlayer: Player)
 	if not MissionBoardUI.Enabled then
 		task.spawn(function()
 			local OpenPosition
-			while Player.Character do
+			while RequestingPlayer.Character do
 				if not OpenPosition then
-					OpenPosition = Player.Character:GetPivot().Position
+					OpenPosition = RequestingPlayer.Character:GetPivot().Position
 				end
 
-				local Distance = (OpenPosition - Player.Character:GetPivot().Position).Magnitude
+				local Distance = (OpenPosition - RequestingPlayer.Character:GetPivot().Position).Magnitude
 				if Distance > 10 then
 					break
 				end
@@ -212,6 +200,7 @@ end
 
 function MissionBoardController.KnitInit()
 	MissionBoardService = Knit.GetService("MissionBoardService")
+	MenuController = Knit.GetController("MenuController")
 end
 
 function MissionBoardController.KnitStart()
@@ -221,9 +210,9 @@ function MissionBoardController.KnitStart()
 	background = MissionBoardUI:WaitForChild("background")
 	content = background:WaitForChild("content")
 	Template = background:WaitForChild("Template")
-	local Close = background:WaitForChild("Close")
+	local Close = background:WaitForChild("Close") :: GuiButton
 
-	Close.Activated:Connect(function()
+	MenuController:BindCloseButton(Close, function()
 		MissionBoardUI.Enabled = false
 	end)
 

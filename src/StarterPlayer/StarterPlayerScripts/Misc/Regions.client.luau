@@ -45,8 +45,10 @@ local function DebugPrint(...)
 	end
 end
 
-local function IsOSTEnabled()
-	return Player:GetAttribute("OST") ~= false
+local function IsOSTEnabled(): boolean
+	local Character = Player.Character
+	return Player:GetAttribute("OST") ~= false and (Player:GetAttribute("Fear") or 0) <= 25
+		and (not Character or Character:GetAttribute("EgoActive") ~= true)
 end
 
 local function FadeSound(sound, targetVolume, duration, tweenTable)
@@ -425,7 +427,9 @@ Player:GetAttributeChangedSignal("Ambience"):Connect(UpdateAmbienceGroup)
 local function UpdateOST()
 	if IsOSTEnabled() then
 		StopOST = false
-		if CurrentRegion and not CombatActive and not CurrentOST then
+		if CombatActive and not CurrentCombatOST then
+			PlayCombatMusic(CurrentRegion or "Default")
+		elseif CurrentRegion and not CombatActive and not CurrentOST then
 			task.defer(RegionOSTLoop, CurrentRegion)
 		elseif CurrentRegion and not CombatActive then
 			FadeAmbienceIn(CurrentRegion)
@@ -448,4 +452,31 @@ local function UpdateOST()
 end
 
 Player:GetAttributeChangedSignal("OST"):Connect(UpdateOST)
-UpdateOST()
+
+local FearBlocksOST = (Player:GetAttribute("Fear") or 0) > 25
+Player:GetAttributeChangedSignal("Fear"):Connect(function()
+	local Blocked = (Player:GetAttribute("Fear") or 0) > 25
+	if Blocked == FearBlocksOST then
+		return
+	end
+
+	FearBlocksOST = Blocked
+	UpdateOST()
+end)
+
+local EgoConnection: RBXScriptConnection?
+local function TrackEgo(Character: Model)
+	if EgoConnection then
+		EgoConnection:Disconnect()
+	end
+
+	EgoConnection = Character:GetAttributeChangedSignal("EgoActive"):Connect(UpdateOST)
+	UpdateOST()
+end
+
+Player.CharacterAdded:Connect(TrackEgo)
+if Player.Character then
+	TrackEgo(Player.Character)
+else
+	UpdateOST()
+end

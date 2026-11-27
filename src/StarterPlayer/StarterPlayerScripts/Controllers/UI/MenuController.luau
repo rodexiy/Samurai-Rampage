@@ -1,6 +1,9 @@
+local ContextActionService = game:GetService("ContextActionService")
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local MenuController = Knit.CreateController({
@@ -13,6 +16,11 @@ local Menus: ScreenGui
 local Hud: ScreenGui
 local EnabledTable = {}
 local HotbarController
+local InventoryModalController
+type CloseBinding = { Callback: () -> (), Order: number }
+local CloseBindings: { [GuiButton]: CloseBinding } = setmetatable({}, { __mode = "k" })
+local CloseOrder = 0
+local CloseInputHandled = false
 local HudFocused = false
 local FocusedHud: ScreenGui? = nil
 local SavedHudStates: { [ScreenGui]: boolean } = {}
@@ -128,6 +136,105 @@ local function BindPromptMenu(Menu: Instance)
 	UpdatePromptAvailability()
 end
 
+function MenuController:CloseMenu(MenuName: string)
+	local Menu = self:GetMenu(MenuName)
+	if not Menu then
+		return
+	end
+
+	if MenuName == "Meditate" then
+		local Character = Player.Character
+		if Character and Character:GetAttribute("Meditating") then
+			local MeditateAction = require(Players.LocalPlayer.Character.Client.Actions.Meditate)
+			MeditateAction.Stop()
+		end
+	end
+
+	HotbarController:CancelSlotSelection()
+	Menu.Enabled = false
+end
+
+function MenuController:BindCloseButton(Button: GuiButton, Callback: () -> ())
+	local Existing = CloseBindings[Button]
+	if Existing then
+		Existing.Callback = Callback
+		return
+	end
+
+	CloseOrder += 1
+	local Binding: CloseBinding = { Callback = Callback, Order = CloseOrder }
+	CloseBindings[Button] = Binding
+	Button.Activated:Connect(function()
+		Binding.Callback()
+	end)
+end
+
+local function GetVisibleGui(Button: GuiButton): ScreenGui?
+	if not Button.Parent then
+		return nil
+	end
+
+	local Gui: ScreenGui? = nil
+	local Current: Instance? = Button
+	while Current do
+		if Current:IsA("GuiObject") and not Current.Visible then
+			return nil
+		end
+		if Current:IsA("ScreenGui") then
+			if not Current.Enabled then
+				return nil
+			end
+			Gui = Gui or Current
+		end
+
+		Current = Current.Parent
+	end
+	return Gui
+end
+
+function MenuController:CloseActiveInterface(): boolean
+	if InventoryModalController and InventoryModalController:IsOpen() then
+		InventoryModalController:Cancel()
+		return true
+	end
+
+	local Selected: CloseBinding? = nil
+	local DisplayOrder = -math.huge
+	for Button, Binding in CloseBindings do
+		local Gui = GetVisibleGui(Button)
+		if Gui and (Gui.DisplayOrder > DisplayOrder
+			or (Gui.DisplayOrder == DisplayOrder and (not Selected or Binding.Order > Selected.Order))) then
+			Selected = Binding
+			DisplayOrder = Gui.DisplayOrder
+		end
+	end
+
+	if not Selected then
+		return false
+	end
+
+	Selected.Callback()
+	return true
+end
+
+local function CloseInput(_Name: string, State: Enum.UserInputState, _Input: InputObject): Enum.ContextActionResult
+	if State == Enum.UserInputState.Begin then
+		if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then
+			return Enum.ContextActionResult.Pass
+		end
+
+		CloseInputHandled = MenuController:CloseActiveInterface()
+		return if CloseInputHandled then Enum.ContextActionResult.Sink else Enum.ContextActionResult.Pass
+	elseif CloseInputHandled then
+		if State == Enum.UserInputState.End or State == Enum.UserInputState.Cancel then
+			CloseInputHandled = false
+		end
+		return Enum.ContextActionResult.Sink
+	end
+
+	return Enum.ContextActionResult.Pass
+end
+
 function MenuController:CloseAllMenus()
 	HotbarController:CancelSlotSelection()
 
@@ -169,6 +276,8 @@ function MenuController:OpenMenu(MenuName: string, Force: boolean?)
 		return
 	end
 
+	Knit.GetController("ActionWheelController"):Close()
+	Knit.GetController("ConsoleHotbarController"):Close()
 	HotbarController:CancelSlotSelection()
 
 	if Menu.Enabled and not Force then
@@ -187,7 +296,7 @@ function MenuController:SetHudDefaultEnabled()
 	for MenuName, Enabled in pairs(EnabledTable) do
 		local Gui = Hud:FindFirstChild(MenuName) :: ScreenGui?
 		if Gui then
-			Gui.Enabled = Enabled or Gui:FindFirstChild("Enabler") ~= nil
+			Gui.Enabled = MenuName ~= "MainMenuShortcut" and (Enabled or Gui:FindFirstChild("Enabler") ~= nil)
 		end
 	end
 end
@@ -213,6 +322,7 @@ end
 
 function MenuController.KnitInit()
 	HotbarController = Knit.GetController("HotbarController")
+	InventoryModalController = Knit.GetController("InventoryModalController")
 end
 
 function MenuController.KnitStart()
@@ -222,14 +332,8 @@ function MenuController.KnitStart()
 
 	local Meditate = Menus:WaitForChild("Meditate") :: ScreenGui
 	local CloseMeditate = Meditate:WaitForChild("Close") :: GuiButton
-	CloseMeditate.Activated:Connect(function()
-		local Character = Player.Character
-		if Character and Character:GetAttribute("Meditating") then
-			local MeditateAction = require(Players.LocalPlayer.Character.Client.Actions.Meditate)
-			MeditateAction.Stop()
-		end
-
-		Meditate.Enabled = false
+	MenuController:BindCloseButton(CloseMeditate, function()
+		MenuController:CloseMenu("Meditate")
 	end)
 
 	for _, Menu in Menus:GetChildren() do
@@ -245,19 +349,7 @@ function MenuController.KnitStart()
 
 	local Shortcut = (Hud:FindFirstChild("MainMenuShortcut") or Hud:WaitForChild("Level")) :: ScreenGui
 	Shortcut.Name = "MainMenuShortcut"
-	local ShortcutContent = Shortcut:WaitForChild("content") :: ImageLabel
-	for _, Child in ShortcutContent:GetChildren() do
-		if Child:IsA("GuiObject") and Child.Name ~= "OpenInventory" then
-			Child:Destroy()
-		end
-	end
-	ShortcutContent.ImageTransparency = 1
-	ShortcutContent.BackgroundTransparency = 1
-
-	local OpenInventory = ShortcutContent:WaitForChild("OpenInventory") :: TextButton
-	OpenInventory.Activated:Connect(function()
-		MenuController:OpenMenu("MainMenu")
-	end)
+	Shortcut.Enabled = false
 
 	for _, Menu in Hud:GetChildren() do
 		if Menu:IsA("ScreenGui") then
@@ -277,6 +369,10 @@ function MenuController.KnitStart()
 			BindPromptMenu(Child)
 		end
 	end)
+
+	ContextActionService:BindActionAtPriority(
+		"CloseInterface", CloseInput, false, Enum.ContextActionPriority.High.Value + 19, Enum.KeyCode.ButtonB
+	)
 end
 
 return MenuController

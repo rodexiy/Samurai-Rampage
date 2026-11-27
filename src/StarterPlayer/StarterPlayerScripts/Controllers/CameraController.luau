@@ -80,13 +80,18 @@ local SavedBowSensitivity: number? = nil
 local AppliedBowSensitivity: number? = nil
 local SmoothedBowSway = CFrame.identity
 local LastShakeTime: number? = nil
+local FearShakeStrength = 0
 
 local function IsMenuMouseUnlocked(): boolean
 	local PlayerGui = Player:FindFirstChildWhichIsA("PlayerGui")
 	local Menus = PlayerGui and PlayerGui:FindFirstChild("Menu")
 	local MainMenu = PlayerGui and (PlayerGui:FindFirstChild("MainMenu") or (Menus and Menus:FindFirstChild("MainMenu"))) :: ScreenGui?
+	local WheelMouseUnlocked = Player:GetAttribute("ActionWheelOpen") == true
+		and not UserInputService.TouchEnabled
+		and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 
-	return (MainMenu ~= nil and MainMenu.Enabled) or (HotbarController ~= nil and HotbarController:IsSelectingSlot())
+	return WheelMouseUnlocked
+		or (MainMenu ~= nil and MainMenu.Enabled) or (HotbarController ~= nil and HotbarController:IsSelectingSlot())
 end
 
 function CameraController:IsMouseUnlocked(): boolean
@@ -444,6 +449,10 @@ function CameraController:GetCollisionSafePosition(Origin: Vector3, Position: Ve
 	return if Hit then Origin + Direction.Unit * math.max(0, Hit.Distance - 0.1) else Position
 end
 
+function CameraController:SetFearShake(Strength: number)
+	FearShakeStrength = math.clamp(Strength, 0, 1)
+end
+
 function CameraController:Shake(Preset: any)
 	if camShake and Player:GetAttribute("CameraShake") and IsGameplayCamera() then
 		camShake:Shake(Preset)
@@ -732,6 +741,7 @@ local function ResetCharacter()
 	ClearBowFieldOfView(true)
 	SmoothedBowSway = CFrame.identity
 	LastShakeTime = nil
+	FearShakeStrength = 0
 	FovPulseRevision += 1
 	if FovPulse then
 		FovPulse:Cancel()
@@ -859,6 +869,19 @@ function CameraController.KnitStart()
 		end
 		SmoothedBowSway = SmoothedBowSway:Lerp(BowSway, SmoothingAlpha(BowConfig.CameraSwayResponse, DeltaTime))
 		ShakeCFrame *= SmoothedBowSway
+
+		if FearShakeStrength > 0 then
+			local Time = Now * 9
+			ShakeCFrame *= CFrame.new(
+				math.noise(Time, 0, 0) * 0.05 * FearShakeStrength,
+				math.noise(0, Time, 0) * 0.05 * FearShakeStrength,
+				0
+			) * CFrame.Angles(
+				math.noise(Time, 10, 0) * math.rad(0.6) * FearShakeStrength,
+				math.noise(0, Time, 10) * math.rad(0.6) * FearShakeStrength,
+				math.noise(10, 0, Time) * math.rad(0.35) * FearShakeStrength
+			)
+		end
 
 		local Position = ShakeCFrame.Position
 		if Position.Magnitude > 0.6 then

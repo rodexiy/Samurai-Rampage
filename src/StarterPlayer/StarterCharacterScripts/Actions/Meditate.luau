@@ -16,7 +16,6 @@ local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 local Animation = ReplicatedStorage.Assets.Animations.Misc.Meditate
 local AnimationController = Knit.GetController("AnimationController")
 local MenuController = Knit.GetController("MenuController")
-local DeviceController = Knit.GetController("DeviceController")
 local RugService = Knit.GetService("RugService")
 local StatService = Knit.GetService("StatService")
 local FastTravelController = Knit.GetController("FastTravelController")
@@ -115,8 +114,6 @@ function Meditate.callback(inputState: Enum.UserInputState)
 end
 
 Meditate.keys = { Enum.KeyCode.M }
-
-DeviceController:BindAction("Meditate", Meditate.callback, "Meditate", UDim2.fromScale(0.1, 0.475))
 
 Character:GetAttributeChangedSignal("Meditating"):Connect(function()
 	if MeditationActive and not Character:GetAttribute("Meditating") then

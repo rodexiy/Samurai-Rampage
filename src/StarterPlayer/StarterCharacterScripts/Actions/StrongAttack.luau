@@ -28,6 +28,8 @@ local StrongAttack = {
 	keys = { Enum.KeyCode.R },
 }
 
+DeviceController:RegisterAction("StrongAttack", "Strong Attack", UDim2.fromScale(0.75, 0.725))
+
 Character:GetAttributeChangedSignal("WeaponEquipped"):Connect(function()
 	if Character:GetAttribute("WeaponEquipped") then
 		DeviceController:BindAction(

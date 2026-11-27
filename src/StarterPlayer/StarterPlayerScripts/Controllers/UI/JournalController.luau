@@ -177,7 +177,8 @@ function JournalController:BindUI()
 		AddCard(ActivityTemplate, Activity.Title, Activity.Description, ActivitiesContent)
 	end
 
-	Header.Close.Activated:Connect(function()
+	local Close = Header:WaitForChild("Close") :: GuiButton
+	MenuController:BindCloseButton(Close, function()
 		MenuController:CloseAllMenus()
 	end)
 

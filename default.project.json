@@ -16,6 +16,10 @@
             "Dependencies": {
               "$className": "Folder",
               "$ignoreUnknownInstances": true,
+              "Iris": {
+                "$path": "assets/libraries/SmartBoneIris",
+                "$ignoreUnknownInstances": true
+              },
               "Runtime": {
                 "$path": "assets/libraries/SmartBoneRuntime.client.luau"
               }
@@ -59,6 +63,14 @@
       },
       "Services": {
         "$path": "src/ServerStorage"
+      }
+    },
+
+    "StarterGui": {
+      "$ignoreUnknownInstances": true,
+      "$properties": {
+        "ScreenOrientation": "LandscapeSensor",
+        "VirtualCursorMode": "Enabled"
       }
     },
 

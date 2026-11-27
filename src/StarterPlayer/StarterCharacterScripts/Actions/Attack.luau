@@ -29,6 +29,8 @@ local Attack = {
 	keys = {},
 }
 
+DeviceController:RegisterAction("Attack", "Attack", UDim2.fromScale(0.775, 0.55))
+
 if DeviceController:IsMobile() then
 	Character:GetAttributeChangedSignal("WeaponEquipped"):Connect(function()
 		if Character:GetAttribute("WeaponEquipped") then

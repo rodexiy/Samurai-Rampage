@@ -81,7 +81,7 @@ function MovementService:Roll(Character: Model, Direction: string, StartCFrame: 
 end
 
 function MovementService:Climb(Character: Model, State: boolean)
-	if State and not Validate:CanPerformIntroAction(Character, "Climb") then
+	if State and not Validate:CanClimb(Character) then
 		return
 	end
 

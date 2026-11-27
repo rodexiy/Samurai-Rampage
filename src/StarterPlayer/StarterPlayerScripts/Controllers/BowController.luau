@@ -21,14 +21,19 @@ local CursorController
 local FocusController
 local BowSoundController
 local RangedWeaponEffectsController
+local DeviceController
 local AimEvent: UnreliableRemoteEvent
 local Character: Model? = nil
 local Tracks: { [string]: AnimationTrack } = {}
 local NockedArrows: { [Model]: { Arrow: BasePart } } = {}
 local CharacterConnections: { RBXScriptConnection } = {}
 local Holding = false
+local MobileAimPending = false
+local MobileEquipReady = false
+local MobileAimRequest = 0
 local WindowFocused = true
 local FocusActive = false
+local MobileFocusRequested = false
 local FocusStillSince: number? = nil
 local Started: number? = nil
 local Seed = 0
@@ -43,6 +48,7 @@ local ReloadShotConnection: RBXScriptConnection? = nil
 local ReloadEndConnection: RBXScriptConnection? = nil
 local ReloadLengthConnection: RBXScriptConnection? = nil
 local PlayTransitionAnimation: (boolean) -> ()
+local RefreshMobileActions: () -> ()
 local AimParams = RaycastParams.new()
 AimParams.FilterType = Enum.RaycastFilterType.Exclude
 AimParams.IgnoreWater = true
@@ -127,7 +133,8 @@ local function StopEquipmentAnimations(Target: Model?)
 end
 
 local function IsBlocked(): boolean
-	if (Character and Character:GetAttribute("RealmEditing")) or GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then
+	if Player:GetAttribute("EditingMobileControls") or (Character and Character:GetAttribute("RealmEditing"))
+		or GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then
 		return true
 	end
 
@@ -165,6 +172,7 @@ local function StopDraw()
 			Track:Stop(0.12)
 		end
 	end
+	RefreshMobileActions()
 end
 
 local function ScheduleReload(Shot: AnimationTrack)
@@ -235,7 +243,8 @@ end
 
 local function CanFocusZoom(): boolean
 	if not Character or not WindowFocused
-		or not (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)) then
+		or not (MobileFocusRequested or UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+			or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)) then
 		return false
 	end
 
@@ -258,6 +267,8 @@ local function UpdateFocusZoom(Eligible: boolean): boolean
 end
 
 local function ClearEquipmentVisuals()
+	MobileAimPending = false
+	MobileFocusRequested = false
 	StopDraw()
 	StopEquipmentAnimations(Character)
 
@@ -285,10 +296,27 @@ local function StopPose()
 end
 
 function BowController:CancelDraw()
+	MobileAimPending = false
 	if Holding or Started then
 		BowService.Request:Fire("Cancel")
 	end
 	StopDraw()
+end
+
+local function TryBeginMobileAim()
+	if MobileAimPending and MobileEquipReady and Character and Character:GetAttribute("BowEquipped") then
+		MobileAimPending = false
+		BowController:BeginDraw()
+	end
+end
+
+local function HandleServerCancel()
+	if MobileAimPending then
+		MobileEquipReady = true
+	end
+
+	StopDraw()
+	TryBeginMobileAim()
 end
 
 function BowController:EquipSword(): boolean
@@ -396,6 +424,7 @@ local function BindCharacter(NewCharacter: Model)
 	table.clear(CharacterConnections)
 	StopEquipmentAnimations(Character)
 	Character = NewCharacter
+	MobileFocusRequested = false
 	StopEquipmentAnimations(NewCharacter)
 	BowConfig = RangedWeaponConfig.GetForCharacter(NewCharacter)
 	ArrowCount = RangedWeaponConfig.GetAmmoCount(BowConfig, AmmoCounts)
@@ -414,6 +443,7 @@ local function BindCharacter(NewCharacter: Model)
 		if not NewCharacter:GetAttribute("Bow") then
 			ClearEquipmentVisuals()
 		end
+		RefreshMobileActions()
 	end))
 
 	for _, Attribute in BowConfig.CancelAttributes do
@@ -429,6 +459,7 @@ local function BindCharacter(NewCharacter: Model)
 	table.insert(CharacterConnections, NewCharacter:GetAttributeChangedSignal("BowEquipped"):Connect(function()
 		if NewCharacter:GetAttribute("BowEquipped") then
 			PlayTransitionAnimation(true)
+			TryBeginMobileAim()
 		else
 			BowController:CancelDraw()
 			ClearEquipmentVisuals()
@@ -437,12 +468,14 @@ local function BindCharacter(NewCharacter: Model)
 				PlayTransitionAnimation(false)
 			end
 		end
+		RefreshMobileActions()
 	end))
 	table.insert(CharacterConnections, NewCharacter:GetAttributeChangedSignal("WeaponEquipped"):Connect(function()
 		if NewCharacter:GetAttribute("WeaponEquipped") then
 			ClearEquipmentVisuals()
 		end
 	end))
+	RefreshMobileActions()
 end
 
 local function LoadTracks()
@@ -530,7 +563,7 @@ end
 
 function BowController:BeginDraw()
 	if not Character or Holding or (not BowConfig.IsFirearm and (ArrowCount <= 0 or workspace:GetServerTimeNow() < NextShot))
-		or not BowConfig.CanUse(Character) or not Character:GetAttribute("BowEquipped") or IsBlocked() then
+		or not BowConfig.CanAttack(Character) or not Character:GetAttribute("BowEquipped") or IsBlocked() then
 		return
 	end
 
@@ -550,11 +583,12 @@ function BowController:BeginDraw()
 		Tracks.Aim:Play(0.12, 1, Duration / BowConfig.FullChargeTime)
 	end
 	BowService.Request:Fire("Begin", GetAimPoint())
+	RefreshMobileActions()
 end
 
 function BowController:ShootFirearm()
 	if not BowConfig.IsFirearm or not Character or not Holding or not Started or not WindowFocused or IsBlocked()
-		or not Character:GetAttribute("BowEquipped") or not BowConfig.CanUse(Character)
+		or not Character:GetAttribute("BowEquipped") or not BowConfig.CanAttack(Character)
 		or workspace:GetServerTimeNow() < NextShot then
 		return
 	end
@@ -564,7 +598,99 @@ function BowController:ShootFirearm()
 	BowService.Request:Fire("Shoot", GetAimPoint(), FocusActive and CanFocusZoom())
 end
 
-local function InputAction(Action: string, State: Enum.UserInputState): Enum.ContextActionResult
+local function MobileAimInput(State: Enum.UserInputState)
+	if State ~= Enum.UserInputState.Begin or not Character or not BowConfig.IsFirearm then
+		return
+	end
+	if Holding or MobileAimPending then
+		BowController:CancelDraw()
+		return
+	end
+	if not WindowFocused or IsBlocked() or not BowConfig.CanUse(Character) then
+		return
+	end
+
+	if Character:GetAttribute("BowEquipped") then
+		BowController:BeginDraw()
+	else
+		local RequestedCharacter = Character
+		MobileAimRequest += 1
+		local Request = MobileAimRequest
+		MobileAimPending = true
+		MobileEquipReady = false
+		BowService.Request:Fire("Toggle")
+		task.delay(3, function()
+			if Character == RequestedCharacter and MobileAimRequest == Request then
+				MobileAimPending = false
+			end
+		end)
+	end
+end
+
+local function MobileShootInput(State: Enum.UserInputState)
+	if State == Enum.UserInputState.Begin then
+		BowController:ShootFirearm()
+	end
+end
+
+local function ToggleRangedInput(State: Enum.UserInputState)
+	if State ~= Enum.UserInputState.Begin or not Character or IsBlocked() then
+		return
+	end
+
+	MobileFocusRequested = false
+	BowController:CancelDraw()
+	BowService.Request:Fire("Toggle")
+end
+
+local function MobileFocusInput(State: Enum.UserInputState)
+	if State ~= Enum.UserInputState.Begin or not Character or not Character:GetAttribute("BowEquipped") or IsBlocked() then
+		return
+	end
+
+	MobileFocusRequested = not MobileFocusRequested
+end
+
+RefreshMobileActions = function()
+	if not DeviceController or not DeviceController:IsMobile() then
+		return
+	end
+
+	local HasRanged = Character ~= nil and Character.Parent ~= nil and Character:GetAttribute("Bow") ~= nil
+		and not Character:GetAttribute("Died")
+	local HasRifle = HasRanged and BowConfig.IsFirearm and Character:GetAttribute("Bow") == BowConfig.WeaponName
+	if HasRanged then
+		DeviceController:BindAction("Ranged", ToggleRangedInput, "Ranged", UDim2.fromScale(0.3, 0.2))
+	else
+		DeviceController:UnbindAction("Ranged")
+	end
+
+	if HasRanged and Character:GetAttribute("BowEquipped") then
+		DeviceController:BindAction("RangedFocus", MobileFocusInput, "Focus", UDim2.fromScale(0.5, 0.4))
+	else
+		MobileFocusRequested = false
+		DeviceController:UnbindAction("RangedFocus")
+	end
+
+	if HasRifle then
+		DeviceController:BindAction("RifleAim", MobileAimInput, "Aim", UDim2.fromScale(0.65, 0.4))
+	else
+		DeviceController:UnbindAction("RifleAim")
+	end
+
+	if HasRifle and Holding and Character:GetAttribute("BowEquipped") then
+		DeviceController:BindAction("RifleShoot", MobileShootInput, "Shoot", UDim2.fromScale(0.775, 0.4))
+	else
+		DeviceController:UnbindAction("RifleShoot")
+	end
+end
+
+local function InputAction(Action: string, State: Enum.UserInputState, Input: InputObject?): Enum.ContextActionResult
+	if Input and UserInputService.PreferredInput == Enum.PreferredInput.Gamepad
+		and (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.MouseButton2) then
+		return Enum.ContextActionResult.Pass
+	end
+
 	if Character and Character:GetAttribute("RealmEditing") then
 		BowController:CancelDraw()
 		return Enum.ContextActionResult.Pass
@@ -575,10 +701,7 @@ local function InputAction(Action: string, State: Enum.UserInputState): Enum.Con
 	end
 
 	if Action == "BowToggle" then
-		if State == Enum.UserInputState.Begin and not IsBlocked() then
-			BowController:CancelDraw()
-			BowService.Request:Fire("Toggle")
-		end
+		ToggleRangedInput(State)
 		return Enum.ContextActionResult.Pass
 	end
 	if not Character:GetAttribute("BowEquipped") then
@@ -621,6 +744,10 @@ local function InputAction(Action: string, State: Enum.UserInputState): Enum.Con
 	return if IsBlocked() then Enum.ContextActionResult.Pass else Enum.ContextActionResult.Sink
 end
 
+function BowController:HandleConsoleInput(Action: string, State: Enum.UserInputState)
+	InputAction(Action, State)
+end
+
 local function Render()
 	local Camera = workspace.CurrentCamera
 	local Equipped = Character and Character.Parent and Character:GetAttribute("BowEquipped") == true
@@ -651,7 +778,7 @@ local function Render()
 		end
 		return
 	end
-	if Holding and not BowConfig.CanUse(Character) then
+	if Holding and not BowConfig.CanAttack(Character) then
 		BowController:CancelDraw()
 	end
 
@@ -695,6 +822,12 @@ function BowController.KnitStart()
 	FocusController = Knit.GetController("BowFocusController")
 	BowSoundController = Knit.GetController("BowSoundController")
 	RangedWeaponEffectsController = Knit.GetController("RangedWeaponEffectsController")
+	DeviceController = Knit.GetController("DeviceController")
+	DeviceController.DeviceChanged:Connect(RefreshMobileActions)
+	DeviceController:RegisterAction("RifleAim", "Aim", UDim2.fromScale(0.65, 0.4))
+	DeviceController:RegisterAction("RifleShoot", "Shoot", UDim2.fromScale(0.775, 0.4))
+	DeviceController:RegisterAction("Ranged", "Ranged", UDim2.fromScale(0.3, 0.2))
+	DeviceController:RegisterAction("RangedFocus", "Focus", UDim2.fromScale(0.5, 0.4))
 	AimEvent = ReplicatedStorage.Assets.Events:WaitForChild("BowAim") :: UnreliableRemoteEvent
 	InventoryService.InventoryUpdated:Connect(UpdateAmmo)
 	task.spawn(function()
@@ -734,7 +867,7 @@ function BowController.KnitStart()
 				UpdateReloadTiming()
 			end
 		elseif Action == "Cancel" then
-			StopDraw()
+			HandleServerCancel()
 		elseif Action == "Unequipped" then
 			ClearEquipmentVisuals()
 		end
@@ -745,6 +878,7 @@ function BowController.KnitStart()
 	ContextActionService:BindActionAtPriority("BowCancel", InputAction, false, 3000, Enum.UserInputType.MouseButton2)
 	UserInputService.WindowFocusReleased:Connect(function()
 		WindowFocused = false
+		MobileFocusRequested = false
 		UpdateFocusZoom(false)
 		CameraController:SetBowFocusZoom(false)
 		FocusController:SetActive(false)
@@ -753,12 +887,19 @@ function BowController.KnitStart()
 	UserInputService.WindowFocused:Connect(function()
 		WindowFocused = true
 	end)
+	Player:GetAttributeChangedSignal("EditingMobileControls"):Connect(function()
+		if Player:GetAttribute("EditingMobileControls") then
+			MobileFocusRequested = false
+			BowController:CancelDraw()
+		end
+	end)
 	Player.CharacterAdded:Connect(BindCharacter)
 	Player.CharacterRemoving:Connect(function(Removing: Model)
 		if Character == Removing then
 			BowController:CancelDraw()
 			ClearEquipmentVisuals()
 			Character = nil
+			RefreshMobileActions()
 			UpdateFocusZoom(false)
 			CameraController:SetBowFocusZoom(false)
 			FocusController:SetActive(false)

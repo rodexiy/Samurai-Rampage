@@ -39,6 +39,10 @@ local function CancelTweens()
 	CameraTween, FocusTween, FovTween = nil, nil, nil
 end
 
+function CutsceneController:IsActive(): boolean
+	return State ~= nil
+end
+
 function CutsceneController:Begin(Character: Model, Transform: FrameTransform?)
 	self:Finish(true)
 	local Camera = workspace.CurrentCamera

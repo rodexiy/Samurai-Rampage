@@ -11,6 +11,7 @@ local Items = require(ReplicatedStorage.Shared.Index.Items)
 local RealmBuildMenuController = Knit.CreateController({ Name = "RealmBuildMenuController" })
 local Player = Players.LocalPlayer
 local Editor, Placement, Deletion, Transform, History, Pointer, Mobile, ResourceController, InventoryService, AlertController
+local MenuController
 local Gui: ScreenGui
 local List: Frame
 local Scroll: ScrollingFrame
@@ -433,7 +434,7 @@ local function BindGui(Screen: ScreenGui)
 	end
 
 	local Close = List:WaitForChild("Close") :: ImageButton
-	Close.Activated:Connect(function()
+	MenuController:BindCloseButton(Close, function()
 		if SelectedCategory then
 			SelectedCategory = nil
 		else
@@ -447,6 +448,7 @@ local function BindGui(Screen: ScreenGui)
 end
 
 function RealmBuildMenuController.KnitInit()
+	MenuController = Knit.GetController("MenuController")
 	Editor = Knit.GetController("RealmEditorController")
 	Placement = Knit.GetController("RealmPlacementController")
 	Deletion = Knit.GetController("RealmDeletionController")

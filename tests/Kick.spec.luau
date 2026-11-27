@@ -314,6 +314,7 @@ return function(Sources: { [string]: string }): string
 	local RS = {
 		Packages = { Knit = "Knit" },
 		Shared = {
+			EgoConfig = "EgoConfig",
 			KickConfig = "Config",
 			Validate = "Validate",
 			CharacterShared = "Movement",
@@ -389,6 +390,7 @@ return function(Sources: { [string]: string }): string
 		Modules[Name] = Result
 		return Result
 	end
+	Load("EgoConfig")
 	local Config, Validate, Movement = Load("Config"), Load("Validate"), Load("Movement")
 	-- Balance edits must not change the fixed reference values used by these scenarios.
 	Config.KnockbackSpeed = 35
@@ -802,6 +804,7 @@ return function(Sources: { [string]: string }): string
 	Env.Enum.KeyCode = { G = { Name = "G" } }
 	Env.Enum.UserInputState = { Begin = 1, End = 2, Cancel = 3 }
 	Env.Enum.UserInputType = { MouseButton1 = {}, MouseButton2 = {} }
+	Env.Enum.PreferredInput = { Gamepad = {} }
 	Knit.GetController = function(Name: string): any
 		Check(Name == "KickController", "Shared key routes to the kick controller")
 		return { HandleInput = function()

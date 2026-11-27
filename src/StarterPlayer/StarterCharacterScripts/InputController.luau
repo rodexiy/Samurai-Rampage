@@ -6,6 +6,7 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local Validate = require(ReplicatedStorage.Shared.Validate)
 
 local InputController = {}
+InputController.Ready = false
 local Actions = {}
 local MappedActions = {}
 
@@ -14,6 +15,15 @@ local Mouse = Player:GetMouse()
 
 function InputController.Caller(actionName: string, inputState: Enum.UserInputState, inputObject: (InputObject | Enum.UserInputType)?)
 	local Character = Player.Character
+	if Player:GetAttribute("EditingMobileControls") and inputState == Enum.UserInputState.Begin then
+		return
+	end
+
+	if (Player:GetAttribute("ActionWheelOpen") or Player:GetAttribute("ConsoleHotbarOpen"))
+		and inputState == Enum.UserInputState.Begin and actionName ~= "Run" then
+		return
+	end
+
 	if Character and inputState == Enum.UserInputState.Begin and not Validate:CanPerformIntroAction(Character, actionName) then
 		return
 	end
@@ -28,6 +38,11 @@ function InputController.Caller(actionName: string, inputState: Enum.UserInputSt
 end
 
 function InputController:FireAction(input, state, gameProcessedEvent)
+	if UserInputService.PreferredInput == Enum.PreferredInput.Gamepad
+		and (input == Enum.UserInputType.MouseButton1 or input == Enum.UserInputType.MouseButton2) then
+		return
+	end
+
 	local value = input.Name
 
 	if value == "InputObject" then
@@ -120,6 +135,7 @@ function InputController.Start()
 	end
 
 	BindKeys()
+	InputController.Ready = true
 end
 
 return InputController

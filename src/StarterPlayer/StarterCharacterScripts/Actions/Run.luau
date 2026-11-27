@@ -25,9 +25,10 @@ local Run = {
 		if inputState ~= Enum.UserInputState.Begin and inputState ~= Enum.UserInputState.End then
 			return
 		end
+		local MobileToggle = DeviceController:IsMobile() and (not _InputObject or _InputObject.KeyCode ~= Enum.KeyCode.ButtonL3)
 
 		if inputState == Enum.UserInputState.Begin then
-			if Character:GetAttribute("Running") and DeviceController:IsMobile() then
+			if Character:GetAttribute("Running") and MobileToggle then
 				StopRun()
 				return
 			end
@@ -70,7 +71,7 @@ local Run = {
 				StopRun()
 			end
 		elseif Character:GetAttribute("Running") then
-			if DeviceController:IsMobile() then
+			if MobileToggle then
 				return
 			end
 			StopRun()
@@ -87,6 +88,7 @@ function Run.Start(_Services: any)
 	SkillTreeController = Knit.GetController("SkillTreeController")
 
 	local StopAttributes = {
+		"EgoActive",
 		"Attack",
 		"UsingSkillCantAttack",
 		"BeenHitted",

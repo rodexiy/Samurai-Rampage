@@ -11,6 +11,7 @@ local CrouchAnimationController = require(Players.LocalPlayer.PlayerScripts.Clie
 local CrouchController = Knit.CreateController({Name = "CrouchController"})
 local Player = Players.LocalPlayer
 local CrouchService
+local DeviceController
 
 type Record = {
 	Animation: CrouchAnimationController.State?,
@@ -97,7 +98,7 @@ local function TrackCharacter(Character: Model)
 end
 
 local function InputBlocked(): boolean
-	if Player:GetAttribute("InIntroCutscene") then
+	if Player:GetAttribute("InIntroCutscene") or Player:GetAttribute("EditingMobileControls") then
 		return true
 	end
 
@@ -127,15 +128,28 @@ local function InputBlocked(): boolean
 	return false
 end
 
+function CrouchController:HandleInput(State: Enum.UserInputState)
+	local Character = Player.Character
+	if State ~= Enum.UserInputState.Begin or not Character or InputBlocked() then
+		return
+	end
+
+	CrouchService.Request:Fire(Character:GetAttribute("Crouching") ~= true)
+end
+
 function CrouchController.KnitStart()
 	CrouchService = Knit.GetService("CrouchService")
+	DeviceController = Knit.GetController("DeviceController")
+	DeviceController:BindAction("Crouch", function(State: Enum.UserInputState)
+		CrouchController:HandleInput(State)
+	end, "Crouch", UDim2.fromScale(0.5, 0.725), true)
+
 	UserInputService.InputBegan:Connect(function(Input: InputObject, Processed: boolean)
-		local Character = Player.Character
-		if Processed or Input.KeyCode ~= CrouchConfig.Key or not Character or InputBlocked() then
+		if Processed or Input.KeyCode ~= CrouchConfig.Key then
 			return
 		end
 
-		CrouchService.Request:Fire(Character:GetAttribute("Crouching") ~= true)
+		CrouchController:HandleInput(Enum.UserInputState.Begin)
 	end)
 	ProximityPromptService.PromptShown:Connect(function(Prompt: ProximityPrompt)
 		Prompts[Prompt] = true

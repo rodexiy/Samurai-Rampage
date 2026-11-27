@@ -50,6 +50,7 @@ return {
 	CompletedTriggers = {},
 
 	RaceVariant = 1,
+	EgoId = "",
 
 	Bounty = 0,
 	Reputation = 0,
@@ -78,6 +79,8 @@ return {
 	Stances = {
 	
 	},
+
+	MobileControlPositions = {},
 
 	Settings = {
 		Shadows = true,

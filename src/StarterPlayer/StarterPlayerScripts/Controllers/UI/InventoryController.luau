@@ -1304,6 +1304,34 @@ function InventoryController:ChangeTab(TabName: string)
 	self:UpdateContent()
 end
 
+function InventoryController:CycleTab(Direction: number)
+	if not self:IsOpen() or InventoryModalController:IsOpen() then
+		return
+	end
+
+	local Available: { TextButton } = {}
+	for _, Button in Tabs:GetChildren() do
+		if Button:IsA("TextButton") and Button.Visible and TabNames[Button.Name] then
+			table.insert(Available, Button)
+		end
+	end
+	table.sort(Available, function(Left: TextButton, Right: TextButton): boolean
+		return if Left.LayoutOrder == Right.LayoutOrder then Left.Name < Right.Name else Left.LayoutOrder < Right.LayoutOrder
+	end)
+	if #Available == 0 then
+		return
+	end
+
+	local Current = 1
+	for Index, Button in Available do
+		if Button.Name == CurrentTab then
+			Current = Index
+			break
+		end
+	end
+	self:ChangeTab(Available[(Current - 1 + Direction) % #Available + 1].Name)
+end
+
 function InventoryController.KnitInit()
 	InventoryService = Knit.GetService("InventoryService")
 	StanceService = Knit.GetService("StanceService")
@@ -1415,7 +1443,7 @@ function InventoryController.KnitStart()
 	end
 
 	CloseButton:SetAttribute("callback", nil)
-	CloseButton.Activated:Connect(function()
+	MenuController:BindCloseButton(CloseButton, function()
 		MenuController:CloseAllMenus()
 	end)
 

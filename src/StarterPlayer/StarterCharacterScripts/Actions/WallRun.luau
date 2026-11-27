@@ -1,15 +1,16 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
-local Player = game.Players.LocalPlayer
+local Player = Players.LocalPlayer
 local Character = Player.Character
-local Humanoid = Character:WaitForChild("Humanoid")
+local Humanoid = Character:WaitForChild("Humanoid") :: Humanoid
 
-local StaminaService = Knit.GetService("StaminaService")
 local DeviceController = Knit.GetController("DeviceController")
 local AnimationController = Knit.GetController("AnimationController")
 local SkillTreeController = Knit.GetController("SkillTreeController")
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
+local Validate = require(ReplicatedStorage.Shared.Validate)
 
 local Animator = AnimationController:GetAnimator(Character)
 local AnimRight: AnimationTrack = Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Misc.WallRun.Right)
@@ -19,8 +20,8 @@ local AnimRightJump: AnimationTrack =
 local AnimLeftJump: AnimationTrack =
 	Animator:LoadAnimation(game.ReplicatedStorage.Assets.Animations.Misc.WallRun.LeftJumpOff)
 
-local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
-local SetAutoRotate = require(game.ReplicatedStorage.Shared.Utils.SetAutoRotate)
+local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
+local SetAutoRotate = require(ReplicatedStorage.Shared.Utils.SetAutoRotate)
 
 local running = false
 local sideRunning = nil
@@ -29,14 +30,8 @@ local AlignVelocity
 local currentNormal = nil
 
 local WallCheckDistance = 1.65
-local Duration = 3
 local Cooldown = 1.5
-local DrainRate = 15 -- per second
 local MaxAngle = math.rad(90) -- ~50 degrees
-
-local function getStamina()
-	return Character:GetAttribute("Stamina") or 0
-end
 
 local function isAirborne()
 	local state = Humanoid:GetState()
@@ -63,10 +58,10 @@ end
 
 local RayParams = RaycastParams.new()
 RayParams.FilterDescendantsInstances = { Character }
-RayParams.FilterType = Enum.RaycastFilterType.Blacklist
+RayParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local function checkWall()
-	local root = Character:FindFirstChild("HumanoidRootPart")
+	local root = Character.PrimaryPart
 	if not root then
 		return nil, nil
 	end
@@ -89,7 +84,7 @@ local function checkWall()
 end
 
 local function jumpOff(side)
-	local root = Character:FindFirstChild("HumanoidRootPart")
+	local root = Character.PrimaryPart
 	if not root then
 		return
 	end
@@ -158,7 +153,7 @@ local wallrun = {
 			return
 		end
 
-		local root = Character:FindFirstChild("HumanoidRootPart")
+		local root = Character.PrimaryPart
 		if not root then
 			return
 		end
@@ -227,7 +222,7 @@ local wallrun = {
 	keys = { Enum.KeyCode.Space },
 }
 
-DeviceController:BindAction("WallRun", wallrun.callback, "WallRun", UDim2.fromScale(0.2, 0.2))
+DeviceController:BindJumpAction("WallRun", wallrun.callback)
 
 function wallrun.Start()
 	Character:GetAttributeChangedSignal("WallRunning"):Connect(function()

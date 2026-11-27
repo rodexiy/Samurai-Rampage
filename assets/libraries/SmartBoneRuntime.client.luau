@@ -41,7 +41,7 @@ SetupReady:Destroy()
 local CollectionService = game:GetService("CollectionService")
 local RunService = game:GetService("RunService")
 local BonePhysics = SmartboneClass.new()
-local DebugUi = require(ReplicatedStorage.Assets.Libraries.SmartBone.Dependencies.DebugUi)
+local DebugUi = require(ReplicatedStorage.Assets.Libraries.SmartBone.Dependencies:WaitForChild("Debug"):WaitForChild("DebugUi") :: ModuleScript)
 local Iris
 local Config = require(ReplicatedStorage.Assets.Libraries.SmartBone.Dependencies.Config)
 local Utilities = require(ReplicatedStorage.Assets.Libraries.SmartBone.Dependencies.Utilities)

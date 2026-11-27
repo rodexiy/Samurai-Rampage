@@ -166,6 +166,7 @@ function CharacterService:SetAttributes(Character: Model, Player: Player?)
 end
 
 local UpdateBothAttributes = {
+	"Meditating",
 	"Bandaging",
 	"TalentMobileGuard",
 	"Attack",

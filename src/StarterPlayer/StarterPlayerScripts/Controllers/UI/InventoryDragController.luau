@@ -1,4 +1,5 @@
 local Players = game:GetService("Players")
+local GamepadService = game:GetService("GamepadService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
@@ -15,6 +16,8 @@ type DragState = {
 	Button: ImageButton,
 	Item: ItemData,
 	Input: InputObject,
+	Gamepad: Enum.UserInputType?,
+	Latched: boolean?,
 	Start: Vector2,
 	Pointer: Vector2,
 	Fraction: Vector2,
@@ -47,6 +50,16 @@ local InventoryEntries: { ItemData } = {}
 local Equipped: { [string]: ItemData } = {}
 local Buttons: { [string]: ImageButton } = {}
 local State: DragState?
+type GamepadSelection = {
+	Button: ImageButton,
+	Item: ItemData,
+	Input: InputObject,
+	SourceHotbarSlot: number?,
+	Drag: DragState?,
+	Details: boolean?,
+}
+local Selection: GamepadSelection?
+local RotationButton: ImageButton?
 local Suppressed: { [ImageButton]: number } = setmetatable({}, { __mode = "k" })
 local RequestId = 0
 local PendingId: number?
@@ -57,6 +70,15 @@ local HoveredButton: GuiObject?
 local White = Color3.new(1, 1, 1)
 local Green = Color3.fromRGB(65, 220, 100)
 local Red = Color3.fromRGB(240, 65, 65)
+
+local function RotationHint(): string
+	return if UserInputService.PreferredInput == Enum.PreferredInput.Gamepad then "X  /  ROTATE" else "R  /  ROTATE"
+end
+
+local function CursorPosition(): Vector3
+	local Point = UserInputService:GetMouseLocation()
+	return Vector3.new(Point.X, Point.Y, 0)
+end
 
 local function Contains(Object: GuiObject, Point: Vector2): boolean
 	local Position, Size = Object.AbsolutePosition, Object.AbsoluteSize
@@ -239,6 +261,10 @@ function InventoryDragController:IsDragging(): boolean
 	return State ~= nil and State.Started
 end
 
+function InventoryDragController:HasGamepadDrag(): boolean
+	return State ~= nil and State.Gamepad ~= nil
+end
+
 function InventoryDragController:SetSlotStrokeColor(Button: ImageButton, Color: Color3)
 	local Highlight = DropHighlights[Button]
 	if Highlight then
@@ -278,6 +304,13 @@ function InventoryDragController:BeginDrag(
 	Input: InputObject,
 	SourceHotbarSlot: number?
 )
+	local GamepadInput = (Input.KeyCode == Enum.KeyCode.ButtonR2 or Input.KeyCode == Enum.KeyCode.ButtonA)
+		and Input.UserInputType.Name:match("^Gamepad") ~= nil
+	if Input.UserInputType == Enum.UserInputType.MouseButton1 and GamepadService.GamepadCursorEnabled
+		and UserInputService.PreferredInput == Enum.PreferredInput.Gamepad then
+		return
+	end
+
 	if
 		not Context
 		or State
@@ -285,17 +318,18 @@ function InventoryDragController:BeginDrag(
 		or InventoryModalController:IsOpen()
 		or not InventoryController:IsOpen()
 		or (SourceHotbarSlot == nil and (not Layout or not InventoryController:CanDragItems()))
-		or (Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch)
+		or (not GamepadInput and Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch)
 	then
 		return
 	end
 
-	local Point = Pointer(Input.Position)
+	local Point = Pointer(if GamepadInput then CursorPosition() else Input.Position)
 	local Size = Button.AbsoluteSize
 	State = {
 		Button = Button,
 		Item = Item,
 		Input = Input,
+		Gamepad = if GamepadInput then Input.UserInputType else nil,
 		Start = Point,
 		Pointer = Point,
 		Fraction = Vector2.new(
@@ -308,6 +342,167 @@ function InventoryDragController:BeginDrag(
 		SourceHotbarSlot = SourceHotbarSlot,
 		SourceSize = Size,
 	}
+	if GamepadInput then
+		Suppressed[Button] = math.huge
+	end
+end
+
+local function GetGamepadTarget(): (ImageButton?, ItemData?, number?)
+	if not Context or not InventoryController:IsOpen() then
+		return nil, nil, nil
+	end
+
+	local Point = Pointer(CursorPosition())
+	local Target: ImageButton? = nil
+	local Item: ItemData? = nil
+	if Contains(Context.Scroll, Point) then
+		for Id, Button in Buttons do
+			if Items[Id] and IsVisible(Button) and Contains(Button, Point) and (not Target or Button.ZIndex > Target.ZIndex) then
+				Target, Item = Button, Items[Id]
+			end
+		end
+	end
+
+	if Target and Item then
+		return Target, Item, nil
+	end
+
+	local Index, Button = HotbarController:GetSlotAtPoint(Point)
+	local Tool = if Index then HotbarController:GetToolInHotbarIndex(Index) else nil
+	if Index and Button and Tool then
+		local Data = Tool:GetAttributes()
+		Data.Name = Tool.Name
+		return Button, Data, Index
+	end
+	return nil, nil, nil
+end
+
+function InventoryDragController:BeginGamepadDrag(Input: InputObject): boolean
+	if State or Selection then
+		return false
+	end
+
+	local Button, Item, Index = GetGamepadTarget()
+	if Button and Item then
+		self:BeginDrag(Button, Item, Input, Index)
+	end
+	return State ~= nil and State.Input == Input
+end
+
+function InventoryDragController:CancelGamepadSelection()
+	if Selection then
+		Suppressed[Selection.Button] = os.clock() + 0.25
+		Selection = nil
+	end
+end
+
+function InventoryDragController:BeginGamepadSelection(Input: InputObject): boolean
+	if Selection or InventoryModalController:IsOpen() then
+		return false
+	end
+	if State then
+		if State.Gamepad ~= Input.UserInputType then
+			return false
+		end
+		Selection = { Button = State.Button, Item = State.Item, Input = Input, Drag = State,
+			SourceHotbarSlot = State.SourceHotbarSlot }
+	else
+		local Button, Item, Index = GetGamepadTarget()
+		if not Button or not Item then
+			return false
+		end
+		Selection = { Button = Button, Item = Item, Input = Input, SourceHotbarSlot = Index }
+	end
+	Suppressed[Selection.Button] = math.huge
+	return true
+end
+
+local function GetSelection(Input: InputObject): GamepadSelection?
+	if not Selection or Selection.Input.UserInputType ~= Input.UserInputType
+		or not Selection.Button.Parent or not InventoryController:IsOpen() or InventoryModalController:IsOpen() then
+		return nil
+	end
+	if Selection.SourceHotbarSlot == nil and not Items[Selection.Button.Name] then
+		return nil
+	end
+	return Selection
+end
+
+function InventoryDragController:ShowGamepadDetails(Input: InputObject): boolean
+	local Current = GetSelection(Input)
+	if not Current or Current.Details then
+		return false
+	end
+
+	self:Cancel()
+	InventoryController:Select(Current.Button, Items[Current.Button.Name] or Current.Item)
+	Current.Details = true
+	Selection = Current
+	Suppressed[Current.Button] = math.huge
+	return true
+end
+
+function InventoryDragController:ConfirmGamepadSelection(Input: InputObject)
+	local Current = GetSelection(Input)
+	self:CancelGamepadSelection()
+	if not Current or Current.Details then
+		return
+	end
+
+	if Current.Drag then
+		if State == Current.Drag then
+			self:UpdateGamepadPointer()
+			self:Drop()
+		end
+		return
+	end
+	self:BeginDrag(Current.Button, Items[Current.Button.Name] or Current.Item, Input, Current.SourceHotbarSlot)
+	if State then
+		State.Latched = true
+		self:StartDrag()
+		self:UpdateGamepadPointer()
+	elseif Current.SourceHotbarSlot == nil and not InventoryController:CanDragItems() then
+		InventoryController:Select(Current.Button, Current.Item)
+	end
+end
+
+function InventoryDragController:UpdateGamepadPointer()
+	local Drag = State
+	if not Drag or not Drag.Gamepad then
+		return
+	end
+
+	Drag.Pointer = Pointer(CursorPosition())
+	if not Drag.Started and not Selection and (Drag.Pointer - Drag.Start).Magnitude >= 6 then
+		self:StartDrag()
+	end
+	self:UpdatePreview()
+end
+
+function InventoryDragController:EndGamepadDrag(Input: InputObject, InputState: Enum.UserInputState): boolean
+	local Drag = State
+	if not Drag or Drag.Latched or Drag.Gamepad ~= Input.UserInputType or Input.KeyCode ~= Enum.KeyCode.ButtonR2
+		or Drag.Input.KeyCode ~= Enum.KeyCode.ButtonR2 then
+		return false
+	end
+	if InputState == Enum.UserInputState.Cancel then
+		self:Cancel()
+	elseif InputState == Enum.UserInputState.End then
+		self:UpdateGamepadPointer()
+		if Drag.Started then
+			self:Drop()
+		else
+			self:Cancel()
+			if Drag.SourceHotbarSlot == nil then
+				if InventoryController:GetSelected() == Drag.Button then
+					InventoryController:Unselect()
+				else
+					InventoryController:Select(Drag.Button, Drag.Item)
+				end
+			end
+		end
+	end
+	return true
 end
 
 function InventoryDragController:BeginHotbarDrag(Button: ImageButton, Index: number, Tool: Tool, Input: InputObject)
@@ -341,7 +536,7 @@ function InventoryDragController:StartDrag()
 	end
 	Context.Scroll.ScrollingEnabled = Drag.Input.UserInputType ~= Enum.UserInputType.Touch
 	Context.RotateButton.Visible = Drag.SourceHotbarSlot == nil
-	Context.RotateHint.Text = "R  /  ROTATE"
+	Context.RotateHint.Text = RotationHint()
 	Context.RotateHint.Visible = Drag.SourceHotbarSlot == nil
 	self:RenderGhost()
 	self:RefreshDropHighlights()
@@ -364,13 +559,66 @@ function InventoryDragController:RenderGhost()
 end
 
 function InventoryDragController:Rotate()
-	if not State or not State.Started or State.SourceHotbarSlot ~= nil then
+	if not State or State.SourceHotbarSlot ~= nil then
 		return
+	end
+	if not State.Started then
+		if not State.Gamepad then
+			return
+		end
+		self:StartDrag()
 	end
 
 	State.Rotated = not State.Rotated
 	State.Fraction = Vector2.new(1 - State.Fraction.Y, State.Fraction.X)
 	self:RenderGhost()
+end
+
+function InventoryDragController:EndGamepadRotation()
+	if RotationButton then
+		Suppressed[RotationButton] = os.clock() + 0.25
+		RotationButton = nil
+	end
+end
+
+function InventoryDragController:RotateSelected(): boolean
+	if not Context or State or not Layout or not InventoryController:CanDragItems() or InventoryModalController:IsOpen() then
+		return false
+	end
+
+	local Button = InventoryController:GetSelected()
+	local Item = Button and Items[Button.Name]
+	local Position = Button and Layout.Positions[Button.Name]
+	if not Button or not Item or not Position then
+		return false
+	end
+
+	RotationButton = Button
+	Suppressed[Button] = math.huge
+	if PendingId then
+		return true
+	end
+
+	local Candidate = InventoryGrid.Placement(Item, Position.Column, Position.Row, not Position.Rotated)
+	if not InventoryGrid.Fits(Layout.Positions, Candidate, Layout.Columns, Layout.Rows, Button.Name) then
+		Context.RotateHint.Text = "Not enough space to rotate"
+		Context.RotateHint.Visible = true
+		task.delay(3, function()
+			if Context and not State then
+				Context.RotateHint.Visible = false
+				Context.RotateHint.Text = RotationHint()
+			end
+		end)
+		return true
+	end
+
+	if self:SubmitAction({
+		Kind = "Move", Name = Button.Name, Column = Candidate.Column, Row = Candidate.Row,
+		Rotated = Candidate.Rotated, Revision = Layout.Revision,
+	}) then
+		InventoryController:ApplyEntryPlacement(Button, Candidate)
+	end
+	return true
 end
 
 function InventoryDragController:CanEquipSlot(Item: ItemData, Slot: string): boolean
@@ -639,12 +887,14 @@ function InventoryDragController:UpdatePreview()
 end
 
 function InventoryDragController:Cancel()
+	self:CancelGamepadSelection()
+	self:EndGamepadRotation()
 	local Drag = State
 	State = nil
 	ClearOverlays()
 	ClearDropHighlights()
 	if Drag then
-		if Drag.Started then
+		if Drag.Started or Drag.Gamepad then
 			Suppressed[Drag.Button] = os.clock() + 0.25
 		end
 		if Drag.Button.Parent then
@@ -762,8 +1012,17 @@ function InventoryDragController.KnitInit()
 end
 
 function InventoryDragController.KnitStart()
+	Players.LocalPlayer:GetMouse().Move:Connect(function()
+		InventoryDragController:UpdateGamepadPointer()
+	end)
 	UserInputService.InputChanged:Connect(function(Input: InputObject)
 		local Drag = State
+		if Drag and Drag.Gamepad then
+			if Input.UserInputType == Enum.UserInputType.MouseMovement then
+				InventoryDragController:UpdateGamepadPointer()
+			end
+			return
+		end
 		if not Drag or (Input.UserInputType ~= Enum.UserInputType.MouseMovement and Input ~= Drag.Input) then
 			return
 		end
@@ -777,6 +1036,7 @@ function InventoryDragController.KnitStart()
 	UserInputService.InputEnded:Connect(function(Input: InputObject)
 		if
 			State
+			and not State.Gamepad
 			and (
 				Input == State.Input
 				or (
@@ -819,7 +1079,7 @@ function InventoryDragController.KnitStart()
 				task.delay(3, function()
 					if Context and not State then
 						Context.RotateHint.Visible = false
-						Context.RotateHint.Text = "R  /  ROTATE"
+						Context.RotateHint.Text = RotationHint()
 					end
 				end)
 			end

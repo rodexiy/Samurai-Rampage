@@ -426,7 +426,7 @@ function CraftingController:BindStation(Menus: Instance, Station: any)
 	Station.Recipes = {}
 	Station.SelectedAmount = 1
 
-	CloseButton.Activated:Connect(function()
+	MenuController:BindCloseButton(CloseButton, function()
 		MenuController:CloseAllMenus()
 	end)
 

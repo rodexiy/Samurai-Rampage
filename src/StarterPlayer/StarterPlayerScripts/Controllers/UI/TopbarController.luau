@@ -8,10 +8,11 @@ local TopBarController = Knit.CreateController({
 	Name = "TopBarController",
 })
 
-local MenuController
 local PlaceController
 local AlertController
 local RealmEditorController
+local DeviceController
+local MobileControlsController
 
 local TopbarPlus
 local RealmEditorIcon
@@ -50,6 +51,39 @@ function TopBarController:GetRealmEditorGui(): ScreenGui?
 	end
 
 	return RealmEditorIcon.widget:FindFirstAncestorWhichIsA("ScreenGui") :: ScreenGui?
+end
+
+function TopBarController:BindMobileControls()
+	local Edit = TopbarPlus.new():setName("EditMobileControls"):setLabel("Edit controls"):setOrder(10)
+	local Reset = TopbarPlus.new():setName("ResetMobileControls"):setLabel("Reset controls"):setOrder(11):oneClick()
+	local function UpdateAvailability()
+		local Available = DeviceController:IsMobile() and not RealmEditorController:IsOpen()
+		Edit:setEnabled(Available)
+		Reset:setEnabled(Available)
+	end
+	UpdateAvailability()
+	DeviceController.DeviceChanged:Connect(UpdateAvailability)
+	RealmEditorController.Changed:Connect(UpdateAvailability)
+
+	Edit.selected:Connect(function()
+		if not MobileControlsController:SetEditing(true) then
+			Edit:deselect()
+		end
+	end)
+	Edit.deselected:Connect(function()
+		MobileControlsController:SetEditing(false)
+	end)
+	MobileControlsController.Changed:Connect(function(Editing: boolean)
+		Edit:setLabel(if Editing then "Done" else "Edit controls")
+		if Editing then
+			Edit:select()
+		else
+			Edit:deselect()
+		end
+	end)
+	Reset.selected:Connect(function()
+		MobileControlsController:RequestReset()
+	end)
 end
 
 function TopBarController:LoadHub()
@@ -169,7 +203,6 @@ function TopBarController:BindTopbar()
 		Time:setLabel(Lighting.TimeOfDay:sub(1, 5))
 	end)
 
-	local Settings = TopbarPlus.new():setImage(108728167119436):oneClick()
 	local RealmEditor = TopbarPlus.new():setName("RealmEditor"):setLabel("Edit Realm"):setImage(11656483170)
 	RealmEditorIcon = RealmEditor
 	RealmEditor:setEnabled(RealmEditorController:IsOpen() or RealmEditorController:CanOpen())
@@ -195,31 +228,8 @@ function TopBarController:BindTopbar()
 		end
 	end)
 
-	Settings.selected:Connect(function()
-		MenuController:OpenMenu("Settings")
-	end)
-
-	-- local Journal = TopbarPlus.new():setLabel("Journal"):oneClick()
-	-- Journal.selected:Connect(function()
-	-- 	MenuController:OpenMenu("Journal")
-	-- end)
-
-	local Crafting = TopbarPlus.new():setImage(127637152352990):oneClick()
-	Crafting.selected:Connect(function()
-		MenuController:OpenMenu("Crafting")
-	end)
-
 	self:LoadHub()
-
-	if not PlaceController:IsArena() then
-		local Store = TopbarPlus.new():setImage(18100081635):oneClick()
-		Store.selected:Connect(function()
-			MenuController:OpenMenu("Store")
-		end)
-
-
-
-	end
+	self:BindMobileControls()
 
 	if isPlayerAdmin(game.Players.LocalPlayer) then
 		Cmdr:SetActivationKeys({ Enum.KeyCode.F2 })
@@ -236,14 +246,16 @@ function TopBarController:BindTopbar()
 end
 
 function TopBarController.KnitInit()
-	MenuController = Knit.GetController("MenuController")
 	AlertController = Knit.GetController("AlertController")
 	PlaceController = Knit.GetController("PlaceController")
 	RealmEditorController = Knit.GetController("RealmEditorController")
+	DeviceController = Knit.GetController("DeviceController")
+	MobileControlsController = Knit.GetController("MobileControlsController")
 end
 
 function TopBarController.KnitStart()
 	TopbarPlus = require(ReplicatedStorage.Assets.Libraries.TopbarPlus)
+	TopbarPlus.highlightKey = false
 	TopbarPlus.iconAdded:Connect(function(Icon: any)
 		if RealmEditorController:IsOpen() then
 			HideOtherIcon(Icon)
