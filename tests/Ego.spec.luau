@@ -87,7 +87,7 @@ return function(Sources: { [string]: string }): string
 			Loaded = true, Stamina = 100, SwordStaminaCost = 5,
 			Weapon = "Katana", WeaponEquipped = true,
 		}
-		local Character = { Parent = Workspace, Humanoid = { Health = 100, MoveDirection = { Magnitude = 1 } } }
+		local Character = { Parent = Workspace, AttributeChanged = Signal(), Humanoid = { Health = 100, MoveDirection = { Magnitude = 1 } } }
 		local CharacterSignals = {}
 		Character.PrimaryPart = { Position = Position(X), FindFirstAncestorOfClass = function(): any
 			return Character
@@ -100,6 +100,9 @@ return function(Sources: { [string]: string }): string
 			Attributes[Name] = Value
 			if Previous ~= Value and CharacterSignals[Name] then
 				CharacterSignals[Name]:Fire()
+			end
+			if Previous ~= Value then
+				self.AttributeChanged:Fire(Name)
 			end
 		end
 		function Character:GetAttributeChangedSignal(Name: string): any
@@ -211,13 +214,25 @@ return function(Sources: { [string]: string }): string
 	Levels[Source].Spirit = 3
 	Source:SetAttribute("EgoId", "Missing")
 	Source.Character:SetAttribute("EgoId", "Missing")
-	Source.Character:SetAttribute("Running", true)
-	Source.Character:SetAttribute("Blocking", true)
+	for Attribute in Config.CancelStates do
+		Source.Character:SetAttribute(Attribute, true)
+		Check(not Service:SetActive(Source, true), "Ego cannot activate during " .. Attribute)
+		Source.Character:SetAttribute(Attribute, false)
+
+		Check(Service:SetActive(Source, true), "Ego can activate before " .. Attribute)
+		Source.Character:SetAttribute(Attribute, true)
+		Check(not Source.Character:GetAttribute("EgoActive"), "Starting " .. Attribute .. " immediately cancels Ego")
+		Check(Source.Character:GetAttribute(Attribute) == true, "Cancelling Ego preserves " .. Attribute)
+		Source.Character:SetAttribute(Attribute, false)
+	end
+	Service.Client.Cancel:Fire(Source)
+	Service.Client.Cancel:Fire(Source)
+	Check(not Source.Character:GetAttribute("EgoActive"), "Repeated cancellation requests never activate Ego")
+
 	Check(Service:SetActive(Source, true), "Eligible players can activate Ego")
 	Check(Source:GetAttribute("EgoId") == AssignedId and Source.Character:GetAttribute("EgoId") == AssignedId,
 		"Activation restores the authoritative assignment instead of accepting a client-selected Ego")
-	Check(Source.Character:GetAttribute("EgoActive") and not Source.Character:GetAttribute("Running")
-		and not Source.Character:GetAttribute("Blocking"), "Activation cancels running and blocking")
+	Check(Source.Character:GetAttribute("EgoActive"), "An idle character can keep Ego active")
 	Service:Step(0.25)
 	Check((Fear[Weak] or 0) > 0 and not Fear[Source], "Ego affects nearby opponents, not its source")
 	Check(Weak.Character:GetAttribute("EgoCutscene"), "An out-of-combat weak target receives a cutscene")
@@ -273,8 +288,9 @@ return function(Sources: { [string]: string }): string
 	Weak:SetAttribute("InCombat", false)
 	Service:Step(0.25)
 	Check(Weak.Character:GetAttribute("EgoCutscene"), "A vulnerable target can receive a new encounter")
-	Service:SetActive(Source, false)
-	Check(not Weak.Character:GetAttribute("EgoCutscene"), "Stopping the source cancels its cutscene")
+	Source.Character:SetAttribute("Running", true)
+	Check(not Weak.Character:GetAttribute("EgoCutscene"), "An action cancels the source's Ego and releases its cutscene")
+	Source.Character:SetAttribute("Running", false)
 	Service:SetActive(Source, true)
 	Source.Character:SetAttribute("Died", true)
 	Service:Step(0.25)
@@ -288,19 +304,42 @@ return function(Sources: { [string]: string }): string
 	end
 	Check(Validate:CanEquipWeapon(Source.Character), "Ego allows drawing a sword")
 	Check(Validate:CanPerformIntroAction(Source.Character, "Meditate"), "Ego allows meditation")
+	Check(Validate:CanAttack(Source.Character) and Validate:CanStrongAttack(Source.Character)
+		and Validate:CanRun(Source.Character) and Validate:CanBlock(Source.Character)
+		and Validate:CanRoll(Source.Character), "Ego allows attacks, running, blocking and rolling")
+	local BowEnvironment = setmetatable({
+		Vector3 = { new = function(): any return {} end, zero = {} },
+		CFrame = { identity = {} },
+	}, { __index = Environment })
+	local BowConfig = Load(Sources.BowConfig, BowEnvironment)
+	Check(BowConfig.CanAttack(Source.Character), "Active Ego allows starting a ranged attack")
+	Check(not Validate:CanClimb(Source.Character), "Other Ego action restrictions remain enforced")
+	Source.Character:SetAttribute("EgoCutscene", true)
 	Check(not Validate:CanAttack(Source.Character) and not Validate:CanRun(Source.Character)
-		and not Validate:CanBlock(Source.Character) and not Validate:CanRoll(Source.Character)
-		and not Validate:CanClimb(Source.Character), "Shared action guards enforce Ego restrictions")
+		and not Validate:CanBlock(Source.Character) and not Validate:CanRoll(Source.Character),
+		"Ego cutscenes still prevent actions")
+	Check(not BowConfig.CanAttack(Source.Character), "Ego cutscenes still prevent ranged attacks")
+	Source.Character:SetAttribute("EgoCutscene", false)
 	Source.Character:SetAttribute("EgoActive", false)
 	Check(Validate:CanAttack(Source.Character), "Combat becomes available after Ego ends")
 
 	local Sounds = {}
-	local SoundService = {}
+	local ClientEgo = { Cancel = Signal(), Toggle = Signal() }
+	local AudioKnit = table.clone(Knit)
+	AudioKnit.GetService = function(_Name: string): any
+		return ClientEgo
+	end
+	AudioKnit.GetController = function(_Name: string): any
+		return {}
+	end
+	local AudioReplicatedStorage = table.clone(ReplicatedStorage)
+	AudioReplicatedStorage.Packages = { Knit = AudioKnit }
 	local AudioEnvironment = setmetatable({
 		game = { GetService = function(_Self: any, Name: string): any
-			return if Name == "Players" then { LocalPlayer = Source } elseif Name == "SoundService" then SoundService else ReplicatedStorage
+			return if Name == "Players" then { LocalPlayer = Source } else AudioReplicatedStorage
 		end },
 		require = function(Module: any): any return Module end,
+		Enum = { RollOffMode = { Linear = "Linear" } },
 		Instance = { new = function(ClassName: string): any
 			assert(ClassName == "Sound", "Audio fixture only creates sounds")
 			local Sound = { Ended = Signal() }
@@ -316,31 +355,87 @@ return function(Sources: { [string]: string }): string
 		end },
 	}, { __index = getfenv() })
 	local ControllerSource = Sources.Controller:gsub("return EgoController%s*$",
-		"return { RefreshAudio = RefreshAudio, StopAudio = StopAudio }")
+		"return { RefreshAudio = RefreshAudio, StopAudio = StopAudio, CancelForAction = CancelForAction, Controller = EgoController }")
 	local Audio = Load(ControllerSource, AudioEnvironment)
+	Audio.Controller.KnitInit()
+	for _, Name in Names do
+		Source:SetAttribute(Name .. "Level", 3)
+	end
+	for Attribute in Config.CancelStates do
+		Source.Character:SetAttribute("EgoActive", true)
+		Source.Character:SetAttribute(Attribute, true)
+		Check(not Audio.Controller:CanUse(), "Client activation is blocked during " .. Attribute)
+		local Requests = #ClientEgo.Cancel.Calls
+		Check(Audio.CancelForAction(Source.Character) and not Source.Character:GetAttribute("EgoActive")
+			and #ClientEgo.Cancel.Calls == Requests + 1, "Client predicts cancellation and requests it for " .. Attribute)
+		Check(not Audio.CancelForAction(Source.Character) and #ClientEgo.Cancel.Calls == Requests + 1,
+			"Repeated client cancellation is ignored for " .. Attribute)
+		Source.Character:SetAttribute(Attribute, false)
+	end
+	Check(Audio.Controller:CanUse(), "Client activation becomes available after the action ends")
+	Weak.Character:SetAttribute("EgoActive", true)
+	Weak.Character:SetAttribute("Running", true)
+	Check(not Audio.CancelForAction(Weak.Character) and Weak.Character:GetAttribute("EgoActive"),
+		"Client cancellation never changes another player's Ego")
+	Weak.Character:SetAttribute("Running", false)
+	Weak.Character:SetAttribute("EgoActive", false)
 	Source.Character:SetAttribute("EgoId", "1")
 	Source.Character:SetAttribute("EgoActive", true)
 	Audio.RefreshAudio(Source.Character, true)
-	Check(#Sounds == 2 and Sounds[1].SoundId == "rbxassetid://9112840575" and Sounds[1].Looped
-		and Sounds[1].Parent == SoundService, "Ego 1 starts its local background loop")
+	Check(#Sounds == 2 and Sounds[1].SoundId == Config.Definitions["1"].LoopSound and Sounds[1].Looped
+		and Sounds[1].Parent == Source.Character.PrimaryPart, "Ego 1 emits its loop from the character")
 	Check(Sounds[2].SoundId == Config.Definitions["1"].ActivationSound and not Sounds[2].Looped,
 		"Ego 1 plays its activation sound once")
+	Check(Sounds[2].Parent == Source.Character.PrimaryPart
+		and Sounds[1].RollOffMode == AudioEnvironment.Enum.RollOffMode.Linear
+		and Sounds[1].RollOffMinDistance == Config.SoundMinDistance
+		and Sounds[1].RollOffMaxDistance == Config.SoundMaxDistance
+		and Sounds[2].RollOffMaxDistance == Config.SoundMaxDistance,
+		"Activation and loop use spatial audio with the configured hearing range")
 	Audio.RefreshAudio(Source.Character, true)
 	Check(#Sounds == 2, "Repeated refreshes do not duplicate audio")
 	Sounds[2].Ended:Fire()
 	Check(Sounds[2].Destroyed and not Sounds[1].Destroyed, "The activation sound cleans up while the loop continues")
+	Weak.Character:SetAttribute("EgoId", "2")
+	Weak.Character:SetAttribute("EgoActive", true)
 	Audio.RefreshAudio(Weak.Character, true)
-	Check(#Sounds == 2 and not Sounds[1].Destroyed, "Other players do not replace the local background audio")
+	Check(#Sounds == 4 and not Sounds[1].Destroyed and Sounds[3].Parent == Weak.Character.PrimaryPart
+		and Sounds[3].Looped and Sounds[4].SoundId == Config.Definitions["2"].ActivationSound,
+		"Other players emit their activation and loop alongside the local player's Ego")
+	Audio.RefreshAudio(Weak.Character, true)
+	Check(#Sounds == 4, "Repeated remote refreshes do not duplicate sounds")
 	Source.Character:SetAttribute("EgoActive", false)
 	Audio.RefreshAudio(Source.Character, false)
-	Check(Sounds[1].Destroyed, "Deactivating Ego stops the background loop")
+	Check(Sounds[1].Destroyed and not Sounds[3].Destroyed, "Deactivation stops only that character's loop")
 	Source.Character:SetAttribute("EgoActive", true)
 	Audio.RefreshAudio(Source.Character, false)
-	Check(#Sounds == 3 and Sounds[3].Looped, "Initial active state restores only the loop")
+	Check(#Sounds == 5 and Sounds[5].Looped, "Initial active state restores only the loop")
 	Audio.StopAudio(Weak.Character)
-	Check(not Sounds[3].Destroyed, "Removing another character keeps the local loop")
+	Check(Sounds[3].Destroyed and Sounds[4].Destroyed and not Sounds[5].Destroyed,
+		"Removing another character stops its sounds and keeps the local loop")
 	Audio.StopAudio(Source.Character)
-	Check(Sounds[3].Destroyed, "Removing the owner character cleans up the loop")
+	Check(Sounds[5].Destroyed, "Removing the owner character cleans up the loop")
+
+	local AudioRoot = Weak.Character.PrimaryPart
+	Weak.Character.PrimaryPart = nil
+	Audio.RefreshAudio(Weak.Character, true)
+	Check(#Sounds == 5, "Audio waits for the character's primary part")
+	Weak.Character.PrimaryPart = AudioRoot
+	Audio.RefreshAudio(Weak.Character, false)
+	Check(#Sounds == 6 and Sounds[6].Looped and Sounds[6].Parent == AudioRoot,
+		"A late primary part restores the active loop without replaying activation")
+	Weak.Character.PrimaryPart = {}
+	Audio.RefreshAudio(Weak.Character, false)
+	Check(#Sounds == 7 and Sounds[6].Destroyed and Sounds[7].Parent == Weak.Character.PrimaryPart,
+		"Replacing the primary part moves audio and cleans up the old loop")
+	Weak.Character:SetAttribute("EgoId", "1")
+	Audio.RefreshAudio(Weak.Character, true)
+	Check(#Sounds == 9 and Sounds[7].Destroyed and Sounds[9].SoundId == Config.Definitions["1"].ActivationSound,
+		"Changing another player's active Ego replaces its audio")
+	Weak.Character:SetAttribute("EgoActive", false)
+	Audio.RefreshAudio(Weak.Character, false)
+	Check(Sounds[8].Destroyed and Sounds[9].Destroyed, "Deactivation cleans up both spatial sounds")
+	Weak.Character.PrimaryPart = AudioRoot
 
 	local SavedData = { EgoId = Profiles[Source].EgoId }
 	Players.PlayerRemoving:Fire(Source)

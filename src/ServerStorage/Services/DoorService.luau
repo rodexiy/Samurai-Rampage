@@ -20,9 +20,14 @@ local INTERACTION_COOLDOWN = 1
 local INTERACTION_TAGS = { "Door", "Windows" }
 local PANEL_TAG = "DoorPanel"
 local PROMPT_NAME = "DoorPrompt"
-local BoundContainers: { [Model]: boolean } = setmetatable({}, { __mode = "k" })
 local DoorImpactService
 local KnockbackService
+
+type ContainerState = {
+	Bound: boolean?,
+	Open: boolean?,
+	StartedAt: number?,
+}
 
 type PanelState = {
 	BoundsOffset: CFrame,
@@ -33,7 +38,17 @@ type PanelState = {
 	Duration: number,
 }
 
+local Containers: { [Instance]: ContainerState } = setmetatable({}, { __mode = "k" })
 local Panels: { [Model]: PanelState } = setmetatable({}, { __mode = "k" })
+
+local function GetContainerState(Container: Instance): ContainerState
+	local State = Containers[Container]
+	if not State then
+		State = {}
+		Containers[Container] = State
+	end
+	return State
+end
 
 function DoorService:GetCurrentPivot(Door: Model): CFrame
 	local State = Panels[Door]
@@ -62,44 +77,61 @@ local function PivotsMatch(First: CFrame, Second: CFrame): boolean
 	return Difference.Position.Magnitude < 0.01 and math.abs(Angle) < 0.001
 end
 
-function DoorService:RegisterDoor(Door: Model): boolean
+function DoorService:RegisterDoor(Door: Model, Container: Instance?): boolean
+	Container = Container or Door.Parent
 	local OpenOffset = Door:GetAttribute("DoorOffset") or Door:GetAttribute("OpenOffset")
-	if not Door.Parent or Door:GetAttribute("DoorBroken") or typeof(OpenOffset) ~= "CFrame" then
+	if not Container or Door:GetAttribute("DoorBroken") or typeof(OpenOffset) ~= "CFrame" then
+		return false
+	end
+	local PrimaryPart = Door.PrimaryPart or Door:FindFirstChildWhichIsA("BasePart", true)
+	if not PrimaryPart then
 		return false
 	end
 
-	local Open = Door:GetAttribute("Open") == true
+	local WasOpen = Door:GetAttribute("Open") == true
+	local Group = Containers[Container]
+	if not Group and (Container:HasTag("Door") or Container:HasTag("Windows")) then
+		Group = GetContainerState(Container)
+	end
+	if Group and Group.Open == nil then
+		Group.Open = WasOpen
+	end
+	if Panels[Door] then
+		return true
+	end
+
 	local ClosedPivot = Door:GetAttribute("DoorClosedPivot")
 	local Pivot = Door:GetPivot()
 	local Rebase = typeof(ClosedPivot) ~= "CFrame"
-		or (
-			not Panels[Door]
-			and not PivotsMatch(Pivot, ClosedPivot)
-			and not PivotsMatch(Pivot, ClosedPivot * OpenOffset)
-		)
+		or (not PivotsMatch(Pivot, ClosedPivot) and not PivotsMatch(Pivot, ClosedPivot * OpenOffset))
 	if Rebase then
-		ClosedPivot = if Open then Pivot * OpenOffset:Inverse() else Pivot
+		ClosedPivot = if WasOpen then Pivot * OpenOffset:Inverse() else Pivot
 		Door:SetAttribute("DoorClosedPivot", ClosedPivot)
 	end
-
-	if Rebase or typeof(Door:GetAttribute("DoorMotion")) ~= "string" then
-		local Target = if Open then ClosedPivot * OpenOffset else ClosedPivot
-		Door:SetAttribute("DoorMotion", EncodeMotion(Target, Target, 0, 0))
+	if not Door.PrimaryPart then
+		-- Keep the authored pivot attached to geometry if part transforms are replicated again.
+		PrimaryPart.PivotOffset = PrimaryPart.CFrame:ToObjectSpace(Pivot)
+		Door.PrimaryPart = PrimaryPart
 	end
 
+	-- A replacement is positioned closed on the server and joins the group's current motion.
+	local Open = if Group then Group.Open == true else WasOpen
+	local Bounds, Size = Door:GetBoundingBox()
+	local OpenPivot = ClosedPivot * OpenOffset
+	local Target = if Open then OpenPivot else ClosedPivot
+	local StartedAt = Group and Group.StartedAt or 0
+	local Duration = if StartedAt > 0 and workspace:GetServerTimeNow() - StartedAt < MOVE_DURATION then MOVE_DURATION else 0
+	local Start = if Duration == 0 then Target elseif Open then ClosedPivot else OpenPivot
+	Panels[Door] = {
+		BoundsOffset = Door:GetPivot():ToObjectSpace(Bounds),
+		Size = Size,
+		Start = Start,
+		Target = Target,
+		StartedAt = StartedAt,
+		Duration = Duration,
+	}
 	Door:SetAttribute("Open", Open)
-	if not Panels[Door] then
-		local Bounds, Size = Door:GetBoundingBox()
-		local Target = if Open then ClosedPivot * OpenOffset else ClosedPivot
-		Panels[Door] = {
-			BoundsOffset = Door:GetPivot():ToObjectSpace(Bounds),
-			Size = Size,
-			Start = Target,
-			Target = Target,
-			StartedAt = 0,
-			Duration = 0,
-		}
-	end
+	Door:SetAttribute("DoorMotion", EncodeMotion(Start, Target, StartedAt, Duration))
 	if
 		Door.ModelStreamingMode == Enum.ModelStreamingMode.Default
 		or Door.ModelStreamingMode == Enum.ModelStreamingMode.Nonatomic
@@ -118,8 +150,9 @@ function DoorService:BindDoor(Container: Instance)
 		return
 	end
 
-	if not BoundContainers[Container] then
-		BoundContainers[Container] = true
+	local State = GetContainerState(Container)
+	if not State.Bound then
+		State.Bound = true
 		Container.ChildAdded:Connect(function(Child: Instance)
 			if Child:IsA("Model") then
 				self:RegisterDoor(Child)
@@ -174,37 +207,72 @@ function DoorService:BindDoor(Container: Instance)
 	Prompt.Parent = Container
 end
 
-function DoorService:SetOpen(Door: Model, Open: boolean): boolean
-	if not self:RegisterDoor(Door) then
-		return false
-	end
-
-	if Door:GetAttribute("Opening") or (Door:GetAttribute("Open") == true) == Open then
-		return false
-	end
-
+local function MovePanel(Door: Model, Open: boolean, StartedAt: number)
 	local OpenOffset = (Door:GetAttribute("DoorOffset") or Door:GetAttribute("OpenOffset")) :: CFrame
 	local ClosedPivot = Door:GetAttribute("DoorClosedPivot") :: CFrame
-	local OpenPivot = ClosedPivot * OpenOffset
-	local StartCFrame = if Door:GetAttribute("Open") == true then OpenPivot else ClosedPivot
-	local TargetCFrame = if Open then OpenPivot else ClosedPivot
-	local Motion = EncodeMotion(StartCFrame, TargetCFrame, workspace:GetServerTimeNow(), MOVE_DURATION)
+	local StartCFrame = DoorService:GetCurrentPivot(Door)
+	local TargetCFrame = if Open then ClosedPivot * OpenOffset else ClosedPivot
+	local Motion = EncodeMotion(StartCFrame, TargetCFrame, StartedAt, MOVE_DURATION)
 	local State = Panels[Door]
 	State.Start = StartCFrame
 	State.Target = TargetCFrame
-	State.StartedAt = workspace:GetServerTimeNow()
+	State.StartedAt = StartedAt
 	State.Duration = MOVE_DURATION
 	Door:SetAttribute("Opening", true)
 	Door:SetAttribute("Open", Open)
 	-- One attribute keeps the complete transition together for late joiners.
 	Door:SetAttribute("DoorMotion", Motion)
 
-	self.Client.Moved:FireAll(Door, Motion)
+	DoorService.Client.Moved:FireAll(Door, Motion)
 
 	task.delay(INTERACTION_COOLDOWN, function()
-		Door:SetAttribute("Opening", false)
+		if Panels[Door] == State and State.StartedAt == StartedAt then
+			Door:SetAttribute("Opening", false)
+		end
 	end)
+end
 
+local function SetContainerOpen(Container: Instance, Open: boolean?): boolean
+	local State = GetContainerState(Container)
+	local StartedAt = workspace:GetServerTimeNow()
+	if State.StartedAt and StartedAt - State.StartedAt < INTERACTION_COOLDOWN then
+		return false
+	end
+
+	local Doors: { Model } = {}
+	for _, Child in Container:GetChildren() do
+		if Child:IsA("Model") and DoorService:RegisterDoor(Child) then
+			table.insert(Doors, Child)
+		end
+	end
+	local Target = if Open == nil then State.Open ~= true else Open
+	if #Doors == 0 or State.Open == Target then
+		return false
+	end
+
+	-- Claim the transition for the entire container before publishing any panel motion.
+	State.StartedAt = StartedAt
+	State.Open = Target
+	for _, Door in Doors do
+		MovePanel(Door, Target, StartedAt)
+	end
+	return true
+end
+
+function DoorService:SetOpen(Door: Model, Open: boolean): boolean
+	if not self:RegisterDoor(Door) then
+		return false
+	end
+
+	local Container = Door.Parent
+	if Container and Containers[Container] then
+		return SetContainerOpen(Container, Open)
+	end
+	if Door:GetAttribute("Opening") or (Door:GetAttribute("Open") == true) == Open then
+		return false
+	end
+
+	MovePanel(Door, Open, workspace:GetServerTimeNow())
 	return true
 end
 
@@ -220,12 +288,8 @@ function DoorService:ToggleDoor(Door: Model): boolean
 	return self:SetOpen(Door, Door:GetAttribute("Open") ~= true)
 end
 
-function DoorService:ToggleDoors(Container: Instance)
-	for _, Door in Container:GetChildren() do
-		if Door:IsA("Model") then
-			self:ToggleDoor(Door)
-		end
-	end
+function DoorService:ToggleDoors(Container: Instance): boolean
+	return SetContainerOpen(Container, nil)
 end
 
 local function UpdatePrompt(Container: Instance)
@@ -254,13 +318,12 @@ local function ScheduleRespawn(Door: Model, Container: Instance)
 
 	-- The intact copy stays outside the DataModel while the broken panel is debris.
 	task.delay(Config.RespawnDelay, function()
-		if not Container:IsDescendantOf(workspace) then
+		if not Container:IsDescendantOf(workspace) or not DoorService:RegisterDoor(Replacement, Container) then
 			Replacement:Destroy()
 			return
 		end
 
 		Replacement.Parent = Container
-		DoorService:RegisterDoor(Replacement)
 		UpdatePrompt(Container)
 	end)
 end

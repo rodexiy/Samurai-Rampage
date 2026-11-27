@@ -2,6 +2,7 @@ local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
@@ -12,7 +13,7 @@ local DoorController = Knit.CreateController({ Name = "DoorController" })
 type DoorRecord = {
 	Motion: string?,
 	StartedAt: number?,
-	Tween: Tween?,
+	MotionConnection: RBXScriptConnection?,
 	StateConnection: RBXScriptConnection?,
 	BrokenConnection: RBXScriptConnection?,
 }
@@ -26,6 +27,13 @@ type DoorMotion = {
 
 local PANEL_TAG = "DoorPanel"
 local Doors: { [Model]: DoorRecord } = {}
+
+local function StopMotion(Record: DoorRecord)
+	if Record.MotionConnection then
+		Record.MotionConnection:Disconnect()
+		Record.MotionConnection = nil
+	end
+end
 
 local function DecodeMotion(Motion: string): DoorMotion?
 	local Success, Result = pcall(function(): DoorMotion
@@ -74,7 +82,7 @@ function DoorController:BindDoor(Object: Instance): DoorRecord?
 	return Record
 end
 
-function DoorController:ApplyMotion(Door: Model?, Motion: string, Animate: boolean)
+function DoorController:ApplyMotion(Door: Model?, Motion: string, PlayMovementSound: boolean)
 	if not Door or not Door.Parent or Door:GetAttribute("DoorBroken") then
 		return
 	end
@@ -91,7 +99,7 @@ function DoorController:ApplyMotion(Door: Model?, Motion: string, Animate: boole
 
 	Record.Motion = Motion
 	Record.StartedAt = State.StartedAt
-	self:AnimateDoor(Door, State.Start, State.Target, State.StartedAt, if Animate then State.Duration else 0)
+	self:AnimateDoor(Door, Record, State, PlayMovementSound)
 end
 
 function DoorController:RemoveDoor(Object: Instance)
@@ -105,9 +113,7 @@ function DoorController:RemoveDoor(Object: Instance)
 	end
 
 	Doors[Object] = nil
-	if Record.Tween then
-		Record.Tween:Cancel()
-	end
+	StopMotion(Record)
 
 	-- Streaming out can remove the tag before the instance is destroyed.
 	if Record.StateConnection then
@@ -162,64 +168,42 @@ local function PlaySound(Door: Model)
 	Sound:Play()
 end
 
-function DoorController:AnimateDoor(
-	Door: Model?,
-	StartCFrame: CFrame,
-	TargetCFrame: CFrame,
-	StartedAt: number,
-	Duration: number
-)
-	-- Streamed-out doors restore their saved target when their tag loads again.
-	if not Door or not Door.Parent or Door:GetAttribute("DoorBroken") then
-		return
-	end
+function DoorController:AnimateDoor(Door: Model, Record: DoorRecord, Motion: DoorMotion, PlayMovementSound: boolean)
+	StopMotion(Record)
 
-	local Record = self:BindDoor(Door)
-	if not Record then
-		return
-	end
-
-	if Record.Tween then
-		Record.Tween:Cancel()
-	end
-
-	if Duration <= 0 then
-		Door:PivotTo(TargetCFrame)
-		return
-	end
-
-	local Elapsed = math.clamp(workspace:GetServerTimeNow() - StartedAt, 0, Duration)
-	if Elapsed >= Duration then
-		Door:PivotTo(TargetCFrame)
-		return
-	end
-
-	local Alpha = TweenService:GetValue(Elapsed / Duration, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-	Door:PivotTo(StartCFrame:Lerp(TargetCFrame, Alpha))
-
-	local Progress = Instance.new("NumberValue")
-	Progress.Value = Elapsed / Duration
-	local Info = TweenInfo.new(Duration - Elapsed, Enum.EasingStyle.Linear)
-	local Tween = TweenService:Create(Progress, Info, { Value = 1 })
-	Record.Tween = Tween
-	Progress.Changed:Connect(function(Value: number)
-		if Door.Parent then
-			local Eased = TweenService:GetValue(Value, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-			Door:PivotTo(StartCFrame:Lerp(TargetCFrame, Eased))
-		else
-			Tween:Cancel()
+	local function UpdatePivot(): boolean
+		if not Door.Parent or Door:GetAttribute("DoorBroken") then
+			return false
 		end
-	end)
-	Tween.Completed:Once(function()
-		if Record.Tween == Tween then
-			Record.Tween = nil
+		if not Door.PrimaryPart then
+			return true
 		end
 
-		Progress:Destroy()
-	end)
+		local Elapsed = workspace:GetServerTimeNow() - Motion.StartedAt
+		if Motion.Duration <= 0 or Elapsed >= Motion.Duration then
+			Door:PivotTo(Motion.Target)
+			return false
+		end
 
-	Tween:Play()
-	PlaySound(Door)
+		local Progress = math.max(Elapsed, 0) / Motion.Duration
+		local Alpha = TweenService:GetValue(Progress, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+		Door:PivotTo(Motion.Start:Lerp(Motion.Target, Alpha))
+		return true
+	end
+
+	-- Let newly replicated models receive their initial part transforms before applying the snapshot.
+	if PlayMovementSound and not UpdatePivot() then
+		return
+	end
+
+	Record.MotionConnection = RunService.Heartbeat:Connect(function()
+		if not UpdatePivot() then
+			StopMotion(Record)
+		end
+	end)
+	if PlayMovementSound then
+		PlaySound(Door)
+	end
 end
 
 function DoorController.KnitStart()

@@ -8,7 +8,7 @@ return {
 	ImpactStopDelay = 0.25,
 	ImpactRotationStep = 10, -- Degrees per rotational collision sample.
 	ImpactMaxSubsteps = 12,
-	BreakSpeed = 18,
+	BreakSpeed = 25,
 	BreakUpSpeed = 2,
 	BreakSpin = Vector3.new(2, 4, 1),
 	DebrisLifetime = 8,

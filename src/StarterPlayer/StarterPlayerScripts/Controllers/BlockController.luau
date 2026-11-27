@@ -150,7 +150,7 @@ local function TrackCharacter(Character: Model)
 			UpdateWeapon()
 		end
 		if ((Attribute == "Died" or Attribute == "PostureBreak" or Attribute == "Ragdoll" or Attribute == "RealmEditing"
-			or Attribute == "EgoActive" or Attribute == "EgoCutscene") and Character:GetAttribute(Attribute))
+			or Attribute == "EgoCutscene") and Character:GetAttribute(Attribute))
 			or (Attribute == "Rolling" and Character:GetAttribute("Rolling") and (Character:GetAttribute("Race") ~= "Raijin"
 				or SkillTreeController:IsSkillUnlocked("Lightning Dash"))) then
 			Release()

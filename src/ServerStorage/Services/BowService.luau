@@ -553,6 +553,7 @@ function BowService:HandleProjectileHit(Cast: any, Result: RaycastResult, Veloci
 			local Distance = (Data.Distance or 0) + (Result.Position - Data.Origin).Magnitude
 			local Outcome = self:ResolveProjectileHit(Target, Data.Character, Data.Config.GetDamage(Data.Charge, Distance), {
 				By = Data.Config.WeaponName, Ranged = true, NoStun = true,
+				IsFirearm = Data.Config.IsFirearm == true,
 				RayCFrame = CFrame.lookAt(Result.Position, Result.Position + Velocity),
 			})
 			if self:DeflectProjectile(Cast, Result, Velocity, Target, Outcome) then

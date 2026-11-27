@@ -130,7 +130,7 @@ function BowConfig.CanUse(Character: Model): boolean
 end
 
 function BowConfig.CanAttack(Character: Model): boolean
-	return not Character:GetAttribute("EgoActive") and not Character:GetAttribute("EgoCutscene")
+	return not Character:GetAttribute("EgoCutscene")
 		and BowConfig.CanUse(Character)
 end
 

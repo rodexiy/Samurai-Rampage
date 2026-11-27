@@ -31,6 +31,12 @@ local TalentService
 
 local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
 
+function PostureService:CanAutoParryShot(Character: Model): boolean
+	local Player = Players:GetPlayerFromCharacter(Character)
+	return Player ~= nil and Player:GetAttribute("AutoParryShots") == true
+		and not Character:GetAttribute("Downed") and Validate:CanBlock(Character)
+end
+
 function PostureService:LastHitReset(Attacker: Model, Data: { any })
 	if Attacker:GetAttribute("ComboCounter") == 5 and Data.By and Data.By == "Weapon" then
 		Attacker:SetAttribute("ComboCounter", 0)

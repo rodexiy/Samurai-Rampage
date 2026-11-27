@@ -1,10 +1,10 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local SoundService = game:GetService("SoundService")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local EgoConfig = require(ReplicatedStorage.Shared.EgoConfig)
 local Progression = require(ReplicatedStorage.Shared.StatProgression)
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
 local EgoController = Knit.CreateController({ Name = "EgoController" })
 local Player = Players.LocalPlayer
@@ -17,57 +17,60 @@ local SceneRevision = 0
 local SceneActive = false
 local SceneSource: Model?
 
-type AudioState = { Character: Model, Id: string, Activation: Sound?, Loop: Sound? }
-local Audio: AudioState?
+type AudioState = { Root: BasePart, Id: string, Activation: Sound?, Loop: Sound? }
+local Audio: { [Model]: AudioState } = {}
 
-local function StopAudio(Character: Model?)
-	if not Audio or (Character and Audio.Character ~= Character) then
+local function StopAudio(Character: Model)
+	local State = Audio[Character]
+	if not State then
 		return
 	end
 
-	if Audio.Activation then
-		Audio.Activation:Destroy()
+	Audio[Character] = nil
+	if State.Activation then
+		State.Activation:Destroy()
 	end
-	if Audio.Loop then
-		Audio.Loop:Destroy()
+	if State.Loop then
+		State.Loop:Destroy()
 	end
-	Audio = nil
 end
 
-local function PlaySound(Id: string, Name: string, Volume: number, Looped: boolean): Sound
+local function PlaySound(Root: BasePart, Id: string, Name: string, Volume: number, Looped: boolean): Sound
 	local Sound = Instance.new("Sound")
 	Sound.Name = Name
 	Sound.SoundId = Id
 	Sound.Volume = Volume
 	Sound.Looped = Looped
-	Sound.Parent = SoundService
+	Sound.RollOffMode = Enum.RollOffMode.Linear
+	Sound.RollOffMinDistance = EgoConfig.SoundMinDistance
+	Sound.RollOffMaxDistance = EgoConfig.SoundMaxDistance
+	Sound.Parent = Root
 	Sound:Play()
 
 	return Sound
 end
 
 local function RefreshAudio(Character: Model, PlayActivation: boolean)
-	if Character ~= Player.Character then
-		return
-	end
 	local Id = Character:GetAttribute("EgoId")
 	local Definition = Id and EgoConfig.Definitions[Id]
-	if not Character:GetAttribute("EgoActive") or not Definition then
+	local Root = Character.PrimaryPart
+	if not Character:GetAttribute("EgoActive") or not Character.Parent or not Root or not Definition then
 		StopAudio(Character)
 		return
 	end
-	if Audio and Audio.Character == Character and Audio.Id == Id then
+	local Current = Audio[Character]
+	if Current and Current.Root == Root and Current.Id == Id then
 		return
 	end
 
-	StopAudio()
-	local State: AudioState = { Character = Character, Id = Id }
-	Audio = State
+	StopAudio(Character)
+	local State: AudioState = { Root = Root, Id = Id }
+	Audio[Character] = State
 	if Definition.LoopSound then
-		State.Loop = PlaySound(Definition.LoopSound, "EgoLoop", Definition.LoopVolume or 0.5, true)
+		State.Loop = PlaySound(Root, Definition.LoopSound, "EgoLoop", Definition.LoopVolume or 0.5, true)
 	end
 	if PlayActivation and Definition.ActivationSound then
-		local Activation = PlaySound(Definition.ActivationSound, "EgoActivation", Definition.ActivationVolume or 1, false)
+		local Activation = PlaySound(Root, Definition.ActivationSound, "EgoActivation", Definition.ActivationVolume or 1, false)
 		State.Activation = Activation
 		Activation.Ended:Once(function()
 			State.Activation = nil
@@ -134,6 +137,11 @@ function EgoController:CanUse(): boolean
 	if not Character or Character:GetAttribute("Loaded") ~= true then
 		return false
 	end
+	for Attribute in EgoConfig.CancelStates do
+		if Character:GetAttribute(Attribute) then
+			return false
+		end
+	end
 	for _, Name in Progression.Names do
 		if (Player:GetAttribute(Name .. "Level") or 0) < EgoConfig.RequiredStatLevel then
 			return false
@@ -150,7 +158,27 @@ function EgoController:Toggle()
 		return
 	end
 
+	if not Character:GetAttribute("EgoActive") and not self:CanUse() then
+		return
+	end
+
 	EgoService.Toggle:Fire()
+end
+
+local function CancelForAction(Character: Model): boolean
+	if Character ~= Player.Character or not Character:GetAttribute("EgoActive") then
+		return false
+	end
+	for Attribute in EgoConfig.CancelStates do
+		if Character:GetAttribute(Attribute) then
+			Character:SetAttribute("EgoActive", false)
+			CharacterShared:UpdateBoth(Character)
+			EgoService.Cancel:Fire()
+			return true
+		end
+	end
+
+	return false
 end
 
 local function FinishScene()
@@ -216,9 +244,19 @@ local function PlayScene(Source: Model?, Duration: number?)
 end
 
 local function TrackCharacter(Character: Model)
+	Character.AttributeChanged:Connect(function(Attribute: string)
+		if EgoConfig.CancelStates[Attribute] then
+			CancelForAction(Character)
+		end
+	end)
+
 	local WasActive = Character:GetAttribute("EgoActive") == true
 	Character:GetAttributeChangedSignal("EgoActive"):Connect(function()
 		local Active = Character:GetAttribute("EgoActive") == true
+		if Active and CancelForAction(Character) then
+			return
+		end
+
 		if Active and not WasActive and Character == Player.Character then
 			CameraController:PulseFieldOfView(-12, 0.12)
 			CameraController:ShakeOnce(2, 8, 0.1, 2.9)
@@ -234,6 +272,7 @@ local function TrackCharacter(Character: Model)
 	end)
 	Character:GetPropertyChangedSignal("PrimaryPart"):Connect(function()
 		RefreshAura(Character)
+		RefreshAudio(Character, false)
 	end)
 	Character.Destroying:Once(function()
 		StopAudio(Character)

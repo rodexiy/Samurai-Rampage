@@ -9,12 +9,13 @@ local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
 local EgoService = Knit.CreateService({
 	Name = "EgoService",
-	Client = { Toggle = Knit.CreateSignal(), Cutscene = Knit.CreateSignal() },
+	Client = { Toggle = Knit.CreateSignal(), Cancel = Knit.CreateSignal(), Cutscene = Knit.CreateSignal() },
 })
 
 type Exposure = { Source: Player, Pressure: number, Gain: number, Distance: number, SourceLevel: number, TargetLevel: number }
 type Scene = { Source: Player, Character: Model }
 local Active: { [Player]: Model } = {}
+local ActionConnections: { [Player]: RBXScriptConnection } = {}
 local Available: { string } = {}
 local RandomGenerator = Random.new()
 local LastToggle: { [Player]: number } = {}
@@ -26,15 +27,14 @@ local StatService
 local DataService
 local FearService
 local PartyService
-local PostureService
 local BowService
 local AlertService
 
 local InvalidStates = {
-	"Died", "Downed", "Ragdoll", "Mounted", "Climbing", "WallRunning", "Vaulting", "Rolling",
+	"Died", "Downed", "Ragdoll", "Mounted", "Climbing", "WallRunning", "Vaulting",
 	"PostureBreak", "HeavyDeflect", "BeenHitted", "RealmEditing", "RealmTeleporting", "CameraCutscene",
 	"EgoCutscene", "SkillLockMovement", "UsingSkillCantAttack", "IntroOpening", "InCell", "InLabor",
-	"Attack", "Attacking", "StrongAttack", "Kicking",
+	"Kicking",
 }
 
 local function IsAlive(Character: Model?): boolean
@@ -118,6 +118,11 @@ function EgoService:CanUse(Player: Player): boolean
 			return false
 		end
 	end
+	for Attribute in EgoConfig.CancelStates do
+		if Character:GetAttribute(Attribute) then
+			return false
+		end
+	end
 	for _, Name in Progression.Names do
 		if StatService:GetLevel(Player, Name) < EgoConfig.RequiredStatLevel then
 			return false
@@ -152,6 +157,12 @@ function EgoService:SetActive(Player: Player, Enabled: boolean): boolean
 	local Character = Active[Player] or Player.Character
 	if not Enabled then
 		Active[Player] = nil
+		local Connection = ActionConnections[Player]
+		if Connection then
+			ActionConnections[Player] = nil
+			Connection:Disconnect()
+		end
+
 		if Character then
 			Character:SetAttribute("EgoActive", false)
 			CharacterShared:UpdateBoth(Character)
@@ -173,8 +184,12 @@ function EgoService:SetActive(Player: Player, Enabled: boolean): boolean
 		return true
 	end
 	Active[Player] = Character
-	Character:SetAttribute("Running", false)
-	PostureService:Block(Character, false)
+	ActionConnections[Player] = Character.AttributeChanged:Connect(function(Attribute: string)
+		if Active[Player] == Character and EgoConfig.CancelStates[Attribute] and Character:GetAttribute(Attribute) then
+			self:SetActive(Player, false)
+		end
+	end)
+
 	BowService:CancelDraw(Player)
 	Character:SetAttribute("EgoActive", true)
 	CharacterShared:UpdateBoth(Character)
@@ -335,12 +350,17 @@ function EgoService.KnitInit()
 	DataService = Knit.GetService("DataService")
 	FearService = Knit.GetService("FearService")
 	PartyService = Knit.GetService("PartyService")
-	PostureService = Knit.GetService("PostureService")
 	BowService = Knit.GetService("BowService")
 	AlertService = Knit.GetService("AlertService")
 end
 
 function EgoService.KnitStart()
+	EgoService.Client.Cancel:Connect(function(Player: Player)
+		if Active[Player] then
+			EgoService:SetActive(Player, false)
+		end
+	end)
+
 	EgoService.Client.Toggle:Connect(function(Player: Player)
 		if Active[Player] then
 			EgoService:SetActive(Player, false)

@@ -33,7 +33,7 @@ return function(Source: string, AutoRotateSource: string): string
 	local Zero = {}
 	local function Character(AnimateEnabled: boolean): any
 		local RagdollChanged, RecoveryChanged, RotateChanged = Signal(), Signal(), Signal()
-		local Subject = { Attributes = {}, PrimaryPart = { CFrame = "stale-frame" } }
+		local Subject = { Attributes = {}, PrimaryPart = { CFrame = "replicated-frame" } }
 		local Animate = { Enabled = AnimateEnabled, Parent = Subject, IsA = function(_Self: any, Class: string): boolean
 			return Class == "LocalScript"
 		end }
@@ -130,13 +130,20 @@ return function(Source: string, AutoRotateSource: string): string
 	Check(Late.Stopped, "Late combat animations cannot restart during ragdoll")
 	Subject.Humanoid.AutoRotate = true
 	Check(not Subject.Humanoid.AutoRotate, "Camera rotation restoration cannot fight the ragdoll")
-	Service.PrepareRecovery:Fire(Subject, 1, "server-frame")
-	Check(Subject.PrimaryPart.CFrame == "stale-frame" and #Service.RecoveryReady.Calls == 0,
-		"A pose arriving before its replicated recovery id waits for the correct session")
+	Service.PrepareRecovery:Fire(Subject, 1)
+	Check(#Service.RecoveryReady.Calls == 0,
+		"Preparation arriving before its replicated recovery id waits for the correct session")
+	local LinearVelocity, AngularVelocity = {}, {}
+	Subject.PrimaryPart.CFrame = "updated-frame"
+	Subject.PrimaryPart.AssemblyLinearVelocity = LinearVelocity
+	Subject.PrimaryPart.AssemblyAngularVelocity = AngularVelocity
 	Subject:SetRecoveryId(1)
-	Check(Subject.PrimaryPart.CFrame == "server-frame" and Subject.PrimaryPart.AssemblyLinearVelocity == Zero
-		and #Service.RecoveryReady.Calls == 1 and Service.RecoveryReady.Calls[1][1] == Subject,
-		"The owner's pose and velocity are synchronized before confirming the ownership handoff")
+	Check(#Service.RecoveryReady.Calls == 1 and Service.RecoveryReady.Calls[1][1] == Subject,
+		"The owner confirms the matching recovery session")
+	Check(Subject.PrimaryPart.CFrame == "updated-frame"
+		and Subject.PrimaryPart.AssemblyLinearVelocity == LinearVelocity
+		and Subject.PrimaryPart.AssemblyAngularVelocity == AngularVelocity,
+		"Confirming recovery preserves the latest replicated pose and velocity")
 	Subject:SetRagdoll(false)
 	Check(not Subject.Animate.Enabled and Subject.Humanoid.State == "Physics", "Getting up waits for the ownership handoff to finish")
 	Subject:SetRecoveryId(nil)
@@ -159,9 +166,8 @@ return function(Source: string, AutoRotateSource: string): string
 	local OldTrack = Track()
 	Subject.Animator.AnimationPlayed:Fire(OldTrack)
 	Check(not OldTrack.Stopped, "Character removal disconnects the old animation blocker")
-	Service.PrepareRecovery:Fire(Subject, 2, "old-character-frame")
-	Check(Subject.PrimaryPart.CFrame == "server-frame" and #Service.RecoveryReady.Calls == 1,
-		"A delayed recovery packet cannot reposition a previous character")
+	Service.PrepareRecovery:Fire(Subject, 2)
+	Check(#Service.RecoveryReady.Calls == 1, "The client ignores delayed preparation for a previous character")
 
 	return string.format("Ragdoll controller: %d checks passed", Checks)
 end

@@ -353,7 +353,7 @@ return function(Sources: { [string]: string }): string
 		Check(Restored ~= nil and Restored.PrimaryPart.Anchored, "The entire intact panel returns anchored")
 		local RestoredPanel = Restored :: Model
 		Check(Prompt.Enabled and Service:SetOpen(RestoredPanel, true), "The returned panel re-enables interaction")
-		RestoredPanel:SetAttribute("Opening", false)
+		Now += 1
 		Check(Service:SetOpen(Restored :: Model, false), "The restored panel can close after opening")
 		Respawns[2]()
 		local RestoredMoving: Model? = nil
@@ -389,21 +389,103 @@ return function(Sources: { [string]: string }): string
 			"The physical door hitbox detects and breaks an unregistered door directly from scenery parts"
 		)
 
+		local SharedHolder = Container()
+		local BrokenHalf = Panel(SharedHolder, Vector3.new(160, 0, -3))
+		local OtherHalf = Panel(SharedHolder, Vector3.new(164, 0, -3))
+		Service:BindDoor(SharedHolder)
+		Check(Service:BreakDoor(BrokenHalf, OtherAttacker, -Vector3.zAxis, {}), "One leaf can break independently")
+		Check(Service:ToggleDoors(SharedHolder) and OtherHalf:GetAttribute("Open"), "The intact leaf can still open")
+		Now += 0.45
+		Respawns[#Respawns]()
+		local Replacement: Model? = nil
+		for _, Child in SharedHolder:GetChildren() do
+			if Child:IsA("Model") and Child ~= BrokenHalf and Child ~= OtherHalf then
+				Replacement = Child
+				break
+			end
+		end
+		local RestoredHalf = assert(Replacement, "The broken leaf respawns")
+		local ClosedPivot = RestoredHalf:GetAttribute("DoorClosedPivot") :: CFrame
+		local OtherClosedPivot = OtherHalf:GetAttribute("DoorClosedPivot") :: CFrame
+		local Progress = Service:GetCurrentPivot(RestoredHalf).Position - ClosedPivot.Position
+		local OtherProgress = Service:GetCurrentPivot(OtherHalf).Position - OtherClosedPivot.Position
+		Check(
+			RestoredHalf:GetAttribute("Open") == true
+				and Progress.Magnitude > 0
+				and Progress.Magnitude < 5
+				and (Progress - OtherProgress).Magnitude < 0.01,
+			"A respawned leaf joins the current position and motion of its door"
+		)
+		Check(
+			not Service:ToggleDoors(SharedHolder) and not Service:CloseDoor(RestoredHalf),
+			"A new leaf shares the cooldown already in progress"
+		)
+
+		local Motions = {}
+		Service.Client.Moved.FireAll = function(_Self: any, Leaf: Model, Motion: string)
+			if Leaf.Parent == SharedHolder then
+				table.insert(Motions, game:GetService("HttpService"):JSONDecode(Motion))
+				Check(not Service:ToggleDoors(SharedHolder), "An interaction during a group update cannot reverse it")
+			end
+		end
+		Now += 1
+		Check(Service:ToggleDoors(SharedHolder), "The door accepts a new interaction after the shared cooldown")
+		Check(
+			RestoredHalf:GetAttribute("Open") == false
+				and OtherHalf:GetAttribute("Open") == false
+				and #Motions == 2
+				and Motions[1].StartedAt == Now
+				and Motions[2].StartedAt == Now,
+			"Both leaves close in one transition with the same timestamp"
+		)
+		Now += 1
+		Check(
+			(Service:GetCurrentPivot(RestoredHalf).Position - ClosedPivot.Position).Magnitude < 0.01,
+			"The restored leaf closes at its original position"
+		)
+
+		local PivotHolder = Container()
+		local Left = Panel(PivotHolder, Vector3.new(180, 0, -3))
+		local Right = Panel(PivotHolder, Vector3.new(183, 0, -3))
+		Left:SetAttribute("OpenOffset", CFrame.new(-5, 0, 0))
+		local ClosedFrames: { [BasePart]: CFrame } = {}
+		for _, Leaf in { Left, Right } do
+			local AuthoredPivot = Leaf:GetPivot() * CFrame.new(0, 0.75, 0)
+			Leaf.PrimaryPart = nil
+			Leaf.WorldPivot = AuthoredPivot
+			for _, Part: BasePart in Leaf:QueryDescendants("BasePart") do
+				ClosedFrames[Part] = Part.CFrame
+			end
+		end
+		Service:BindDoor(PivotHolder)
+		Controller:BindDoor(Left)
+		Controller:BindDoor(Right)
+		Check(Service:ToggleDoors(PivotHolder), "The two leaves start opening")
+		Now += 1
+		task.wait()
+		task.wait()
+		for Part, ClosedFrame in ClosedFrames do
+			Check((Part.Position - ClosedFrame.Position).Magnitude > 4.99, "The client renders each part at its open position")
+			Part.CFrame = ClosedFrame
+		end
+		Check(Service:ToggleDoors(PivotHolder), "Another interaction closes both leaves after part replication")
+		Now += 1
+		task.wait()
+		task.wait()
+		for Part, ClosedFrame in ClosedFrames do
+			Check((Part.Position - ClosedFrame.Position).Magnitude < 0.01, "Closing restores the authored geometry after resync")
+		end
+
 		local ClientHolder = Container()
 		local ClientDoor = Panel(ClientHolder, Vector3.new(100, 0, -3))
 		Service:BindDoor(ClientHolder)
 		local Record = Controller:BindDoor(ClientDoor)
-		local Cancelled = false
-		Record.Tween = {
-			Cancel = function()
-				Cancelled = true
-			end,
-		}
+		local MotionConnection = assert(Record.MotionConnection, "The client schedules the initial door pose")
 		ClientDoor:SetAttribute("DoorBroken", true)
 		task.wait()
 		Check(
-			Cancelled and not Record.StateConnection.Connected and not Record.BrokenConnection.Connected,
-			"Breaking cancels the client opening tween and releases its observers"
+			not MotionConnection.Connected and not Record.StateConnection.Connected and not Record.BrokenConnection.Connected,
+			"Breaking cancels the client animation and releases its observers"
 		)
 		Check(Controller:BindDoor(ClientDoor) == nil, "A broken panel cannot restart client animation")
 		Controller:PlayBreakEffect(ClientDoor)

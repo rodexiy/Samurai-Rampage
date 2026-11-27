@@ -248,18 +248,27 @@ return function(Source: string, Config: any): string
 	Check(Subject:GetAttribute("Ragdoll") and Subject.Motors[1].Enabled and Subject.PrimaryPart.Owner == nil,
 		"Rebuilt player rigs remain server-owned and in Physics until synchronized")
 	Service.Client.RecoveryReady:Fire(Owner, Subject, Id)
-	Check(Subject.PrimaryPart.Owner == nil, "Acknowledgements before the pose was sent are rejected")
+	Check(Subject.PrimaryPart.Owner == nil, "Acknowledgements before preparation are rejected")
 	Step(0)
 	local Packet = Service.Client.PrepareRecovery.Calls[#Service.Client.PrepareRecovery.Calls]
-	Check(Packet[1] == Owner and Packet[2] == Subject and Packet[3] == Id and Packet[4] == "server-frame",
-		"The owner receives the server pose after a full simulation step")
+	Check(Packet[1] == Owner and Packet[2] == Subject and Packet[3] == Id and Packet[4] == nil,
+		"The owner receives preparation after a full simulation step without a stale pose to apply")
 	Service.Client.RecoveryReady:Fire({ Character = Subject }, Subject, Id)
 	Service.Client.RecoveryReady:Fire(Owner, Subject, Id + 1)
 	Check(Subject:GetAttribute("Ragdoll") and Subject.PrimaryPart.Owner == nil, "Forged and stale confirmations cannot claim ownership")
+	local RecoveryVelocity = { Magnitude = 2 }
+	local RecoveryAngularVelocity = { Magnitude = 1 }
+	Subject.PrimaryPart.CFrame = "moved-during-handoff"
+	Subject.PrimaryPart.AssemblyLinearVelocity = RecoveryVelocity
+	Subject.PrimaryPart.AssemblyAngularVelocity = RecoveryAngularVelocity
 	Service.Client.RecoveryReady:Fire(Owner, Subject, Id)
 	Check(Subject.PrimaryPart.Owner == Owner and not Subject:GetAttribute("Ragdoll")
 		and Subject:GetAttribute("RagdollRecoveryId") == nil and not Connection.Connected,
-		"A valid pose confirmation returns ownership and then releases getting up")
+		"A valid confirmation returns ownership and then releases getting up")
+	Check(Subject.PrimaryPart.CFrame == "moved-during-handoff"
+		and Subject.PrimaryPart.AssemblyLinearVelocity == RecoveryVelocity
+		and Subject.PrimaryPart.AssemblyAngularVelocity == RecoveryAngularVelocity,
+		"Ownership transfer preserves movement during a delayed confirmation")
 
 	Service:Ragdoll(Subject)
 	Service:Unragdoll(Subject)

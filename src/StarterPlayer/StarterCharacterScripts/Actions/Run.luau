@@ -88,7 +88,6 @@ function Run.Start(_Services: any)
 	SkillTreeController = Knit.GetController("SkillTreeController")
 
 	local StopAttributes = {
-		"EgoActive",
 		"Attack",
 		"UsingSkillCantAttack",
 		"BeenHitted",

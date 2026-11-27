@@ -105,7 +105,7 @@ local function FinishRecovery(Character: Model, State: Handoff)
 		return
 	end
 
-	ClearVelocity(Character)
+	-- Carry the current server simulation through the ownership transfer.
 	SetCharacterOwner(Character, State.Player)
 	Handoffs[Character] = nil
 	local Humanoid = Character:FindFirstChildWhichIsA("Humanoid") :: Humanoid
@@ -113,6 +113,7 @@ local function FinishRecovery(Character: Model, State: Handoff)
 	Character:SetAttribute("Ragdoll", false)
 	Character:SetAttribute("RagdollRecoveryId", nil)
 	if not State.Player then
+		ClearVelocity(Character)
 		Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 	end
 	StopMonitoringIfIdle()
@@ -140,8 +141,7 @@ local function StepRecovery(DeltaTime: number)
 			FinishRecovery(Character, State)
 		elseif not State.SentAt then
 			State.SentAt = os.clock()
-			local Root = Character.PrimaryPart :: BasePart
-			RagdollService.Client.PrepareRecovery:Fire(State.Player, Character, State.Id, Root.CFrame)
+			RagdollService.Client.PrepareRecovery:Fire(State.Player, Character, State.Id)
 		end
 	end
 

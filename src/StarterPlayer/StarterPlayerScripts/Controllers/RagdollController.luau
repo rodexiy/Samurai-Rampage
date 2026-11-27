@@ -6,8 +6,8 @@ local SetAutoRotate = require(ReplicatedStorage.Shared.Utils.SetAutoRotate)
 local Player = Players.LocalPlayer
 local RagdollController = Knit.CreateController({ Name = "RagdollController" })
 local RagdollService
-local PendingRecovery: { Character: Model, Id: number, Frame: CFrame }?
-local ApplyRecovery: (() -> ())?
+local PendingRecovery: { Character: Model, Id: number }?
+local ConfirmRecovery: (() -> ())?
 
 local Connections: { RBXScriptConnection } = {}
 
@@ -17,7 +17,7 @@ end
 
 local function UnbindCharacter()
 	PendingRecovery = nil
-	ApplyRecovery = nil
+	ConfirmRecovery = nil
 	for _, Connection in Connections do
 		Connection:Disconnect()
 	end
@@ -37,18 +37,14 @@ local function BindCharacter(Character: Model)
 	local GettingUpWasEnabled = true
 	local IsRagdolled = false
 
-	ApplyRecovery = function()
+	ConfirmRecovery = function()
 		local State = PendingRecovery
-		local Root = Character.PrimaryPart
-		if not State or State.Character ~= Character or not Root
+		if not State or State.Character ~= Character or not Character.PrimaryPart
 			or Character:GetAttribute("RagdollRecoveryId") ~= State.Id then
 			return
 		end
 
-		-- Seed the owner's simulation with the server's final pose before ownership returns.
-		Root.CFrame = State.Frame
-		Root.AssemblyLinearVelocity = Vector3.zero
-		Root.AssemblyAngularVelocity = Vector3.zero
+		-- A delayed confirmation must leave the latest replicated physics intact.
 		PendingRecovery = nil
 		RagdollService.RecoveryReady:Fire(Character, State.Id)
 	end
@@ -105,8 +101,8 @@ local function BindCharacter(Character: Model)
 	table.insert(Connections, Character:GetAttributeChangedSignal("Ragdoll"):Connect(UpdateRagdoll))
 	table.insert(Connections, Character:GetAttributeChangedSignal("RagdollRecoveryId"):Connect(function()
 		UpdateRagdoll()
-		if ApplyRecovery then
-			ApplyRecovery()
+		if ConfirmRecovery then
+			ConfirmRecovery()
 		end
 	end))
 	table.insert(Connections, Humanoid:GetPropertyChangedSignal("AutoRotate"):Connect(function()
@@ -119,14 +115,14 @@ end
 
 function RagdollController.KnitStart()
 	RagdollService = Knit.GetService("RagdollService")
-	RagdollService.PrepareRecovery:Connect(function(Character: Model, Id: number, Frame: CFrame)
+	RagdollService.PrepareRecovery:Connect(function(Character: Model, Id: number)
 		if Character ~= Player.Character then
 			return
 		end
 
-		PendingRecovery = { Character = Character, Id = Id, Frame = Frame }
-		if ApplyRecovery then
-			ApplyRecovery()
+		PendingRecovery = { Character = Character, Id = Id }
+		if ConfirmRecovery then
+			ConfirmRecovery()
 		end
 	end)
 	Player.CharacterRemoving:Connect(UnbindCharacter)

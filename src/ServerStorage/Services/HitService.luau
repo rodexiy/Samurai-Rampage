@@ -133,8 +133,10 @@ function HitService:NormalHit(Character: Model, Attacker: Model, Damage: number,
 		return self:ResolveHitResult(Character, Attacker, Damage, Data, PostureService:Dodged(Character, Attacker))
 	end
 
+	local CanDeflect = Character:GetAttribute("DeflectTime")
+		or (Data.IsFirearm == true and PostureService:CanAutoParryShot(Character))
 	local Result
-	if Character:GetAttribute("DeflectTime") and HitService:IsInFront(Attacker, Character) then
+	if CanDeflect and HitService:IsInFront(Attacker, Character) then
 		Result = PostureService:Deflected(Character, Attacker, Damage, Data)
 	elseif Character:GetAttribute("Blocking") and HitService:IsInFront(Attacker, Character) then
 		Result = PostureService:Blocked(Character, Attacker, Damage, Data)

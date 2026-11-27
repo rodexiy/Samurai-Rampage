@@ -1,6 +1,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Knit = require(ReplicatedStorage.Packages.Knit)
+local IntroCutsceneConfig = require(ReplicatedStorage.Shared.IntroCutsceneConfig)
+
 local PlayerService = Knit.CreateService({
 	Name = "PlayerService",
 	Client = {},
@@ -28,6 +30,33 @@ local CombatTutorialService
 local TriggerService
 local StatService
 local IntroCutsceneService
+local StanceService
+
+local function EquipStarterKatana(Player: Player, PlayerData: { [string]: any }): boolean
+	if PlayerData.Equipped.Weapon then
+		return true
+	end
+
+	local WeaponName = IntroCutsceneConfig.StarterWeapon
+	local Item = InventoryService:GetPlayerItemByName(Player, WeaponName)
+	if not Item then
+		InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem(WeaponName, 1))
+		Item = InventoryService:GetPlayerItemByName(Player, WeaponName)
+	end
+	if not Item then
+		return false
+	end
+
+	if not table.find(PlayerData.Stances, "Beginner") then
+		StanceService:GiveStance(Player, "Beginner")
+	end
+	if not PlayerData.SelectedStance and not StanceService:EquipStance(Player, "Beginner") then
+		return false
+	end
+
+	return PlayerData.Equipped.Weapon == WeaponName
+		or InventoryService:SetWeaponEquipmentSlot(Player, "Katana", Item.Id or Item.Name) == true
+end
 
 function PlayerService:PlayerAdded(Player: Player)
 	if Player:HasTag("Player") then
@@ -135,7 +164,9 @@ function PlayerService:CheckFirstJoin(Player: Player)
 		InventoryService:GiveItemToPlayer(Player, ItemService:CreateItem("Fists", 1))
 	end
 
-	PlayerData.LoadedFirstTime = true
+	if not PlayerData.LoadedFirstTime then
+		PlayerData.LoadedFirstTime = EquipStarterKatana(Player, PlayerData)
+	end
 end
 
 function PlayerService:ResetDataAndRestartTutorial(Player: Player)
@@ -240,6 +271,7 @@ function PlayerService.KnitInit()
 	TriggerService = Knit.GetService("TriggerService")
 	StatService = Knit.GetService("StatService")
 	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
+	StanceService = Knit.GetService("StanceService")
 end
 
 function PlayerService.KnitStart()

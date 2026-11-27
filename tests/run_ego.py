@@ -8,6 +8,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 FILES = {
     "Config": "src/ReplicatedStorage/EgoConfig.luau",
+    "BowConfig": "src/ReplicatedStorage/BowConfig.luau",
     "Service": "src/ServerStorage/Services/EgoService.luau",
     "Validate": "src/ReplicatedStorage/Validate.luau",
     "Controller": "src/StarterPlayer/StarterPlayerScripts/Controllers/EgoController.luau",
