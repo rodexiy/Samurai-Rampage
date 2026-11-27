@@ -790,6 +790,91 @@ return function(Sources: { [string]: string }): string
 	Reaction:ReactToKick(Target, Attacker, ReactionConfig, 0)
 	Step(0)
 	Check(Blocks == BeforeBlocks and Rolls == BeforeRolls, "Reaction respects configured action chance")
+
+	ResetReaction()
+	Target:SetAttribute("IsAI", true)
+	Target:SetAttribute("Lifes", 1)
+	Target.HitboxDetected = Object("BindableEvent")
+	local Align = {}
+	Target.PrimaryPart.FindFirstChildWhichIsA = function(): any
+		return Align
+	end
+	Target.PrimaryPart.GetPivot = function(Root: any): any
+		return Root.CFrame
+	end
+	local EngineTypeof = Env.typeof
+	Env.typeof = function(Value: any): string
+		return if Value == Target.PrimaryPart.CFrame then "CFrame" else EngineTypeof(Value)
+	end
+	RS.Shared.StatProgression = "Progression"
+	Modules.Progression = {}
+	Modules.SkillTreeConfig.GetRollProfile = function(): number
+		return 0.5
+	end
+	Services.TalentService = {
+		Has = function(): boolean
+			return false
+		end,
+		GetRollCost = function(): number
+			return 5
+		end,
+	}
+	Services.MovementService = Load("MovementService")
+	Services.MovementService.KnitInit()
+	Services.EnemyReactionService = Reaction
+	Reaction.KnitInit()
+	local LegacyActions = Object("Folder")
+	LegacyActions.Roll = { Clone = function()
+		error("Bandit must not clone the legacy roll action")
+	end }
+	Env.game.ServerStorage = { ServerAssets = { MobActions = LegacyActions } }
+	Env.script = Object("ModuleScript")
+	Env.script.Parent = Target
+	local BanditAttacks = 0
+	Services.WeaponService = {
+		GetCombatAnimationFolder = function(): any
+			return {}
+		end,
+		WeaponInput = function(_: any, Actor: any, Action: string)
+			if Action == "StrongAttack" and Validate:CanStrongAttack(Actor) then
+				BanditAttacks += 1
+			end
+		end,
+	}
+	local Bandit = Load("Bandit")
+	Bandit.Start({ Lifes = {
+		["1"] = { AttackDistance = 6, ActionDistance = 11, ActionChance = 55, RollChance = 30, Actions = { "Roll" } },
+	} })
+
+	local BanditStamina = Target:GetAttribute("Stamina")
+	RandomValues = { 1, 1, 2 }
+	Target.HitboxDetected:Fire(Attacker, { DodgeOnly = true })
+	Check(Target:GetAttribute("Rolling") and Target:GetAttribute("RollIFrame")
+		and Target:GetAttribute("RollDirection") == "Backward", "A Bandit backward dodge starts the real server roll")
+	Check(Created[#Created].VectorVelocity.Z == -25, "A Bandit backward dodge pushes away from its facing direction")
+	Target.HitboxDetected:Fire(Attacker, { DodgeOnly = true })
+	Bandit:TryAttack()
+	Check(Target:GetAttribute("Stamina") == BanditStamina - 5 and BanditAttacks == 0,
+		"Repeated dodges respect the cooldown and attacks wait during the roll")
+	Step(0.51)
+	Bandit:TryAttack()
+	Check(not Target:GetAttribute("Rolling") and not Target:GetAttribute("RollIFrame") and BanditAttacks == 1
+		and Validate:CanBlock(Target), "After an unobstructed roll the Bandit can attack and guard again")
+	Bandit:BindTarget()
+	Attacker:SetAttribute("Attack", true)
+	Step(0.21)
+	Check(not Target:GetAttribute("Rolling"), "The windup reaction shares the same cooldown")
+	Attacker:SetAttribute("Attack", false)
+	Step(1.2)
+	Attacker:SetAttribute("Attack", true)
+	Step(0.21)
+	Check(Target:GetAttribute("Rolling") and Target:GetAttribute("RollDirection") == "Left",
+		"The Bandit can dodge a new attack after the cooldown expires")
+	Attacker:SetAttribute("Attack", false)
+	Step(0.51)
+	Bandit:TryAttack()
+	Check(not Target:GetAttribute("Rolling") and BanditAttacks == 2, "The next unobstructed dodge also clears its attack lock")
+
 	local KickInputs, ClimbInputs = 0, 0
 	local CanEnterClimb = false
 	local Mouse = {

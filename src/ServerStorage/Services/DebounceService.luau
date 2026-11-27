@@ -1,4 +1,5 @@
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 --[[
     Módulo responsável por adicionar debounces á um Character.
@@ -10,13 +11,25 @@ local DebounceService = Knit.CreateService({
 	Client = {},
 })
 
-local CharacterDebounces = {}
+type Debounce = { Name: string }
+local CharacterDebounces: { [Model]: { Debounce } } = {}
+
+local function FindDebounceIndex(Debounces: { Debounce }, Name: string): number?
+	for Index, Debounce in Debounces do
+		if Debounce.Name == Name then
+			return Index
+		end
+	end
+
+	return nil
+end
 
 --[[ adiciona um debounce no Character, pode apenas ser valores booleanos ]]
 function DebounceService:AddDebounce(Character: Model, debounceName: string, time: number, setEndTick: boolean?)
 	local Debounces = DebounceService:GetCharacterDebounces(Character)
+	local Entry = { Name = debounceName }
 
-	table.insert(Debounces, debounceName)
+	table.insert(Debounces, Entry)
 
 	Character:SetAttribute(debounceName, true)
 
@@ -31,7 +44,10 @@ function DebounceService:AddDebounce(Character: Model, debounceName: string, tim
 	end
 
 	task.delay(time, function()
-		local Index = table.find(Debounces, debounceName)
+		local Index = table.find(Debounces, Entry)
+		if not Index then
+			return
+		end
 
 		table.remove(Debounces, Index)
 
@@ -42,21 +58,14 @@ function DebounceService:AddDebounce(Character: Model, debounceName: string, tim
 	end)
 end
 
-function DebounceService:HaveDebounce(Character: Model, debounceName: string)
-	local Debounces = DebounceService:GetCharacterDebounces(Character)
-
-	local Index = table.find(Debounces, debounceName)
-	if Index then
-		return true
-	end
-
-	return false
+function DebounceService:HaveDebounce(Character: Model, debounceName: string): boolean
+	return FindDebounceIndex(DebounceService:GetCharacterDebounces(Character), debounceName) ~= nil
 end
 
 function DebounceService:RemoveDebounce(Character: Model, debounceName: string)
 	local Debounces = DebounceService:GetCharacterDebounces(Character)
 
-	local Index = table.find(Debounces, debounceName)
+	local Index = FindDebounceIndex(Debounces, debounceName)
 
 	if Index then
 		table.remove(Debounces, Index)
@@ -69,11 +78,10 @@ function DebounceService:RemoveDebounce(Character: Model, debounceName: string)
 end
 
 function DebounceService:RemoveCharacterDebounces(Character: Model)
-	if CharacterDebounces[Character] then
-		while #CharacterDebounces[Character] > 0 do
-			for _, debounceName in CharacterDebounces[Character] do
-				DebounceService:RemoveDebounce(Character, debounceName)
-			end
+	local Debounces = CharacterDebounces[Character]
+	if Debounces then
+		while #Debounces > 0 do
+			DebounceService:RemoveDebounce(Character, Debounces[1].Name)
 		end
 
 		CharacterDebounces[Character] = nil
@@ -88,7 +96,7 @@ function DebounceService:SetCharacterDebounces(Character: Model)
 	return CharacterDebounces[Character]
 end
 
-function DebounceService:GetCharacterDebounces(Character: Model)
+function DebounceService:GetCharacterDebounces(Character: Model): { Debounce }
 	local Debounces = CharacterDebounces[Character]
 	if not Debounces then
 		Debounces = DebounceService:SetCharacterDebounces(Character)

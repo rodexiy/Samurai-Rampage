@@ -31,6 +31,15 @@ local TargetConnections = {}
 
 local UpdateWait = 0.5
 
+local function TryDodge()
+	if not table.find(Config.Actions or {}, "Roll") or math.random(0, 100) >= (Config.RollChance or 0) then
+		return
+	end
+
+	local Side = if math.random(1, 2) == 1 then "Left" else "Right"
+	EnemyReactionService:Dodge(Character, if math.random(1, 2) == 1 then Side else "Backward")
+end
+
 function Bandit:UnbindTarget()
 	for _, Connection in TargetConnections do
 		Connection:Disconnect()
@@ -51,34 +60,28 @@ function Bandit:BindTarget()
 	end
 	self:UnbindTarget()
 
-	BindedTarget = Target
+	local BoundTarget = Target
+	BindedTarget = BoundTarget
 
 	table.insert(
 		TargetConnections,
-		Target:GetAttributeChangedSignal("Attack"):Connect(function()
-			if Target:GetAttribute("Attack") then
+		BoundTarget:GetAttributeChangedSignal("Attack"):Connect(function()
+			if BoundTarget:GetAttribute("Attack") then
 				task.delay(0.2, function()
 					if
 						Character:GetAttribute("PostureBreak")
 						or Character:GetAttribute("Ragdoll")
 						or Character:GetAttribute("UsingSkillCantAttack")
-						or not Target
+						or Target ~= BoundTarget
 					then
 						return
 					end
 
-					local Distance = (Character:GetPivot().Position - Target:GetPivot().Position).Magnitude
+					local Distance = (Character:GetPivot().Position - BoundTarget:GetPivot().Position).Magnitude
 
-					if Target:GetAttribute("Attack") and Distance <= Config.ActionDistance then
-						if math.random(0, 100) > Config.ActionChance then
-							return
-						end
-
-						if Actions.Roll and math.random(0, 100) < Config.RollChance then
-							local Direction = math.random(1, 2) == 1 and "Left" or "Right"
-							Direction = math.random(1, 2) == 1 and Direction or "Backward"
-
-							Actions.Roll:Roll(Direction)
+					if BoundTarget:GetAttribute("Attack") and Distance <= Config.ActionDistance then
+						if math.random(0, 100) <= Config.ActionChance then
+							TryDodge()
 						end
 					end
 				end)
@@ -347,7 +350,7 @@ function Bandit.Start(_Config)
 		end
 
 		for _, action in ActionsList do
-			if ActionsFolder:FindFirstChild(action) then
+			if action ~= "Roll" and ActionsFolder:FindFirstChild(action) then
 				if script:FindFirstChild(action) then
 					continue
 				end
@@ -380,7 +383,7 @@ function Bandit.Start(_Config)
 		Align.Enabled = not Character:GetAttribute("Ragdoll")
 	end)
 
-	local HitboxDetected: BindableEvent = Character:FindFirstChild("HitboxDetected")
+	local HitboxDetected = Character:FindFirstChild("HitboxDetected") :: BindableEvent?
 
 	if HitboxDetected then
 		HitboxDetected.Event:Connect(function(Attacker: Model, Data: { Action: string?, TimeUntilHit: number?, DodgeOnly: boolean? })
@@ -394,13 +397,7 @@ function Bandit.Start(_Config)
 			end
 
 			if Data.DodgeOnly then
-				local RollRNG = math.random(0, 100)
-				if Actions.Roll and RollRNG < Config.RollChance then
-					local Direction = math.random(1, 2) == 1 and "Left" or "Right"
-					Direction = math.random(1, 2) == 1 and Direction or "Backward"
-
-					Actions.Roll:Roll(Direction)
-				end
+				TryDodge()
 			else
 				Bandit:Block()
 			end

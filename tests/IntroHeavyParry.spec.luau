@@ -21,7 +21,13 @@ return function(Sources: { [string]: string }): string
 	Vector.__mul = function(A: any, B: any): any
 		return if type(B) == "number" then V(A.X * B, A.Y * B, A.Z * B) else V(A.X * B.X, A.Y * B.Y, A.Z * B.Z)
 	end
+	function Vector.Dot(A: any, B: any): number
+		return A.X * B.X + A.Y * B.Y + A.Z * B.Z
+	end
 	Vector.__index = function(A: any, Name: string): any
+		if Name == "Dot" then
+			return Vector.Dot
+		end
 		local Magnitude = math.sqrt(A.X ^ 2 + A.Y ^ 2 + A.Z ^ 2)
 		return if Name == "Magnitude" then Magnitude else V(A.X / Magnitude, A.Y / Magnitude, A.Z / Magnitude)
 	end
@@ -91,7 +97,7 @@ return function(Sources: { [string]: string }): string
 		local function Delay(Duration: number, Callback: () -> ())
 			table.insert(Jobs, { At = Now + Duration, Callback = Callback })
 		end
-		local function Actor(Position: number, Health: number, Floor: number): any
+		local function Actor(Position: number, Health: number, Floor: number?): any
 			local Model = Object({ Health = Health, MaxHealth = 120, IntroHealthFloor = Floor, Lifes = 2 })
 			Model.Parent = Space.Entity
 			Model.PrimaryPart = Object()
@@ -100,7 +106,16 @@ return function(Sources: { [string]: string }): string
 			Model.PrimaryPart.AssemblyMass = 10
 			Model.PrimaryPart.Anchored = false
 			function Model:GetPivot(): any
-				return { Position = self.PrimaryPart.Position }
+				return {
+					Position = self.PrimaryPart.Position,
+					LookVector = V(if Position <= 0 then 1 else -1, 0, 0),
+					ToOrientation = function(): (number, number, number)
+						return 0, 0, 0
+					end,
+				}
+			end
+			function Model:IsDescendantOf(Ancestor: any): boolean
+				return Ancestor == Space and self.Parent == Space.Entity
 			end
 			function Model:PivotTo(Frame: any)
 				self.Pivot = Frame
@@ -115,11 +130,12 @@ return function(Sources: { [string]: string }): string
 		Boss.PrimaryPart.LookPlayer = { Enabled = true }
 		local Player = Object()
 		Player.UserId, Player.Character = 7, Character
+		local PlayerByCharacter = { [Character] = Player }
 		local Players = {}
 		Players.PlayerRemoving = Signal()
 		Player.Parent = Players
 		function Players:GetPlayerFromCharacter(Model: any): any
-			return if Model == Character then Player else nil
+			return PlayerByCharacter[Model]
 		end
 		function Players:GetPlayerByUserId(Id: number): any
 			return if Id == 7 then Player else nil
@@ -187,6 +203,9 @@ return function(Sources: { [string]: string }): string
 				return nil
 			end,
 		}
+		Services.LagCompensationService = { GetCompensation = function(_: any, Target: any): number
+			return Target:GetAttribute("Ping") or 0
+		end }
 		Services.StatService = {
 			RecordDamage = function()
 				Effects.Damage += 1
@@ -232,6 +251,7 @@ return function(Sources: { [string]: string }): string
 				ApproachTime = 5,
 				HeavyParryTime = 0.85,
 				WarningTime = 3,
+				Umibozu = { RiseTime = 3, HoldTime = 2 },
 				CameraShake = {
 					Enabled = true, WarningStrength = 0.35, Frequency = 12,
 					PositionAmplitude = 0.45, RotationDegrees = 2.5, RampPower = 2,
@@ -243,8 +263,9 @@ return function(Sources: { [string]: string }): string
 			Packages = { Knit = "Knit" },
 			Shared = {
 				IntroCutsceneConfig = "Config",
-				Utils = { TeleportCharacter = "Teleport" },
+				Utils = { TeleportCharacter = "Teleport", GetModelMass = "Mass" },
 				StatProgression = "Progression",
+				SkillTreeConfig = "TalentConfig",
 			},
 			Assets = { Animations = { Combat = { Hit = {} } } },
 		}
@@ -252,6 +273,9 @@ return function(Sources: { [string]: string }): string
 			new = function(Class: string): any
 				local New = Object()
 				New.ClassName = Class
+				if Class == "NumberValue" then
+					New.Value = 0
+				end
 				if Class == "BindableEvent" then
 					New.Event = Signal()
 					function New:Fire(...: any)
@@ -314,6 +338,12 @@ return function(Sources: { [string]: string }): string
 						Effects.Teleports += 1
 						Model.Pivot = Frame
 					end
+				elseif Module == "TalentConfig" then
+					return { Effects = {} }
+				elseif Module == "Mass" then
+					return function(Model: any): number
+						return Model.PrimaryPart.AssemblyMass
+					end
 				end
 				return {}
 			end,
@@ -331,10 +361,12 @@ return function(Sources: { [string]: string }): string
 				)
 			)
 		)
-		local Hit, Damage = Load(Sources.Hit), Load(Sources.Damage)
+		local Posture, Hit, Damage = Load(Sources.Posture), Load(Sources.Hit), Load(Sources.Damage)
 		Intro.KnitInit()
 		Hit.KnitInit()
 		Damage.KnitInit()
+		Posture.KnitInit()
+		Services.TalentService.RecordDamage = function() end
 		local Ship = Object()
 		Ship.Name = "Ship"
 		function Ship:GetPivot(): any
@@ -355,6 +387,49 @@ return function(Sources: { [string]: string }): string
 			Created = Created,
 			PlayerData = PlayerData,
 		}
+		function F:EnableMeleeClashes(Allied: boolean?)
+			for _, Model in { Character, Boss } do
+				Model:SetAttribute("IntroHealthFloor", nil)
+				Model:SetAttribute("Health", 100)
+			end
+			if Allied then
+				local OtherPlayer = Object()
+				OtherPlayer.Character = Boss
+				PlayerByCharacter[Boss] = OtherPlayer
+				Services.PartyService.GetPlayerParty = function(): any
+					return { Members = { Player, OtherPlayer } }
+				end
+			end
+
+			local HeavyAnimation = {}
+			Replicated.Assets.Animations.Combat.HeavyDeflect = HeavyAnimation
+			self.MeleeRenders, self.StoppedAttacks, self.MeleeAnimations = {}, {}, {}
+			Services.RenderService.RenderForAllPlayers = function(_: any, _: any, Effect: string, Data: any)
+				if Effect == "HeavyDeflect" then
+					table.insert(self.MeleeRenders, Data)
+				end
+			end
+			Services.AnimationService.PlayAnimation = function(_: any, Model: any, Animation: any)
+				if Animation == HeavyAnimation then
+					table.insert(self.MeleeAnimations, Model)
+				end
+			end
+			Services.AnimationService.StopAttackAnimations = function(_: any, Model: any)
+				table.insert(self.StoppedAttacks, Model)
+			end
+			Services.TalentService.Has = function(): boolean
+				return false
+			end
+			Posture.Deflected = function(): string
+				return "Deflect"
+			end
+			Posture.Dodged = function(): string
+				return "Dodge"
+			end
+		end
+		function F:AddFighter(Position: number): any
+			return Actor(Position, 100, nil)
+		end
 		function F:LoadClient(): any
 			Players.LocalPlayer = Player
 			Replicated.Assets.Animations.Combat.HeavyDeflect = {}
@@ -483,6 +558,83 @@ return function(Sources: { [string]: string }): string
 		end
 	end
 
+	for _, FirstPing in { 0, 0.16 } do
+		local F = Fixture()
+		F:EnableMeleeClashes()
+		F.Boss:SetAttribute("Ping", FirstPing)
+		F.Character:SetAttribute("Ping", if FirstPing == 0 then 0.14 else 0)
+		local Results = {}
+		local function Record(Result: string?)
+			table.insert(Results, Result)
+		end
+		F.Hit:MeleeHit(F.Boss, F.Character, 10, { By = "Weapon", Action = "Attack" }, Record)
+		F:Advance(0.049)
+		Check(#Results == 0 and F.Boss:GetAttribute("Health") == 100, "The first contact waits for its reciprocal hit")
+		F.Hit:MeleeHit(F.Character, F.Boss, 20, { By = "Weapon", Action = "StrongAttack" }, Record)
+		Check(#Results == 2 and Results[1] == "HeavyParry" and Results[2] == "HeavyParry", "A reciprocal contact clashes before individual lag compensation")
+		Check(F.Boss:GetAttribute("HeavyDeflect") and F.Character:GetAttribute("HeavyDeflect")
+			and F.Boss:GetAttribute("Clashed") and F.Character:GetAttribute("Clashed"), "Both fighters receive the same heavy reaction")
+		Check(#F.StoppedAttacks == 2 and #F.MeleeAnimations == 2 and #F.MeleeRenders == 2, "Both swings stop and both fighters play the heavy reaction")
+		Check(F.MeleeRenders[1].PlaySound and not F.MeleeRenders[2].PlaySound, "A clash emits only one impact sound")
+		local Recoils = {}
+		for _, Created in F.Created do
+			if Created.ClassName == "BodyVelocity" then
+				Recoils[Created.Parent] = Created.Velocity.X
+			end
+		end
+		Check(Recoils[F.Character.PrimaryPart] < 0 and Recoils[F.Boss.PrimaryPart] > 0, "The fighters recoil away from their opponent")
+		F:Advance(0.2)
+		Check(F.Character:GetAttribute("Health") == 100 and F.Boss:GetAttribute("Health") == 100
+			and F.Effects.Damage == 0 and #F.Hit.HitResolved.Event.Calls == 2, "Neither clashed hit may apply damage when its old timer elapses")
+	end
+
+	for _, FirstPing in { 0, 0.16 } do
+		local Outside = Fixture()
+		Outside:EnableMeleeClashes()
+		Outside.Boss:SetAttribute("Ping", FirstPing)
+		Outside.Hit:MeleeHit(Outside.Boss, Outside.Character, 10, { By = "Weapon" })
+		Outside:Advance(0.051)
+		Check(Outside.Boss:GetAttribute("Health") == (if FirstPing == 0 then 90 else 100), "An uncontested hit respects the later of compensation and the clash window")
+		Outside.Hit:MeleeHit(Outside.Character, Outside.Boss, 20, { By = "Weapon" })
+		Outside:Advance(0.16)
+		Check(Outside.Character:GetAttribute("Health") == 80 and Outside.Boss:GetAttribute("Health") == 90
+			and #Outside.MeleeAnimations == 0, "A reverse contact outside the window cannot clash even if the first hit is pending")
+	end
+
+	local ThirdParty = Fixture()
+	ThirdParty:EnableMeleeClashes()
+	local Third = ThirdParty:AddFighter(5)
+	ThirdParty.Hit:MeleeHit(ThirdParty.Boss, ThirdParty.Character, 10, { By = "Weapon" })
+	ThirdParty:Advance(0.01)
+	ThirdParty.Hit:MeleeHit(Third, ThirdParty.Boss, 10, { By = "Weapon" })
+	ThirdParty.Hit:MeleeHit(ThirdParty.Boss, ThirdParty.Character, 10, { By = "Weapon" })
+	ThirdParty:Advance(0.06)
+	Check(Third:GetAttribute("Health") == 90 and ThirdParty.Boss:GetAttribute("Health") == 80
+		and #ThirdParty.MeleeAnimations == 0, "Hits in the same direction and hits on third parties cannot match")
+
+	for _, Defense in { "DeflectTime", "RollIFrame" } do
+		local F = Fixture()
+		F:EnableMeleeClashes()
+		F.Boss:SetAttribute("Ping", 0.02)
+		F.Hit:MeleeHit(F.Boss, F.Character, 10, { By = "Weapon" })
+		F:Advance(0.01)
+		F.Boss:SetAttribute(Defense, true)
+		F:Advance(0.011)
+		local Result = F.Hit.HitResolved.Event.Calls[1]
+		Check(Result and Result[3] == (if Defense == "DeflectTime" then "Deflect" else "Dodge"), "Manual defenses resolve at the original compensated time")
+		F.Boss:SetAttribute(Defense, false)
+		F.Hit:MeleeHit(F.Character, F.Boss, 10, { By = "Weapon" })
+		F:Advance(0.06)
+		Check(#F.MeleeAnimations == 0, "A defended contact cannot later become a reciprocal clash")
+	end
+
+	local Allies = Fixture()
+	Allies:EnableMeleeClashes(true)
+	Allies.Hit:MeleeHit(Allies.Boss, Allies.Character, 10, { By = "Weapon" })
+	Allies.Hit:MeleeHit(Allies.Character, Allies.Boss, 10, { By = "Weapon" })
+	Allies:Advance(0.06)
+	Check(#Allies.MeleeAnimations == 0, "Party allies cannot start a mutual Heavy Parry")
+
 	local WakeUp = Fixture()
 	WakeUp.Intro.KnitStart()
 	WakeUp.Player:SetAttribute("InIntroStorm", true)
@@ -497,7 +649,7 @@ return function(Sources: { [string]: string }): string
 	WakeUp:Advance(3.85)
 	WakeUp.Intro.Client.TsunamiFinished:Fire(WakeUp.Player, "token")
 	Check(WakeUp.Session.Phase == "TsunamiReveal", "The client cannot skip the tsunami approach")
-	WakeUp:Advance(5)
+	WakeUp:Advance(10)
 	WakeUp.Intro.Client.TsunamiFinished:Fire(WakeUp.Player, "wrong-token")
 	Check(WakeUp.Session.Phase == "TsunamiReveal", "A stale token cannot start the blackout")
 	WakeUp.Intro.Client.TsunamiFinished:Fire(WakeUp.Player, "token")
@@ -624,5 +776,5 @@ return function(Sources: { [string]: string }): string
 	for _, Track in Visual.ClientAnimations do
 		Check(Track.Stopped and Track.Destroyed, "Reaction tracks are cleaned before the tsunami camera starts")
 	end
-	return string.format("IntroHeavyParry: %d checks passed", Checks)
+	return string.format("HeavyParry: %d checks passed", Checks)
 end

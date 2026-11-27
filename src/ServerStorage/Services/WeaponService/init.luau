@@ -703,8 +703,13 @@ WeaponService.CancelM1Attributes = {
 	"Blocking",
 	"Rolling",
 	"BeenDeflected",
+	"Clashed",
 }
 function WeaponService:DidCancel(Attacker: Model)
+	if Attacker:GetAttribute("Clashed") then
+		return true
+	end
+
 	if Attacker:GetAttribute("Stunless") then
 		return false
 	end

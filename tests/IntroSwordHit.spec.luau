@@ -108,11 +108,6 @@ return function(Source: string): string
 					return 0
 				end,
 			},
-			LagCompensationService = {
-				GetCompensation = function(): number
-					return 0
-				end,
-			},
 			HitService = {
 				NormalHit = function(_: any, HitTarget: any, HitAttacker: any, Damage: number, Data: any): string
 					table.insert(
@@ -120,6 +115,9 @@ return function(Source: string): string
 						{ Target = HitTarget, Attacker = HitAttacker, Damage = Damage, Data = Data }
 					)
 					return "Deflect"
+				end,
+				MeleeHit = function(Self: any, HitTarget: any, HitAttacker: any, Damage: number, Data: any, Resolve: (string?) -> ())
+					Resolve(Self:NormalHit(HitTarget, HitAttacker, Damage, Data))
 				end,
 			},
 		}

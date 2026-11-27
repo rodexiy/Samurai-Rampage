@@ -11,7 +11,6 @@ local SoundEffectService = Knit.GetService("SoundEffectService")
 local StaminaService = Knit.GetService("StaminaService")
 local AnimationService = Knit.GetService("AnimationService")
 local ExecutionService = Knit.GetService("ExecutionService")
-local LagCompensationService = Knit.GetService("LagCompensationService")
 local HitService = Knit.GetService("HitService")
 local DamageService = Knit.GetService("DamageService")
 local TalentService = Knit.GetService("TalentService")
@@ -103,16 +102,15 @@ Fists.Attack = function(Attacker: Model, Data: { any })
 				local Damage = DamageService:CalculateDamage(Attacker, Character, 0, { "Weapon" })
 				local RayCFrame = CFrame.new(Hit.Position, Result.Position + -Result.Normal)
 
-				task.delay(LagCompensationService:GetCompensation(Character), function()
-					local Context = HitService:NormalHit(
-						Character,
-						Attacker,
-						Damage,
-						{ RayCFrame = RayCFrame, FlingOnLast = true, By = "Weapon", Action = "Attack", TalentPosture = PostureBonus }
-					)
-
+				HitService:MeleeHit(Character, Attacker, Damage, {
+					RayCFrame = RayCFrame,
+					FlingOnLast = true,
+					By = "Weapon",
+					Action = "Attack",
+					TalentPosture = PostureBonus,
+				}, function(Context: string?)
 					if Context == "Hit" then
-						local RootPart = Attacker:FindFirstChild("HumanoidRootPart")
+						local RootPart = Attacker.PrimaryPart
 						local BodyVelocity = Instance.new("BodyVelocity")
 						BodyVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)
 						BodyVelocity.Velocity = Attacker:GetPivot().LookVector * 20
@@ -202,8 +200,11 @@ Fists.StrongAttack = function(Attacker: Model, _Data: { any })
 				end
 				local RayCFrame = CFrame.new(Hit.Position, Result.Position + -Result.Normal)
 
-				task.delay(LagCompensationService:GetCompensation(Character), function()
-					local Context = HitService:NormalHit(Character, Attacker, Damage, { RayCFrame = RayCFrame, By = "Weapon", Action = "StrongAttack" })
+				HitService:MeleeHit(Character, Attacker, Damage, {
+					RayCFrame = RayCFrame,
+					By = "Weapon",
+					Action = "StrongAttack",
+				}, function(Context: string?)
 					if Context == "Hit" then
 						TalentService:OnHeavyHit(Attacker, Character)
 					end

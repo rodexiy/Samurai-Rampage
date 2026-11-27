@@ -1,5 +1,6 @@
 local Weapon = {}
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
@@ -11,7 +12,6 @@ local SoundEffectService = Knit.GetService("SoundEffectService")
 local StaminaService = Knit.GetService("StaminaService")
 local AnimationService = Knit.GetService("AnimationService")
 local ExecutionService = Knit.GetService("ExecutionService")
-local LagCompensationService = Knit.GetService("LagCompensationService")
 local HitService = Knit.GetService("HitService")
 local DamageService = Knit.GetService("DamageService")
 local ValuesService = Knit.GetService("ValuesService")
@@ -23,8 +23,106 @@ local Validate = require(ReplicatedStorage.Shared.Validate)
 local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
 local Stances = require(ReplicatedStorage.Shared.Index.Stances)
 
+type M1FlowConfig = {
+	InputBuffer: number,
+	FinisherRecovery: number,
+	WindupWalkSpeedMultiplier: number,
+	SwingWalkSpeedMultiplier: number,
+	SwingSlowdownDuration: number,
+}
+
+type M1Swing = {
+	Animation: AnimationTrack,
+	ChainAt: number?,
+	Stance: string,
+	Weapon: string?,
+	BufferedInput: RBXScriptConnection?,
+}
+
+local M1Swings: { [Model]: M1Swing } = setmetatable({}, { __mode = "k" })
+
 local function GetStanceData(Attacker: Model)
 	return Stances[Attacker:GetAttribute("Stance")]
+end
+
+local function GetM1Flow(Attacker: Model): M1FlowConfig?
+	local Stance = GetStanceData(Attacker)
+	if not Stance or not Stance.M1Flow then
+		return nil
+	end
+
+	local Player = Players:GetPlayerFromCharacter(Attacker)
+	if Player and not Player:GetAttribute("InIntroCutscene") and not Attacker:GetAttribute("IntroTutorialAction") then
+		return Stance.M1Flow
+	end
+
+	return nil
+end
+
+local function CanContinueM1(Attacker: Model, Swing: M1Swing): boolean
+	return M1Swings[Attacker] == Swing
+		and Swing.Animation.IsPlaying
+		and Attacker:IsDescendantOf(workspace)
+		and Attacker:GetAttribute("Stance") == Swing.Stance
+		and Attacker:GetAttribute("Weapon") == Swing.Weapon
+		and Attacker:GetAttribute("WeaponEquipped") == true
+		and not WeaponService:DidCancel(Attacker)
+end
+
+local function ClearBufferedM1(Swing: M1Swing)
+	if Swing.BufferedInput then
+		Swing.BufferedInput:Disconnect()
+		Swing.BufferedInput = nil
+	end
+end
+
+local function BufferM1(Attacker: Model, Config: M1FlowConfig)
+	local Swing = M1Swings[Attacker]
+	if not Swing or not Swing.ChainAt or Swing.BufferedInput or not CanContinueM1(Attacker, Swing) then
+		return
+	end
+
+	local ChainAt = Swing.ChainAt
+	local TimeUntilChain = ChainAt - os.clock()
+	if TimeUntilChain > Config.InputBuffer then
+		return
+	end
+
+	Swing.BufferedInput = Attacker.AttributeChanged:Connect(function(Attribute: string)
+		if not CanContinueM1(Attacker, Swing) then
+			ClearBufferedM1(Swing)
+			return
+		end
+
+		if Attribute ~= "AttackDebounce" or Attacker:GetAttribute("AttackDebounce") then
+			return
+		end
+
+		ClearBufferedM1(Swing)
+		if os.clock() >= ChainAt and GetM1Flow(Attacker) then
+			Weapon.Attack(Attacker, { Server = {} })
+		end
+	end)
+end
+
+local function StartM1Movement(Attacker: Model, Swing: M1Swing, Config: M1FlowConfig, Duration: number)
+	M1Swings[Attacker] = Swing
+	Attacker:SetAttribute("M1WalkSpeedMultiplier", Config.WindupWalkSpeedMultiplier)
+
+	Swing.Animation.Stopped:Once(function()
+		ClearBufferedM1(Swing)
+		if M1Swings[Attacker] == Swing then
+			Attacker:SetAttribute("M1WalkSpeedMultiplier", 1)
+		end
+	end)
+
+	task.delay(Duration, function()
+		ClearBufferedM1(Swing)
+		if M1Swings[Attacker] == Swing then
+			M1Swings[Attacker] = nil
+			Attacker:SetAttribute("M1WalkSpeedMultiplier", nil)
+		end
+	end)
 end
 
 local function GetM1Config(Attacker: Model)
@@ -64,8 +162,16 @@ local function GetDamageMultiplier(Config: { [string]: any }?, DefaultMultiplier
 end
 
 Weapon.Attack = function(Attacker: Model, Data: { any })
+	local Flow = GetM1Flow(Attacker)
 	if not Validate:CanAttack(Attacker) then
+		if Flow and Attacker:GetAttribute("AttackDebounce") then
+			BufferM1(Attacker, Flow)
+		end
 		return
+	end
+
+	if Flow and not Attacker:GetAttribute("ComboDebounce") and WeaponService:IsLastAttack(Attacker) then
+		Attacker:SetAttribute("ComboCounter", 0)
 	end
 
 	WeaponService:IncreaseComboCounter(Attacker)
@@ -87,13 +193,26 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 
 	local StartTime = tick()
 	local AttackDuration = AttackAnimation.Length / AttackAdjustSpeed
-
+	local AttackingDuration = AttackDuration + 0.15
+	local ChainDelay = math.max(0, AttackDuration - 0.1)
+	local IsFinisher = Flow and WeaponService:IsLastAttack(Attacker)
+	local AttackDebounce = if IsFinisher then AttackDuration + Flow.FinisherRecovery else ChainDelay
+	local CurrentSwing: M1Swing?
 	local SwordStaminaCost = ValuesService:GetWeaponStaminaCost(Attacker, WeaponSide)
 
 	StaminaService:RemoveStamina(Attacker, SwordStaminaCost)
 	DebounceService:AddDebounce(Attacker, "Attack", AttackDuration)
-	DebounceService:AddDebounce(Attacker, "Attacking", AttackDuration + 0.15)
-	DebounceService:AddDebounce(Attacker, "AttackDebounce", AttackDuration - 0.1)
+	DebounceService:AddDebounce(Attacker, "Attacking", AttackingDuration)
+	if Flow then
+		CurrentSwing = {
+			Animation = AttackAnimation,
+			ChainAt = if IsFinisher then nil else os.clock() + ChainDelay,
+			Stance = Attacker:GetAttribute("Stance"),
+			Weapon = Attacker:GetAttribute("Weapon"),
+		}
+		StartM1Movement(Attacker, CurrentSwing, Flow, AttackingDuration)
+	end
+	DebounceService:AddDebounce(Attacker, "AttackDebounce", AttackDebounce)
 
 	local AttackDelay = ((M1Config and M1Config.HitboxDelay) or (AttackAnimation.Length * 0.2)) / AttackAdjustSpeed
 	local TalentAttack = TalentService:BeginAttack(Attacker, false, AttackDelay, AttackDuration)
@@ -108,6 +227,17 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 		if not TalentService:ActivateAttack(Attacker, TalentAttack) then
 			return
 		end
+
+		local MovementSwing = CurrentSwing
+		if Flow and MovementSwing and CanContinueM1(Attacker, MovementSwing) then
+			Attacker:SetAttribute("M1WalkSpeedMultiplier", Flow.SwingWalkSpeedMultiplier)
+			task.delay(Flow.SwingSlowdownDuration, function()
+				if CanContinueM1(Attacker, MovementSwing) then
+					Attacker:SetAttribute("M1WalkSpeedMultiplier", 1)
+				end
+			end)
+		end
+
 		local Difference = tick() - StartTime
 		local HitboxDuration = (AttackDuration - Difference) * 0.8
 
@@ -167,16 +297,15 @@ Weapon.Attack = function(Attacker: Model, Data: { any })
 			local Damage = DamageService:CalculateDamage(Attacker, Character, 0, { "Weapon" }, WeaponSide)
 			local PostureBonus = TalentService:GetPostureBonus(TalentAttack)
 
-			task.delay(LagCompensationService:GetCompensation(Character), function()
-				local Context = HitService:NormalHit(
-					Character,
-					Attacker,
-					Damage,
-					{ RayCFrame = RayCFrame, FlingOnLast = true, By = "Weapon", Action = "Attack", TalentPosture = PostureBonus }
-				)
-
+			HitService:MeleeHit(Character, Attacker, Damage, {
+				RayCFrame = RayCFrame,
+				FlingOnLast = true,
+				By = "Weapon",
+				Action = "Attack",
+				TalentPosture = PostureBonus,
+			}, function(Context: string?)
 				if Context == "Hit" then
-					local RootPart = Attacker:FindFirstChild("HumanoidRootPart")
+					local RootPart = Attacker.PrimaryPart
 					local BodyVelocity = Instance.new("BodyVelocity")
 					BodyVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)
 					BodyVelocity.Velocity = Attacker:GetPivot().LookVector * 20
@@ -313,12 +442,11 @@ Weapon.StrongAttack = function(Attacker: Model, _Data: { any })
 			local RayCFrame = CFrame.new(Hit.Position, Result.Position + -Result.Normal)
 			local Damage = DamageService:CalculateDamage(Attacker, Character, 0, { "Weapon" }, WeaponSide) * DamageMultiplier
 
-			task.delay(LagCompensationService:GetCompensation(Character), function()
-				local Context = HitService:NormalHit(Character, Attacker, Damage, {
-					RayCFrame = RayCFrame,
-					By = "Weapon",
-					Action = "StrongAttack",
-				})
+			HitService:MeleeHit(Character, Attacker, Damage, {
+				RayCFrame = RayCFrame,
+				By = "Weapon",
+				Action = "StrongAttack",
+			}, function(Context: string?)
 				if Context == "Hit" then
 					TalentService:OnHeavyHit(Attacker, Character)
 				end

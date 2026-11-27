@@ -20,6 +20,8 @@ type ReactionConfig = {
 	Actions: { string }?,
 }
 
+type DodgeDirection = "Left" | "Right" | "Backward"
+
 local function CanReact(Character: Model, Attacker: Model): boolean
 	if not Character:IsDescendantOf(workspace) or not Attacker:IsDescendantOf(workspace)
 		or not Character.PrimaryPart or not Attacker.PrimaryPart
@@ -38,14 +40,16 @@ local function CanReact(Character: Model, Attacker: Model): boolean
 		and Character:GetPivot().LookVector:Dot(Offset) > 0
 end
 
-function EnemyReactionService:Dodge(Character: Model)
+function EnemyReactionService:Dodge(Character: Model, Direction: DodgeDirection?)
 	local Root = Character.PrimaryPart
-	if not Root or not Validate:CanRoll(Character) then
+	if not Root or not Character:IsDescendantOf(workspace) or not Validate:CanRoll(Character) then
 		return
 	end
 
-	local Direction = if math.random(1, 2) == 1 then "Left" else "Right"
-	local Offset = Root.CFrame.RightVector * (if Direction == "Left" then -1 else 1) * 5
+	local RollDirection = Direction or (if math.random(1, 2) == 1 then "Left" else "Right")
+	local Offset = if RollDirection == "Backward"
+		then Root.CFrame.LookVector * -5
+		else Root.CFrame.RightVector * (if RollDirection == "Left" then -5 else 5)
 	local Params = RaycastParams.new()
 	Params.FilterType = Enum.RaycastFilterType.Exclude
 	Params.FilterDescendantsInstances = { Character }
@@ -54,9 +58,9 @@ function EnemyReactionService:Dodge(Character: Model)
 		return
 	end
 
-	MovementService:Roll(Character, Direction, Root.CFrame)
+	MovementService:Roll(Character, RollDirection, Root.CFrame)
 	KnockbackService:Push(Character, Offset / 0.2, 0.2)
-	self.Client.Dodged:FireAll(Character, Direction)
+	self.Client.Dodged:FireAll(Character, RollDirection)
 end
 
 function EnemyReactionService:ReactToKick(Character: Model, Attacker: Model, Config: ReactionConfig, TimeUntilHit: number)

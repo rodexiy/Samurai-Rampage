@@ -1,3 +1,4 @@
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
@@ -21,11 +22,58 @@ local InCombatService
 local IntroCutsceneService
 local IntroCombatTutorialService
 local HorseService
+local LagCompensationService
+local PartyService
+
+local CLASH_WINDOW = 0.05
+
+type PendingMeleeHit = {
+	ContactTime: number,
+	Clashed: boolean,
+	ResolveClash: () -> (),
+}
+
+local PendingMeleeHits: { [Model]: { [Model]: PendingMeleeHit } } = {}
+
+local function UnregisterMeleeHit(Character: Model, Attacker: Model, Hit: PendingMeleeHit)
+	local Targets = PendingMeleeHits[Attacker]
+	if Targets and Targets[Character] == Hit then
+		Targets[Character] = nil
+		if next(Targets) == nil then
+			PendingMeleeHits[Attacker] = nil
+		end
+	end
+end
+
+local function CanClash(Character: Model): boolean
+	return Character.PrimaryPart ~= nil and Character:IsDescendantOf(workspace)
+		and Character.Parent ~= workspace.NPCs and not Character:GetAttribute("Downed")
+		and not Character:GetAttribute("Ragdoll") and not Character:GetAttribute("Mounted")
+		and not Character:GetAttribute("Clashed") and not Character:GetAttribute("HeavyDeflect")
+		and not Character:GetAttribute("InCell") and not Character:GetAttribute("InLabor")
+		and Character:GetAttribute("IntroHealthFloor") == nil
+end
+
+local function AreEnemies(Character: Model, Attacker: Model): boolean
+	local Defender = Players:GetPlayerFromCharacter(Character)
+	local AttackingPlayer = Players:GetPlayerFromCharacter(Attacker)
+	local Party = Defender and AttackingPlayer and PartyService:GetPlayerParty(AttackingPlayer)
+	return not Party or table.find(Party.Members, Defender) == nil
+end
 
 function HitService:IsInFront(Attacker: Model, Character: Model)
 	local amountForward = Character:GetPivot().LookVector
 		:Dot(Attacker:GetPivot().Position - Character:GetPivot().Position)
 	return amountForward > 0
+end
+
+local function CanLandMeleeHit(Character: Model, Attacker: Model): boolean
+	if not CanClash(Character) or not DamageService:CanDamage(Character, Attacker) or Character:GetAttribute("RollIFrame") then
+		return false
+	end
+
+	local Guarding = Character:GetAttribute("DeflectTime") or Character:GetAttribute("Blocking")
+	return not Guarding or not HitService:IsInFront(Attacker, Character)
 end
 
 function HitService:ResolveHitResult(Character: Model, Attacker: Model, Damage: number, Data: { any }, Result: string?)
@@ -149,6 +197,80 @@ function HitService:NormalHit(Character: Model, Attacker: Model, Damage: number,
 	return HitService:ResolveHitResult(Character, Attacker, Damage, Data, Result)
 end
 
+function HitService:MeleeHit(
+	Character: Model,
+	Attacker: Model,
+	Damage: number,
+	Data: { any },
+	OnResolved: ((string?) -> ())?
+)
+	local function Publish(Result: string?)
+		if OnResolved then
+			OnResolved(Result)
+		end
+	end
+
+	local function ResolveNormally()
+		Publish(self:NormalHit(Character, Attacker, Damage, Data))
+	end
+
+	local function ResolveAsClash()
+		Publish(self:ResolveHitResult(Character, Attacker, Damage, Data, "HeavyParry"))
+	end
+
+	local Compensation = LagCompensationService:GetCompensation(Character)
+	if Character == Attacker or Damage <= 0 or not CanLandMeleeHit(Character, Attacker) or not CanClash(Attacker) then
+		task.delay(Compensation, ResolveNormally)
+		return
+	end
+
+	-- Compare hitbox contacts before each defender's lag compensation is applied.
+	local ContactTime = os.clock()
+	local ReverseTargets = PendingMeleeHits[Character]
+	local ReverseHit = ReverseTargets and ReverseTargets[Attacker]
+	if ReverseHit and ContactTime - ReverseHit.ContactTime < CLASH_WINDOW
+		and CanLandMeleeHit(Attacker, Character) and AreEnemies(Character, Attacker) then
+		ReverseHit.Clashed = true
+		UnregisterMeleeHit(Attacker, Character, ReverseHit)
+		PostureService:Clash(Character, Attacker)
+		InCombatService:SetInCombat(Character, true, Attacker)
+		InCombatService:SetInCombat(Attacker, true, Character)
+		ReverseHit.ResolveClash()
+		ResolveAsClash()
+		return
+	end
+
+	local Hit: PendingMeleeHit = {
+		ContactTime = ContactTime,
+		Clashed = false,
+		ResolveClash = ResolveAsClash,
+	}
+	local Targets = PendingMeleeHits[Attacker] or {}
+	Targets[Character] = Hit
+	PendingMeleeHits[Attacker] = Targets
+
+	task.delay(Compensation, function()
+		if Hit.Clashed then
+			return
+		end
+
+		local Remaining = ContactTime + CLASH_WINDOW - os.clock()
+		if Remaining <= 0 or not CanLandMeleeHit(Character, Attacker) then
+			UnregisterMeleeHit(Character, Attacker, Hit)
+			ResolveNormally()
+			return
+		end
+
+		-- The defender's guard was checked at the normal resolution time. Only delay the damage.
+		task.delay(Remaining, function()
+			UnregisterMeleeHit(Character, Attacker, Hit)
+			if not Hit.Clashed and Character:IsDescendantOf(workspace) and Attacker:IsDescendantOf(workspace) then
+				Publish(self:ResolveHitResult(Character, Attacker, Damage, Data, self:Hit(Character, Attacker, Damage, Data)))
+			end
+		end)
+	end)
+end
+
 function HitService:DodgeOnly(Character: Model, Attacker: Model, Damage: number, Data: { any })
 	if not DamageService:CanDamage(Character, Attacker) then
 		return
@@ -193,6 +315,8 @@ function HitService.KnitInit()
 	IntroCutsceneService = Knit.GetService("IntroCutsceneService")
 	IntroCombatTutorialService = Knit.GetService("IntroCombatTutorialService")
 	HorseService = Knit.GetService("HorseService")
+	LagCompensationService = Knit.GetService("LagCompensationService")
+	PartyService = Knit.GetService("PartyService")
 end
 
 function HitService.KnitStart() end

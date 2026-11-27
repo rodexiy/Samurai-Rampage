@@ -1,34 +1,31 @@
-local CharacterShared = require(game.ReplicatedStorage.Shared.CharacterShared)
-local Character = script.Parent.Parent
-CharacterShared:ChangeWalkSpeed(Character)
-local TargetWalkspeed = 0
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local Humanoid = Character:WaitForChild("Humanoid")
+local CharacterShared = require(ReplicatedStorage.Shared.CharacterShared)
 
-local function UpdateTargetWalkSpeed()
-    TargetWalkspeed = Character:GetAttribute("TargetWalkSpeed")
-end
+local Character = script.Parent.Parent :: Model
+local Humanoid = Character:WaitForChild("Humanoid") :: Humanoid
+CharacterShared:ChangeWalkSpeed(Character)
 
-Character:GetAttributeChangedSignal("TargetWalkSpeed"):Connect(function()
-    UpdateTargetWalkSpeed()
-end)
-
-UpdateTargetWalkSpeed()
-
+local TargetWalkSpeed = Character:GetAttribute("TargetWalkSpeed") :: number
 local SpeedIncreaseRate = 1.65
 local SpeedDecreaseRate = 5
-RunService.RenderStepped:Connect(function(deltaTime)
-    local deltaSpeed = TargetWalkspeed * deltaTime
-    
-    if Humanoid.MoveDirection.Magnitude == 0 then
-        deltaSpeed = deltaSpeed * SpeedDecreaseRate
-        deltaSpeed = -deltaSpeed
-    else
-        deltaSpeed = deltaSpeed * SpeedIncreaseRate
-    end
-    
-    local newWalkSpeed = math.clamp(Humanoid.WalkSpeed + deltaSpeed, 0, TargetWalkspeed)
-    Humanoid.WalkSpeed = newWalkSpeed
+
+Character:GetAttributeChangedSignal("TargetWalkSpeed"):Connect(function()
+	TargetWalkSpeed = Character:GetAttribute("TargetWalkSpeed") :: number
 end)
 
+RunService.RenderStepped:Connect(function(DeltaTime: number)
+	local WalkSpeed = Humanoid.WalkSpeed
+	if Humanoid.MoveDirection.Magnitude == 0 then
+		Humanoid.WalkSpeed = math.clamp(WalkSpeed - TargetWalkSpeed * SpeedDecreaseRate * DeltaTime, 0, TargetWalkSpeed)
+		return
+	end
 
+	if WalkSpeed > TargetWalkSpeed and TargetWalkSpeed == CharacterShared:GetM1WalkSpeed(Character) then
+		local DefaultWalkSpeed = Character:GetAttribute("DefaultWalkSpeed") or 12
+		Humanoid.WalkSpeed = math.max(TargetWalkSpeed, WalkSpeed - DefaultWalkSpeed * SpeedDecreaseRate * DeltaTime)
+		return
+	end
+
+	Humanoid.WalkSpeed = math.min(WalkSpeed + TargetWalkSpeed * SpeedIncreaseRate * DeltaTime, TargetWalkSpeed)
+end)

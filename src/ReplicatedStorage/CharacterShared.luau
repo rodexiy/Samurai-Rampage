@@ -8,6 +8,16 @@ local SkillTreeConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
 local Shared = {}
 
 local NO_WEAPON_SPEED_MULTIPLIER = 1.2
+local M1MovementOverrides = {
+	"PostureBreak",
+	"SkillLockMovement",
+	"Meditating",
+	"Bandaging",
+	"BeenHitted",
+	"Blocking",
+	"BeenDeflected",
+	"Running",
+}
 
 local function GetBlockWalkSpeed(Character: Model): number
 	return if Character:GetAttribute("TalentMobileGuard") then SkillTreeConfig.Effects.GuardWalkSpeed else 8
@@ -27,6 +37,16 @@ local function ApplyNoWeaponSpeedBonus(Character: Model, walkspeed: number): num
 	end
 
 	return walkspeed * NO_WEAPON_SPEED_MULTIPLIER
+end
+
+function Shared:GetM1WalkSpeed(Character: Model): number?
+	local Multiplier = Character:GetAttribute("M1WalkSpeedMultiplier")
+	if typeof(Multiplier) ~= "number" or Character:GetAttribute("StrongAttack")
+		or not (Character:GetAttribute("Attack") or Character:GetAttribute("Attacking")) then
+		return nil
+	end
+
+	return (Character:GetAttribute("DefaultWalkSpeed") or 12) * Multiplier
 end
 
 function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: string?)
@@ -124,6 +144,24 @@ function Shared:ChangeWalkSpeed(Character: Model, amount: number?, overwrite: st
 			SetWalkSpeed(target)
 		end,
 	}
+
+	if Character:GetAttribute("HeavyDeflect") then
+		Walkspeeds.HeavyDeflect()
+		return
+	end
+
+	local M1WalkSpeed = self:GetM1WalkSpeed(Character)
+	if M1WalkSpeed then
+		for _, Attribute in M1MovementOverrides do
+			if Character:GetAttribute(Attribute) then
+				Walkspeeds[Attribute]()
+				return
+			end
+		end
+
+		change(if Character:GetAttribute("Attack") then "Attack" else "Attacking", M1WalkSpeed)
+		return
+	end
 
 	local set = false
 	for attributeName, func in pairs(Walkspeeds) do

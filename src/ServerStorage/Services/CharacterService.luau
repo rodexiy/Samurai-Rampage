@@ -318,6 +318,10 @@ function CharacterService:BindEvents(Character: Model, Owner: Player)
 		end)
 	end
 
+	Character:GetAttributeChangedSignal("M1WalkSpeedMultiplier"):Connect(function()
+		CharacterShared:UpdateWalkspeed(Character)
+	end)
+
 	Character:GetAttributeChangedSignal("Running"):Connect(function()
 		if not Character:GetAttribute("Running") then
 			CharacterShared:UpdateBoth(Character)

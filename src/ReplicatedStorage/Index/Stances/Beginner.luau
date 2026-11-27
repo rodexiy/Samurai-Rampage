@@ -6,6 +6,14 @@ return {
 	BaseDamage = 10,
 	BaseStaminaCost = 5,
 
+	M1Flow = {
+		InputBuffer = 0.15,
+		FinisherRecovery = 0.85,
+		WindupWalkSpeedMultiplier = 0.8,
+		SwingWalkSpeedMultiplier = 0.5,
+		SwingSlowdownDuration = 0.12,
+	},
+
 	M1 = {
 		[1] = {
 			HitboxType = "Raycast", 

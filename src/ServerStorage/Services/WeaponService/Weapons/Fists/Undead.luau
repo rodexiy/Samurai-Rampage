@@ -1,6 +1,7 @@
 local Undead = {}
 
-local Knit = require(game.ReplicatedStorage.Packages.Knit)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local Debris = game:GetService("Debris")
 local HitboxService = Knit.GetService("HitboxService")
@@ -8,16 +9,14 @@ local WeaponService = Knit.GetService("WeaponService")
 local DebounceService = Knit.GetService("DebounceService")
 local SoundEffectService = Knit.GetService("SoundEffectService")
 local StaminaService = Knit.GetService("StaminaService")
-local RenderService = Knit.GetService("RenderService")
 local AnimationService = Knit.GetService("AnimationService")
 local ExecutionService = Knit.GetService("ExecutionService")
-local LagCompensationService = Knit.GetService("LagCompensationService")
 local HitService = Knit.GetService("HitService")
 local DamageService = Knit.GetService("DamageService")
 
-local Validate = require(game.ReplicatedStorage.Shared.Validate)
-local GetModelMass = require(game.ReplicatedStorage.Shared.Utils.GetModelMass)
-local Stances = require(game.ReplicatedStorage.Shared.Index.Stances)
+local Validate = require(ReplicatedStorage.Shared.Validate)
+local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
+local Stances = require(ReplicatedStorage.Shared.Index.Stances)
 
 local function GetStanceData(Attacker: Model)
 	return Stances[Attacker:GetAttribute("Stance")]
@@ -97,16 +96,13 @@ Undead.Attack = function(Attacker: Model, Data: { any })
 				local Damage = DamageService:CalculateDamage(Attacker, Character, 0, { "Weapon" })
 				local RayCFrame = CFrame.new(Hit.Position, Result.Position + -Result.Normal)
 
-				task.delay(LagCompensationService:GetCompensation(Character), function()
-					local Context = HitService:NormalHit(
-						Character,
-						Attacker,
-						Damage,
-						{ RayCFrame = RayCFrame, FlingOnLast = true, By = "Weapon" }
-					)
-
+				HitService:MeleeHit(Character, Attacker, Damage, {
+					RayCFrame = RayCFrame,
+					FlingOnLast = true,
+					By = "Weapon",
+				}, function(Context: string?)
 					if Context == "Hit" then
-						local RootPart = Attacker:FindFirstChild("HumanoidRootPart")
+						local RootPart = Attacker.PrimaryPart
 						local BodyVelocity = Instance.new("BodyVelocity")
 						BodyVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)
 						BodyVelocity.Velocity = Attacker:GetPivot().LookVector * 20
@@ -119,14 +115,13 @@ Undead.Attack = function(Attacker: Model, Data: { any })
 							return
 						end
 
-						local RootPart = Character:FindFirstChild("HumanoidRootPart")
-						local BodyVelocity = Instance.new("BodyVelocity")
-						BodyVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)
-						BodyVelocity.Velocity = Attacker:GetPivot().LookVector * 15
-						BodyVelocity.P = 850
-						BodyVelocity.Parent = RootPart
+						local TargetVelocity = Instance.new("BodyVelocity")
+						TargetVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)
+						TargetVelocity.Velocity = Attacker:GetPivot().LookVector * 15
+						TargetVelocity.P = 850
+						TargetVelocity.Parent = Character.PrimaryPart
 
-						Debris:AddItem(BodyVelocity, 0.1)
+						Debris:AddItem(TargetVelocity, 0.1)
 					end
 				end)
 			end,
@@ -138,7 +133,7 @@ Undead.Attack = function(Attacker: Model, Data: { any })
 	end)
 end
 
-Undead.StrongAttack = function(Attacker: Model, Data: { any })
+Undead.StrongAttack = function(Attacker: Model, _Data: { any })
 	if not Validate:CanStrongAttack(Attacker) then
 		return
 	end
@@ -148,7 +143,6 @@ Undead.StrongAttack = function(Attacker: Model, Data: { any })
 	AttackAnimation.Priority = Enum.AnimationPriority.Action2
 
 	local AttackDuration = AttackAnimation.Length
-	local StartTime = tick()
 	local M2Config = GetM2Config(Attacker)
 	local AttackDelay = (M2Config and (M2Config.HitboxDelay or M2Config.Delay)) or AttackDuration * 0.35
 
@@ -163,13 +157,17 @@ Undead.StrongAttack = function(Attacker: Model, Data: { any })
 	DebounceService:AddDebounce(Attacker, "StrongAttackDebounce", 2)
 
 	task.delay(AttackDelay, function()
-		local Difference = tick() - StartTime
-		local HitboxDuration = (AttackDuration - Difference) * 0.8
 		WeaponService:SwordTrailsEnabled(Attacker, true)
 		local Swing: Sound = SoundEffectService:CustomSwordWoosh(Attacker, "M2")
 		SoundEffectService:AddPitchEffect(Swing, 0.85, 1.25)
 
+		local Cancelled = false
 		local function Cancel()
+			if Cancelled then
+				return
+			end
+			Cancelled = true
+
 			Swing:Stop()
 			Swing:Destroy()
 
@@ -182,6 +180,11 @@ Undead.StrongAttack = function(Attacker: Model, Data: { any })
 		end
 
 		for i = 1, 3 do
+			if Attacker:GetAttribute("Clashed") then
+				Cancel()
+				return
+			end
+
 			ExecutionService:ExecuteInRange(Attacker)
 			local HandHitbox = AnimationInstance:GetAttribute("HandHitbox")
 
@@ -198,9 +201,7 @@ Undead.StrongAttack = function(Attacker: Model, Data: { any })
 				function(Character, Hit, Result)
 					local RayCFrame = CFrame.new(Hit.Position, Result.Position + -Result.Normal)
 
-					task.delay(LagCompensationService:GetCompensation(Character), function()
-						HitService:NormalHit(Character, Attacker, Damage, { RayCFrame = RayCFrame, By = "Weapon" })
-					end)
+					HitService:MeleeHit(Character, Attacker, Damage, { RayCFrame = RayCFrame, By = "Weapon" })
 				end,
 				Cancel,
 				{

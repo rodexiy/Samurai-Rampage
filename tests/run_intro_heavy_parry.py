@@ -1,4 +1,4 @@
-"""Run the real intro, hit and damage services against transition regressions."""
+"""Run the real services against intro and melee Heavy Parry regressions."""
 from pathlib import Path
 import argparse
 import shutil
@@ -11,6 +11,7 @@ FILES = {
     "Intro": "src/ServerStorage/Services/IntroCutsceneService.luau",
     "Hit": "src/ServerStorage/Services/HitService.luau",
     "Damage": "src/ServerStorage/Services/DamageService.luau",
+    "Posture": "src/ServerStorage/Services/PostureService.luau",
     "Client": "src/StarterPlayer/StarterPlayerScripts/Controllers/TsunamiCutsceneController.luau",
 }
 

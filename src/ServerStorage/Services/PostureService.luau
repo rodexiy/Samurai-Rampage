@@ -30,6 +30,37 @@ local QuestService
 local TalentService
 
 local GetModelMass = require(ReplicatedStorage.Shared.Utils.GetModelMass)
+local HEAVY_DEFLECT_DURATION = 0.85
+
+local function ApplyHeavyDeflect(
+	Character: Model,
+	Attacker: Model,
+	Direction: Vector3,
+	ShowEffect: boolean,
+	PlaySound: boolean?
+)
+	DebounceService:AddDebounce(Character, "HeavyDeflect", HEAVY_DEFLECT_DURATION)
+	AnimationService:PlayAnimation(Character, ReplicatedStorage.Assets.Animations.Combat.HeavyDeflect)
+	if ShowEffect then
+		RenderService:RenderForAllPlayers("Combat", "HeavyDeflect", {
+			Character = Character,
+			Attacker = Attacker,
+			PlaySound = PlaySound,
+		})
+	end
+
+	local RootPart = Character.PrimaryPart
+	if not RootPart then
+		return
+	end
+
+	local BodyVelocity = Instance.new("BodyVelocity")
+	BodyVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)
+	BodyVelocity.Velocity = Direction * 25 * (if TalentService:Has(Character, "Firm Footing") then Effects.GuardPushMultiplier else 1)
+	BodyVelocity.P = 850
+	BodyVelocity.Parent = RootPart
+	Debris:AddItem(BodyVelocity, 0.5)
+end
 
 function PostureService:CanAutoParryShot(Character: Model): boolean
 	local Player = Players:GetPlayerFromCharacter(Character)
@@ -42,6 +73,23 @@ function PostureService:LastHitReset(Attacker: Model, Data: { any })
 		Attacker:SetAttribute("ComboCounter", 0)
 		DebounceService:RemoveDebounce(Attacker, "ComboDebounce")
 	end
+end
+
+function PostureService:Clash(First: Model, Second: Model)
+	for _, Character in { First, Second } do
+		DebounceService:AddDebounce(Character, "Clashed", HEAVY_DEFLECT_DURATION)
+		Character:SetAttribute("Running", false)
+		Character:SetAttribute("Blocking", false)
+		AnimationService:StopAttackAnimations(Character)
+		AnimationService:StopAnimationFind(Character, "Block")
+		AnimationService:StopAnimationFind(Character, "Deflected")
+	end
+
+	local Offset = (First:GetPivot().Position - Second:GetPivot().Position) * Vector3.new(1, 0, 1)
+	local _, Yaw = First:GetPivot():ToOrientation()
+	local Direction = if Offset.Magnitude > 0.001 then Offset.Unit else -CFrame.Angles(0, Yaw, 0).LookVector
+	ApplyHeavyDeflect(First, Second, Direction, true, true)
+	ApplyHeavyDeflect(Second, First, -Direction, true)
 end
 
 function PostureService:Deflected(Character: Model, Attacker: Model, Damage: number, Data: { any })
@@ -75,21 +123,7 @@ function PostureService:Deflected(Character: Model, Attacker: Model, Damage: num
 	local _, ry = Character:GetPivot():ToOrientation()
 	local CharacterLookVector = (CFrame.new(Character:GetPivot().Position) * CFrame.Angles(0, ry, 0)).LookVector
 	if Data.HeavyDeflect then
-		DebounceService:AddDebounce(Character, "HeavyDeflect", 0.85)
-		local Player = Players:GetPlayerFromCharacter(Character)
-		if Player then
-			RenderService:RenderForAllPlayers("Combat", "HeavyDeflect", { Character = Character, Attacker = Attacker })
-		end
-
-		AnimationService:PlayAnimation(Character, game.ReplicatedStorage.Assets.Animations.Combat.HeavyDeflect)
-		local RootPart = Character.PrimaryPart
-		local BodyVelocity = Instance.new("BodyVelocity")
-		BodyVelocity.MaxForce = Vector3.new(1, 0, 1) * 5000 * GetModelMass(Attacker)
-		BodyVelocity.Velocity = CharacterLookVector * -25 * (if TalentService:Has(Character, "Firm Footing") then Effects.GuardPushMultiplier else 1)
-		BodyVelocity.P = 850
-		BodyVelocity.Parent = RootPart
-
-		Debris:AddItem(BodyVelocity, 0.5)
+		ApplyHeavyDeflect(Character, Attacker, -CharacterLookVector, Players:GetPlayerFromCharacter(Character) ~= nil)
 	elseif not Data.DontApplyForce then
 		local RootPart = Character.PrimaryPart
 		local BodyVelocity = Instance.new("BodyVelocity")

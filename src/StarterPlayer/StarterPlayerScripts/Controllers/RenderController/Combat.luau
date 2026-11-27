@@ -1,7 +1,6 @@
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local Combat = {}
 
@@ -174,8 +173,8 @@ function Combat.Deflect(Data)
 	Debris:AddItem(VFX.PointLight, 0.15)
 
 	local function ScreenEffects(Char)
-		local Player = Players:GetPlayerFromCharacter(Char)
-		if not Player:GetAttribute("ScreenParticles") or Data.Ranged then
+		local Viewer = Players:GetPlayerFromCharacter(Char)
+		if not Viewer:GetAttribute("ScreenParticles") or Data.Ranged then
 			return
 		end
 
@@ -197,15 +196,15 @@ function Combat.Deflect(Data)
 			{ Contrast = 0, Saturation = 0, TintColor = Color3.fromRGB(255, 255, 255) }
 		):Play()
 
-		local Vignette = Vignette:Clone()
-		Vignette.Effect.ImageTransparency = 0.65
-		Vignette.Enabled = true
-		Vignette.Parent = PlayerGui
+		local VignetteGui = Vignette:Clone()
+		VignetteGui.Effect.ImageTransparency = 0.65
+		VignetteGui.Enabled = true
+		VignetteGui.Parent = PlayerGui
 
-		TweenService:Create(Vignette.Effect, TweenInfo.new(0.25, Enum.EasingStyle.Linear), { ImageTransparency = 1 })
+		TweenService:Create(VignetteGui.Effect, TweenInfo.new(0.25, Enum.EasingStyle.Linear), { ImageTransparency = 1 })
 			:Play()
 
-		Debris:AddItem(Vignette, 0.3)
+		Debris:AddItem(VignetteGui, 0.3)
 
 		Debris:AddItem(CC, 0.5)
 	end
@@ -232,6 +231,10 @@ function Combat.HeavyDeflect(Data)
 	VFX.Anchored = true
 	RenderController:EmitParticles(VFX)
 	Debris:AddItem(VFX, 1.5)
+
+	if Data.PlaySound then
+		SoundEffectController:PlayRandomFromFolder("Deflect", true, CharacterToRender.PrimaryPart)
+	end
 
 	RenderController:ExecuteForCharacter(CharacterToRender, function()
 		CameraController:ShakeOnce(2.5, 12, 0.02, 0.3)
@@ -412,11 +415,11 @@ function Combat.UnequipBlood(Data)
 		Position = Weapon.PrimaryPart
 	end
 
-	local Player = Players:GetPlayerFromCharacter(CharacterToRender)
-	if not Player then
+	local CharacterPlayer = Players:GetPlayerFromCharacter(CharacterToRender)
+	if not CharacterPlayer then
 		return
 	end
-	if Player:GetAttribute("BloodFX") then
+	if CharacterPlayer:GetAttribute("BloodFX") then
 		UnequipEngine:EmitAmount(Position, Root.CFrame.RightVector, math.random(4, 6))
 	end
 end

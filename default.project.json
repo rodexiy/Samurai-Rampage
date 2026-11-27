@@ -2,30 +2,10 @@
   "name": "SHURA",
   "tree": {
     "$className": "DataModel",
-
     "ReplicatedStorage": {
       "Assets": {
         "$className": "Folder",
         "$ignoreUnknownInstances": true,
-        "Libraries": {
-          "$className": "Folder",
-          "$ignoreUnknownInstances": true,
-          "SmartBone": {
-            "$path": "assets/libraries/SmartBone.luau",
-            "$ignoreUnknownInstances": true,
-            "Dependencies": {
-              "$className": "Folder",
-              "$ignoreUnknownInstances": true,
-              "Iris": {
-                "$path": "assets/libraries/SmartBoneIris",
-                "$ignoreUnknownInstances": true
-              },
-              "Runtime": {
-                "$path": "assets/libraries/SmartBoneRuntime.client.luau"
-              }
-            }
-          }
-        },
         "UIS": {
           "$className": "Folder",
           "$ignoreUnknownInstances": true
@@ -35,20 +15,16 @@
         "$path": "src/ReplicatedStorage"
       }
     },
-
     "ReplicatedFirst": {
       "First": {
         "$path": "src/ReplicatedFirst"
       }
     },
-
-
     "ServerScriptService": {
       "Initializer": {
         "$path": "src/ServerScriptService"
       }
     },
-
     "ServerStorage": {
       "ServerAssets": {
         "$className": "Folder",
@@ -65,7 +41,6 @@
         "$path": "src/ServerStorage"
       }
     },
-
     "StarterGui": {
       "$ignoreUnknownInstances": true,
       "$properties": {
@@ -73,7 +48,6 @@
         "VirtualCursorMode": "Enabled"
       }
     },
-
     "StarterPlayer": {
       "StarterPlayerScripts": {
         "Client": {
@@ -86,20 +60,17 @@
         }
       }
     },
-
     "Workspace": {
       "$properties": {
         "FilteringEnabled": true,
         "StreamingEnabled": true
       }
     },
-
     "Players": {
       "$properties": {
         "CharacterAutoLoads": false
       }
     },
-
     "SoundService": {
       "$properties": {
         "RespectFilteringEnabled": true

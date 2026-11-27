@@ -17,6 +17,8 @@ FILES = {
     "Hit": "src/ServerStorage/Services/HitService.luau",
     "Kick": "src/ServerStorage/Services/KickService.luau",
     "Reaction": "src/ServerStorage/Services/EnemyReactionService.luau",
+    "MovementService": "src/ServerStorage/Services/MovementService.luau",
+    "Bandit": "src/ServerStorage/Services/AIService/Runners/Bandit.luau",
     "Input": "src/StarterPlayer/StarterCharacterScripts/InputController.luau",
 }
 
